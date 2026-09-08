@@ -4,5 +4,10 @@ export type NailService = {
   description: string;
   duration: number;
   price: number;
-  image: number;
+  image?: number;
+  imageUrl?: string | null;
+  categoryId?: string;
+  categoryName?: string;
+  rating?: number;
+  reviewCount?: number;
 };

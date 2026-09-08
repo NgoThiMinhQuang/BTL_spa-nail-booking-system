@@ -1,0 +1,5 @@
+
+> nailhouse-api@1.0.0 start
+> node src/server.js
+
+NailHouse API: http://0.0.0.0:3000
