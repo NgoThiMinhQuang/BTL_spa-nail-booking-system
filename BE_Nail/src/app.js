@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import homeRoutes from './routes/home.routes.js';
 import serviceRoutes from './routes/service.routes.js';
+import staffRoutes from './routes/staff.routes.js';
 
 export const app = express();
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,7 @@ app.use('/uploads', express.static(path.resolve(currentDirectory, '../public/upl
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhouse-api' }));
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
+app.use('/api/staff', staffRoutes);
 
 app.use((_req, res) => res.status(404).json({ message: 'API endpoint không tồn tại' }));
 app.use((error, _req, res, _next) => {
