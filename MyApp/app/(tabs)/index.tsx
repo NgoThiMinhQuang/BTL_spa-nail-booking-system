@@ -1,98 +1,55 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { AppointmentCard } from '@/components/home/AppointmentCard';
+import { Banner } from '@/components/home/Banner';
+import { CategoryMenu } from '@/components/home/CategoryMenu';
+import { Header } from '@/components/home/Header';
+import { NailCard } from '@/components/home/NailCard';
+import { ServiceCard } from '@/components/home/ServiceCard';
+import { services } from '@/features/service/service.data';
+import { router } from 'expo-router';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const nailLooks = [
+  { id: '1', title: 'Blush French', position: '20%' },
+  { id: '2', title: 'Pink Blossom', position: '45%' },
+  { id: '3', title: 'Nude Garden', position: '65%' },
+  { id: '4', title: 'Rose Glow', position: '85%' },
+];
+
+function SectionHeader({ title, onPress }: { title: string; onPress?: () => void }) {
+  return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text><Text onPress={onPress} style={styles.seeAll}>Xem tất cả  ›</Text></View>;
+}
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+        <Header />
+        <Banner />
+        <CategoryMenu />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <SectionHeader title="Dịch vụ nổi bật" onPress={() => router.push('/services')} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {services.map((item) => <ServiceCard key={item.id} service={item} compact />)}
+        </ScrollView>
+
+        <SectionHeader title="Mẫu nail thịnh hành" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {nailLooks.map((item) => <NailCard key={item.id} title={item.title} position={item.position} />)}
+        </ScrollView>
+
+        <SectionHeader title="Lịch hẹn sắp tới của bạn" onPress={() => router.push('/bookings')} />
+        <AppointmentCard service="Sơn gel & Nail Art" time="09:00 · Thứ Bảy, 12/09/2026" />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  safeArea: { flex: 1, backgroundColor: '#FFFCF9' },
+  container: { paddingBottom: 28 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 20, marginBottom: 10 },
+  sectionTitle: { color: '#2F2529', fontSize: 19, fontWeight: '800' },
+  seeAll: { color: '#C75B7A', fontSize: 13, fontWeight: '600' },
+  horizontalList: { paddingHorizontal: 16, gap: 10 },
 });

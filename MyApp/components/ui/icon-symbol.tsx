@@ -16,6 +16,10 @@ type MaterialIconName = ComponentProps<typeof MaterialIcons>['name'];
 const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
+  scissors: 'content-cut',
+  calendar: 'calendar-today',
+  'heart.fill': 'favorite',
+  'person.fill': 'person',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
 } as const satisfies Partial<Record<SymbolName, MaterialIconName>>;

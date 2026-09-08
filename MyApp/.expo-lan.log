@@ -1,0 +1,19 @@
+Starting project at D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp
+React Compiler enabled
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+
+Logs for your project will appear below.
+λ Bundled 11548ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (1019 modules)
+"textShadow*" style props are deprecated. Use "textShadow".
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 12185ms node_modules\expo-router\entry.js (966 modules)
+λ Bundled 33ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (1 module)
+"textShadow*" style props are deprecated. Use "textShadow".
+"shadow*" style props are deprecated. Use "boxShadow".
+Web Bundled 387ms node_modules\expo-router\entry.js (1 module)
+UnexpectedServerError
+UnexpectedServerError
+UnexpectedServerError

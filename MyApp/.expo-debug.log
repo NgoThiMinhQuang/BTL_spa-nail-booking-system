@@ -1,0 +1,61 @@
+2026-09-08T02:50:25.830Z expo:telemetry Switching strategy from detached to instant
+2026-09-08T02:50:25.831Z expo:telemetry Recording 1 event(s)
+2026-09-08T02:50:25.834Z expo:env D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\.env does not exist, skipping this env file
+2026-09-08T02:50:25.834Z expo:env D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\.env.development does not exist, skipping this env file
+2026-09-08T02:50:25.834Z expo:env D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\.env.local does not exist, skipping this env file
+2026-09-08T02:50:25.834Z expo:env D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\.env.development.local does not exist, skipping this env file
+Starting project at D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp
+2026-09-08T02:50:26.185Z expo:start:server:devServer Stopping dev server (bundler: metro)
+2026-09-08T02:50:26.186Z expo:start:server:devServer Stopped dev server (bundler: metro)
+2026-09-08T02:50:26.200Z expo:start:server:metro:router Using app as the root directory for Expo Router.
+
+Expo Metro config:
+- Version: 57.0.12
+- Extensions: ts, tsx, mjs, js, jsx, json, cjs, scss, sass, css
+- React Native: D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\react-native
+- Watch Folders: 
+- Node Module Paths: 
+- Sass: null
+- Reanimated: null
+- Worklets: null
+- Babel Runtime: null
+
+React Compiler enabled
+2026-09-08T02:50:26.491Z expo:metro:withMetroResolvers Appending 8 custom resolvers to Metro config. (has custom resolver: false)
+2026-09-08T02:50:26.492Z expo:start:server:urlCreator URL: http://127.0.0.1:8083
+2026-09-08T02:50:26.579Z expo:doctor:dependencies:bundledNativeModules Fetching bundled native modules from the server...
+2026-09-08T02:50:26.749Z expo:start:server:devtools Found autolinked plugins []
+Starting Metro Bundler
+
+2026-09-08T02:50:34.262Z expo:start:server:middleware:serveStatic Serving static files from: D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\public
+2026-09-08T02:50:34.269Z expo:start:server:urlCreator URL: exp://10.109.101.182:8083
+2026-09-08T02:50:34.281Z expo:start:server:bonjour Started Bonjour service
+2026-09-08T02:50:34.288Z expo:start:server:metro:waitForTypescript Watching file changes: [
+  'D:\\BTL_MOBILE\\BTL_spa-nail-booking-system\\MyApp\\.env.development.local',
+  'D:\\BTL_MOBILE\\BTL_spa-nail-booking-system\\MyApp\\.env.local',
+  'D:\\BTL_MOBILE\\BTL_spa-nail-booking-system\\MyApp\\.env.development',
+  'D:\\BTL_MOBILE\\BTL_spa-nail-booking-system\\MyApp\\.env'
+]
+2026-09-08T02:50:34.289Z expo:doctor:typescriptSupport Ensuring TypeScript support is setup
+2026-09-08T02:50:34.291Z expo:start:server:developmentSession Development session ping (runtime: native, url: exp://10.109.101.182:8083)
+2026-09-08T02:50:34.297Z expo:doctor:dependencies:getMissingPackages Required package "typescript" found (no version constraint specified).
+2026-09-08T02:50:34.297Z expo:doctor:dependencies:getMissingPackages Required package "@types/react" found (no version constraint specified).
+2026-09-08T02:50:34.302Z expo:typed-routes Ensuring typed routes side-effects are setup (experiments.typedRoutes: true, typesDirectory: D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\.expo\types)
+Waiting on http://localhost:8083
+
+2026-09-08T02:50:34.302Z expo:start:server:urlCreator URL: http://10.109.101.182:8083
+Logs for your project will appear below.
+2026-09-08T02:50:34.305Z expo:start:server:metro:router Using app as the root directory for Expo Router.
+2026-09-08T02:50:34.312Z expo:start:server:metro:metroWatchTypeScriptFiles Waiting for TypeScript files to be added to the project...
+2026-09-08T02:50:34.313Z expo:start:server:developmentSession Error updating development session API: AggregateError
+2026-09-08T02:50:38.182Z expo:start:server:middleware:manifest Resolved entry point: node_modules/expo-router/entry (project root: D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp)
+UnexpectedServerError
+UnexpectedServerError
+    at request (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\api\graphql\client.js:197:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.currentUserAsync (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\api\graphql\queries\UserQuery.js:52:22)
+    at async getUserAsync (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\api\user\user.js:108:22)
+    at async ExpoGoManifestHandlerMiddleware._resolveProjectSettingsAsync (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ManifestMiddleware.js:125:22)
+    at async ExpoGoManifestHandlerMiddleware._getManifestResponseAsync (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ExpoGoManifestHandlerMiddleware.js:134:59)
+    at async ExpoGoManifestHandlerMiddleware.handleRequestAsync (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ManifestMiddleware.js:310:26)
+    at async internalMiddleware (D:\BTL_MOBILE\BTL_spa-nail-booking-system\MyApp\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ExpoMiddleware.js:90:24)
