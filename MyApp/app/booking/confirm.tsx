@@ -1,16 +1,19 @@
-import { createBooking, fetchAvailability } from '@/features/booking/booking.service';
+import { fetchAvailability } from '@/features/booking/booking.service';
 import { fetchServiceById } from '@/features/service/service.service';
 import type { NailService } from '@/features/service/service.types';
 import { fetchStaffById } from '@/features/staff/staff.service';
 import type { StaffDetail } from '@/features/staff/staff.types';
-import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const COLORS = { background: '#FFF9F7', surface: '#FFFFFF', primary: '#A96370', primarySoft: '#F4E4E4', sage: '#738A7C', sageSoft: '#E8F0EC', gold: '#D69A42', text: '#30282A', muted: '#8A7D80', line: '#EFE3E0' };
+const COLORS = { background: '#FFF8F8', surface: '#FFFFFF', primary: '#D54C72', primaryDark: '#B92F5B', primarySoft: '#FCE8ED', sage: '#557C72', gold: '#E8A521', text: '#28242E', muted: '#6D6874', line: '#EEE4E6' };
+const DISPLAY_SLOTS = Array.from({ length: 19 }, (_, index) => {
+  const minutes = 9 * 60 + index * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+});
 
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -21,7 +24,7 @@ function buildDays() {
     const value = new Date();
     value.setHours(0, 0, 0, 0);
     value.setDate(value.getDate() + index);
-    return { key: dateKey(value), day: value.toLocaleDateString('vi-VN', { weekday: 'short' }).replace('Th ', 'T'), number: value.getDate(), month: value.getMonth() + 1 };
+    return { key: dateKey(value), label: value.toLocaleDateString('vi-VN', { weekday: 'short' }).replace('Th ', 'T'), number: value.getDate(), month: value.getMonth() + 1, year: value.getFullYear() };
   });
 }
 
@@ -33,10 +36,9 @@ export default function ConfirmBookingScreen() {
   const [slots, setSlots] = useState<string[]>([]);
   const [service, setService] = useState<NailService | null>(null);
   const [staff, setStaff] = useState<StaffDetail | null>(null);
-  const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(days[0].key + 'T00:00:00'));
 
   useEffect(() => {
     Promise.all([fetchServiceById(serviceId), fetchStaffById(staffId), fetchAvailability(serviceId, staffId, days[0].key)])
@@ -46,62 +48,82 @@ export default function ConfirmBookingScreen() {
   }, [days, serviceId, staffId]);
 
   const chooseDate = (date: string) => {
-    setSelectedDate(date);
-    setSelectedTime('');
-    setLoading(true);
-    setError('');
+    setSelectedDate(date); setSelectedTime(''); setLoading(true); setError('');
     fetchAvailability(serviceId, staffId, date)
       .then((availability) => setSlots(availability.slots))
       .catch((reason: unknown) => { setSlots([]); setError(reason instanceof Error ? reason.message : 'Không tải được giờ trống.'); })
       .finally(() => setLoading(false));
   };
 
-  const submit = async () => {
+  const slotGroups = useMemo(() => [
+    { title: 'Buổi sáng', slots: DISPLAY_SLOTS.filter((time) => Number(time.slice(0, 2)) < 12) },
+    { title: 'Buổi chiều', slots: DISPLAY_SLOTS.filter((time) => { const hour = Number(time.slice(0, 2)); return hour >= 12 && hour < 17; }) },
+    { title: 'Buổi tối', slots: DISPLAY_SLOTS.filter((time) => Number(time.slice(0, 2)) >= 17) },
+  ], []);
+
+  const calendarCells = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
+    const count = new Date(year, month + 1, 0).getDate();
+    return [...Array.from({ length: firstWeekday }, () => null), ...Array.from({ length: count }, (_, index) => {
+      const value = new Date(year, month, index + 1);
+      return { number: index + 1, key: dateKey(value), enabled: days.some((day) => day.key === dateKey(value)) };
+    })];
+  }, [calendarMonth, days]);
+
+  const continueToReview = () => {
     if (!selectedTime) return;
-    setSubmitting(true);
-    try {
-      await createBooking({ serviceId, staffId, date: selectedDate, time: selectedTime, note });
-      Alert.alert('Đặt lịch thành công', 'Lịch hẹn đang chờ cửa hàng xác nhận.', [{ text: 'Xem lịch hẹn', onPress: () => router.replace('/bookings') }]);
-    } catch (reason) {
-      const message = reason instanceof ApiError ? reason.message : 'Không thể tạo lịch hẹn. Vui lòng thử lại.';
-      Alert.alert('Chưa thể đặt lịch', message);
-      if (reason instanceof ApiError && reason.status === 409) chooseDate(selectedDate);
-    } finally { setSubmitting(false); }
+    router.push({ pathname: '/booking/review', params: { serviceId, staffId, date: selectedDate, time: selectedTime, demo: slots.length ? '0' : '1' } });
   };
 
-  if (loading && !service) return <SafeAreaView style={styles.safeArea}><View style={styles.center}><ActivityIndicator color={COLORS.primary} /><Text style={styles.muted}>Đang chuẩn bị lịch trống...</Text></View></SafeAreaView>;
+  if (loading && !service) return <SafeAreaView style={styles.center}><ActivityIndicator color={COLORS.primary} /><Text style={styles.stateText}>Đang chuẩn bị lịch trống...</Text></SafeAreaView>;
 
-  return <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
-    <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.iconButton}><Ionicons name="chevron-back" size={23} color={COLORS.text} /></Pressable><View style={styles.heading}><Text style={styles.title}>Đặt lịch hẹn</Text><Text style={styles.subtitle}>Chọn thời gian thuận tiện cho bạn</Text></View><View style={styles.iconButton} /></View>
-    <View style={styles.steps}><View style={styles.stepDone}><Ionicons name="checkmark" size={13} color="#FFF" /></View><View style={styles.stepLineDone} /><View style={styles.stepDone}><Ionicons name="checkmark" size={13} color="#FFF" /></View><View style={styles.stepLine} /><View style={styles.stepActive}><Text style={styles.stepNumber}>3</Text></View></View>
-    <View style={styles.stepLabels}><Text style={styles.stepLabel}>Dịch vụ</Text><Text style={styles.stepLabel}>Chuyên viên</Text><Text style={[styles.stepLabel, styles.stepLabelActive]}>Thời gian</Text></View>
+  return <SafeAreaView edges={['top']} style={styles.safeArea}>
+    <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.iconButton}><Ionicons name="arrow-back" size={24} color={COLORS.primary} /></Pressable><Text style={styles.title}>Đặt lịch làm đẹp</Text><View style={styles.iconButton} /></View>
+
+    <View style={styles.progress}><View style={styles.progressTrack} /><View style={styles.progressTrackDone} />{[1, 2, 3, 4].map((step) => step === 1 ? <View key={step} style={[styles.step, styles.stepDone]}><Ionicons name="checkmark" size={17} color="#FFF" /></View> : <View key={step} style={[styles.step, step === 2 && styles.stepActive]}><Text style={[styles.stepNumber, step === 2 && styles.stepNumberActive]}>{step}</Text></View>)}</View>
+    <View style={styles.stepLabels}><Text style={styles.stepLabel}>Chọn dịch vụ{`\n`}Nhân viên</Text><Text style={[styles.stepLabel, styles.stepLabelActive]}>Chọn ngày{`\n`}giờ</Text><Text style={styles.stepLabel}>Xác nhận{`\n`}thông tin</Text><Text style={styles.stepLabel}>Hoàn tất</Text></View>
 
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-      {!!error && <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={19} color={COLORS.primary} /><Text style={styles.errorText}>{error}</Text></View>}
-      <View style={styles.summaryCard}>
-        {service?.imageUrl ? <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} /> : <View style={[styles.serviceImage, styles.imageFallback]}><Ionicons name="sparkles" size={25} color={COLORS.primary} /></View>}
-        <View style={styles.summaryInfo}><Text style={styles.summaryEyebrow}>DỊCH VỤ ĐÃ CHỌN</Text><Text numberOfLines={1} style={styles.summaryName}>{service?.name}</Text><View style={styles.metaRow}><Ionicons name="time-outline" size={14} color={COLORS.sage} /><Text style={styles.meta}>{service?.duration} phút</Text><Text style={styles.dot}>•</Text><Text style={styles.price}>{service?.price.toLocaleString('vi-VN')}đ</Text></View></View>
-        <Pressable onPress={() => router.replace('/booking/select-service')}><Text style={styles.change}>Đổi</Text></Pressable>
+      {!!error && <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={20} color={COLORS.primary} /><Text style={styles.errorText}>{error}</Text></View>}
+
+      <View style={styles.staffCard}>
+        {staff?.avatarUrl ? <Image source={{ uri: staff.avatarUrl }} style={styles.staffImage} /> : <View style={[styles.staffImage, styles.fallback]}><Text style={styles.initial}>{staff?.name.charAt(0)}</Text></View>}
+        <View style={styles.staffInfo}><View style={styles.rowBetween}><Text numberOfLines={1} style={styles.staffName}>{staff?.name}</Text><Pressable onPress={() => router.replace({ pathname: '/booking/select-service', params: { staffId } })} style={styles.changeButton}><Text style={styles.changeText}>Thay đổi</Text></Pressable></View><View style={styles.ratingRow}><Ionicons name="star" size={17} color={COLORS.gold} /><Text style={styles.rating}>{staff?.rating.toFixed(1)}</Text><Text style={styles.reviews}>({staff?.reviewCount} đánh giá)</Text></View><View style={styles.metaRow}><Ionicons name="briefcase" size={17} color={COLORS.muted} /><Text style={styles.metaText}>{staff?.experienceYears} năm kinh nghiệm</Text></View><View style={styles.metaRow}><Ionicons name="ribbon-outline" size={18} color={COLORS.sage} /><Text numberOfLines={1} style={styles.metaText}>Chuyên: {staff?.services.slice(0, 2).map((item) => item.name).join(', ')}</Text></View></View>
       </View>
-      <View style={styles.staffRow}>{staff?.avatarUrl ? <Image source={{ uri: staff.avatarUrl }} style={styles.staffAvatar} /> : <View style={[styles.staffAvatar, styles.imageFallback]}><Text style={styles.initial}>{staff?.name.charAt(0)}</Text></View>}<View style={styles.staffInfo}><Text style={styles.summaryEyebrow}>CHUYÊN VIÊN</Text><Text style={styles.staffName}>{staff?.name}</Text><View style={styles.metaRow}><Ionicons name="star" size={12} color={COLORS.gold} /><Text style={styles.meta}>{staff?.rating.toFixed(1)} · {staff?.experienceYears} năm kinh nghiệm</Text></View></View><Pressable onPress={() => router.back()}><Text style={styles.change}>Đổi</Text></Pressable></View>
 
-      <Text style={styles.sectionTitle}>Chọn ngày</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
-        {days.map((item) => { const active = selectedDate === item.key; return <Pressable key={item.key} onPress={() => chooseDate(item.key)} style={[styles.dayCard, active && styles.dayCardActive]}><Text style={[styles.dayName, active && styles.dayTextActive]}>{item.key === days[0].key ? 'Hôm nay' : item.day}</Text><Text style={[styles.dayNumber, active && styles.dayTextActive]}>{item.number}</Text><Text style={[styles.dayMonth, active && styles.dayTextActive]}>Tháng {item.month}</Text></Pressable>; })}
-      </ScrollView>
+      <View style={styles.serviceCard}>
+        {service?.imageUrl ? <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} /> : <View style={[styles.serviceImage, styles.fallback]}><Ionicons name="sparkles" size={25} color={COLORS.primary} /></View>}
+        <View style={styles.serviceInfo}><Text style={styles.serviceName}>{service?.name}</Text><Text numberOfLines={1} style={styles.serviceDescription}>{service?.description}</Text><View style={styles.serviceMeta}><Text style={styles.price}>{service?.price.toLocaleString('vi-VN')} đ</Text><Text style={styles.separator}>|</Text><Ionicons name="time-outline" size={17} color={COLORS.muted} /><Text style={styles.duration}>{service?.duration} phút</Text></View></View>
+        <Pressable onPress={() => router.replace({ pathname: '/booking/select-service', params: { staffId } })} style={styles.changeButton}><Text style={styles.changeText}>Thay đổi</Text></Pressable>
+      </View>
 
-      <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Chọn giờ</Text><View style={styles.available}><View style={styles.availableDot} /><Text style={styles.availableText}>Giờ còn trống</Text></View></View>
-      {loading ? <ActivityIndicator style={styles.slotLoader} color={COLORS.primary} /> : slots.length ? <View style={styles.slots}>{slots.map((time) => { const active = time === selectedTime; return <Pressable key={time} onPress={() => setSelectedTime(time)} style={[styles.slot, active && styles.slotActive]}><Text style={[styles.slotText, active && styles.slotTextActive]}>{time}</Text></Pressable>; })}</View> : <View style={styles.noSlots}><Ionicons name="calendar-outline" size={23} color={COLORS.sage} /><Text style={styles.muted}>Ngày này chưa có giờ trống, bạn hãy chọn ngày khác.</Text></View>}
+      <View style={styles.panel}>
+        <View style={styles.panelHeader}><View style={styles.panelTitleRow}><Ionicons name="calendar" size={22} color={COLORS.primary} /><Text style={styles.panelTitle}>Chọn ngày</Text></View><View style={styles.monthNav}><Text style={styles.month}>Tháng {calendarMonth.getMonth() + 1}, {calendarMonth.getFullYear()}</Text><Pressable onPress={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} hitSlop={8}><Ionicons name="chevron-back" size={20} color={COLORS.text} /></Pressable><Pressable onPress={() => setCalendarMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} hitSlop={8}><Ionicons name="chevron-forward" size={20} color={COLORS.text} /></Pressable></View></View>
+        <View style={styles.weekdays}>{['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => <Text key={day} style={styles.weekday}>{day}</Text>)}</View>
+        <View style={styles.calendarGrid}>{calendarCells.map((item, index) => item ? <Pressable key={item.key} disabled={!item.enabled} onPress={() => chooseDate(item.key)} style={[styles.calendarDay, item.key === selectedDate && styles.calendarDayActive]}><Text style={[styles.calendarDayText, !item.enabled && styles.calendarDayDisabled, item.key === selectedDate && styles.calendarDayTextActive]}>{item.number}</Text>{item.enabled && <View style={[styles.calendarDot, item.key === selectedDate && styles.calendarDotActive]} />}</Pressable> : <View key={`blank-${index}`} style={styles.calendarDay} />)}</View>
+      </View>
 
-      <Text style={styles.sectionTitle}>Ghi chú cho cửa hàng</Text>
-      <View style={styles.noteBox}><TextInput value={note} onChangeText={setNote} maxLength={300} multiline placeholder="Ví dụ: móng yếu, cần tư vấn màu nhẹ nhàng..." placeholderTextColor="#B2A6A8" style={styles.noteInput} /><Text style={styles.counter}>{note.length}/300</Text></View>
-      <View style={styles.policy}><Ionicons name="information-circle-outline" size={18} color={COLORS.sage} /><Text style={styles.policyText}>Vui lòng đến trước 10 phút. Lịch hẹn sẽ ở trạng thái chờ xác nhận sau khi đặt.</Text></View>
+      <View style={styles.panel}>
+        <View style={styles.panelTitleRow}><Ionicons name="time-outline" size={24} color={COLORS.primary} /><Text style={styles.panelTitle}>Chọn giờ</Text></View>
+        {loading ? <ActivityIndicator style={styles.slotLoader} color={COLORS.primary} /> : <>{!slots.length && <View style={styles.demoNotice}><Ionicons name="flask-outline" size={18} color={COLORS.primary} /><Text style={styles.demoNoticeText}>Đang dùng khung giờ mẫu để xem trước giao diện.</Text></View>}{slotGroups.map((group) => <View key={group.title} style={styles.timeGroup}><Text style={styles.timeGroupTitle}>{group.title}</Text><View style={styles.slots}>{group.slots.map((time) => { const active = selectedTime === time; const available = !slots.length || slots.includes(time); return <Pressable key={time} disabled={!available} onPress={() => setSelectedTime(time)} style={[styles.slot, !available && styles.slotDisabled, active && styles.slotActive]}><Text style={[styles.slotText, !available && styles.slotTextDisabled, active && styles.slotTextActive]}>{time}</Text></Pressable>; })}</View></View>)}</>}
+        <View style={styles.notice}><View style={styles.noticeIcon}><Text style={styles.noticeMark}>!</Text></View><Text style={styles.noticeText}>Thời gian làm dịch vụ: <Text style={styles.noticeStrong}>{service?.duration} phút</Text>{`\n`}Vui lòng đến sớm 10 phút để được phục vụ tốt nhất.</Text><Ionicons name="flower-outline" size={23} color="#F4BBC9" /></View>
+      </View>
     </ScrollView>
 
-    <View style={styles.footer}><View><Text style={styles.totalLabel}>Tạm tính</Text><Text style={styles.total}>{service?.price.toLocaleString('vi-VN')}đ</Text></View><Pressable disabled={!selectedTime || submitting} onPress={submit} style={[styles.submit, (!selectedTime || submitting) && styles.submitDisabled]}>{submitting ? <ActivityIndicator color="#FFF" /> : <><Text style={styles.submitText}>Xác nhận đặt lịch</Text><Ionicons name="arrow-forward" size={18} color="#FFF" /></>}</Pressable></View>
+    <View style={styles.footer}><Pressable disabled={!selectedTime} onPress={continueToReview} style={[styles.continueButton, !selectedTime && styles.disabled]}><Text style={styles.continueText}>Tiếp tục</Text><Ionicons name="arrow-forward" size={22} color="#FFF" /></Pressable></View>
   </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  safeArea:{flex:1,backgroundColor:COLORS.background},center:{flex:1,alignItems:'center',justifyContent:'center',gap:10},muted:{color:COLORS.muted,fontSize:11,textAlign:'center'},header:{paddingHorizontal:14,paddingTop:7,flexDirection:'row',alignItems:'center'},iconButton:{width:40,height:40,alignItems:'center',justifyContent:'center'},heading:{flex:1,alignItems:'center'},title:{fontSize:21,fontWeight:'800',color:COLORS.text},subtitle:{fontSize:10,color:COLORS.muted,marginTop:3},steps:{paddingTop:14,paddingHorizontal:48,flexDirection:'row',alignItems:'center'},stepDone:{width:23,height:23,borderRadius:12,backgroundColor:COLORS.primary,alignItems:'center',justifyContent:'center'},stepActive:{width:25,height:25,borderRadius:13,backgroundColor:COLORS.primarySoft,borderWidth:2,borderColor:COLORS.primary,alignItems:'center',justifyContent:'center'},stepNumber:{fontSize:10,fontWeight:'800',color:COLORS.primary},stepLineDone:{flex:1,height:2,backgroundColor:COLORS.primary},stepLine:{flex:1,height:2,backgroundColor:'#E9DCDC'},stepLabels:{paddingHorizontal:31,marginTop:5,flexDirection:'row',justifyContent:'space-between'},stepLabel:{width:70,textAlign:'center',fontSize:8,color:COLORS.muted},stepLabelActive:{color:COLORS.primary,fontWeight:'700'},content:{padding:14,paddingBottom:24,gap:14},errorBox:{padding:11,borderRadius:12,backgroundColor:COLORS.primarySoft,flexDirection:'row',alignItems:'center',gap:7},errorText:{flex:1,fontSize:10,color:'#7D5159'},summaryCard:{padding:10,borderRadius:16,backgroundColor:COLORS.surface,borderWidth:1,borderColor:COLORS.line,flexDirection:'row',alignItems:'center'},serviceImage:{width:64,height:64,borderRadius:12},imageFallback:{backgroundColor:COLORS.primarySoft,alignItems:'center',justifyContent:'center'},summaryInfo:{flex:1,paddingHorizontal:10},summaryEyebrow:{fontSize:8,fontWeight:'800',color:COLORS.sage,letterSpacing:.5},summaryName:{fontSize:13,fontWeight:'800',color:COLORS.text,marginTop:3},metaRow:{flexDirection:'row',alignItems:'center',gap:4,marginTop:5},meta:{fontSize:9,color:COLORS.muted},dot:{fontSize:9,color:'#C9BDBF'},price:{fontSize:10,color:COLORS.primary,fontWeight:'800'},change:{fontSize:10,color:COLORS.primary,fontWeight:'800'},staffRow:{padding:11,borderRadius:16,backgroundColor:COLORS.sageSoft,flexDirection:'row',alignItems:'center'},staffAvatar:{width:48,height:48,borderRadius:24},initial:{fontSize:18,fontWeight:'800',color:COLORS.sage},staffInfo:{flex:1,paddingHorizontal:10},staffName:{fontSize:12,fontWeight:'800',color:COLORS.text,marginTop:2},sectionTitle:{fontSize:14,fontWeight:'800',color:COLORS.text},days:{gap:8},dayCard:{width:68,height:82,borderRadius:15,backgroundColor:COLORS.surface,borderWidth:1,borderColor:COLORS.line,alignItems:'center',justifyContent:'center'},dayCardActive:{backgroundColor:COLORS.primary,borderColor:COLORS.primary},dayName:{fontSize:8,color:COLORS.muted},dayNumber:{fontSize:20,fontWeight:'800',color:COLORS.text,marginVertical:2},dayMonth:{fontSize:8,color:COLORS.muted},dayTextActive:{color:'#FFF'},sectionHeading:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},available:{flexDirection:'row',alignItems:'center',gap:4},availableDot:{width:6,height:6,borderRadius:3,backgroundColor:'#75A46E'},availableText:{fontSize:8,color:COLORS.sage},slots:{flexDirection:'row',flexWrap:'wrap',gap:8},slot:{width:'22.8%',height:38,borderRadius:11,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.surface,alignItems:'center',justifyContent:'center'},slotActive:{backgroundColor:COLORS.primary,borderColor:COLORS.primary},slotText:{fontSize:11,fontWeight:'700',color:COLORS.text},slotTextActive:{color:'#FFF'},slotLoader:{height:54},noSlots:{padding:18,borderRadius:13,backgroundColor:COLORS.sageSoft,alignItems:'center',gap:7},noteBox:{minHeight:88,borderRadius:14,borderWidth:1,borderColor:COLORS.line,backgroundColor:COLORS.surface,padding:11},noteInput:{minHeight:54,color:COLORS.text,fontSize:11,textAlignVertical:'top'},counter:{alignSelf:'flex-end',fontSize:8,color:COLORS.muted},policy:{padding:11,borderRadius:12,backgroundColor:'#FFF5E4',flexDirection:'row',alignItems:'center',gap:7},policyText:{flex:1,fontSize:9,lineHeight:14,color:'#76685D'},footer:{padding:12,borderTopWidth:1,borderTopColor:COLORS.line,backgroundColor:COLORS.surface,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},totalLabel:{fontSize:9,color:COLORS.muted},total:{fontSize:17,fontWeight:'800',color:COLORS.primary,marginTop:2},submit:{height:48,minWidth:190,borderRadius:15,backgroundColor:COLORS.primary,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},submitDisabled:{opacity:.45},submitText:{color:'#FFF',fontSize:12,fontWeight:'800'},
+  safeArea: { flex: 1, backgroundColor: COLORS.background }, center: { flex: 1, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center', gap: 10 }, stateText: { color: COLORS.muted, fontSize: 12, textAlign: 'center' },
+  header: { height: 58, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, title: { color: COLORS.text, fontSize: 22, fontWeight: '800' },
+  progress: { height: 43, marginTop: 5, marginHorizontal: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, progressTrack: { position: 'absolute', left: 14, right: 14, top: 21, height: 2, backgroundColor: '#DDDADD' }, progressTrackDone: { position: 'absolute', left: 14, top: 21, width: '33%', height: 2, backgroundColor: '#42A66C' }, step: { width: 31, height: 31, borderRadius: 16, backgroundColor: '#EDEBED', alignItems: 'center', justifyContent: 'center' }, stepDone: { backgroundColor: '#42A66C' }, stepActive: { backgroundColor: COLORS.primary }, stepNumber: { color: COLORS.text, fontSize: 13, fontWeight: '800' }, stepNumberActive: { color: '#FFF' }, stepLabels: { marginHorizontal: 18, flexDirection: 'row' }, stepLabel: { flex: 1, color: COLORS.muted, fontSize: 10, lineHeight: 14, textAlign: 'center' }, stepLabelActive: { color: COLORS.text, fontWeight: '800' },
+  content: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 105, gap: 11 }, errorBox: { padding: 12, backgroundColor: COLORS.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 8 }, errorText: { flex: 1, color: COLORS.primaryDark, fontSize: 12 },
+  staffCard: { minHeight: 132, padding: 9, backgroundColor: '#FFF', flexDirection: 'row' }, staffImage: { width: 108, minHeight: 114, resizeMode: 'cover' }, fallback: { backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' }, initial: { color: COLORS.primary, fontSize: 34, fontWeight: '800' }, staffInfo: { flex: 1, paddingLeft: 14, paddingVertical: 4 }, rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, staffName: { maxWidth: '60%', color: COLORS.text, fontSize: 19, fontWeight: '800' }, changeButton: { paddingHorizontal: 10, paddingVertical: 8, backgroundColor: COLORS.primarySoft }, changeText: { color: COLORS.primaryDark, fontSize: 11, fontWeight: '800' }, ratingRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }, rating: { color: COLORS.text, fontSize: 13, fontWeight: '800' }, reviews: { color: COLORS.muted, fontSize: 11 }, metaRow: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, metaText: { flex: 1, color: COLORS.muted, fontSize: 11 },
+  serviceCard: { minHeight: 94, padding: 9, backgroundColor: '#FFF', flexDirection: 'row', alignItems: 'center' }, serviceImage: { width: 78, height: 76, resizeMode: 'cover' }, serviceInfo: { flex: 1, alignSelf: 'stretch', paddingHorizontal: 12, paddingVertical: 3 }, serviceName: { color: COLORS.text, fontSize: 16, fontWeight: '800' }, serviceDescription: { color: COLORS.muted, fontSize: 11, marginTop: 5 }, serviceMeta: { marginTop: 'auto', flexDirection: 'row', alignItems: 'center', gap: 7 }, price: { color: COLORS.primaryDark, fontSize: 15, fontWeight: '800' }, separator: { color: '#AAA2A8', fontSize: 15 }, duration: { color: COLORS.muted, fontSize: 12 },
+  panel: { padding: 14, backgroundColor: '#FFF' }, panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, panelTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, panelTitle: { color: COLORS.text, fontSize: 18, fontWeight: '800' }, monthNav: { flexDirection: 'row', alignItems: 'center', gap: 9 }, month: { color: COLORS.text, fontSize: 12, fontWeight: '700' }, weekdays: { marginTop: 17, flexDirection: 'row' }, weekday: { width: '14.285%', color: COLORS.muted, fontSize: 11, fontWeight: '700', textAlign: 'center' }, calendarGrid: { marginTop: 7, flexDirection: 'row', flexWrap: 'wrap' }, calendarDay: { width: '14.285%', height: 39, alignItems: 'center', justifyContent: 'center' }, calendarDayActive: { backgroundColor: COLORS.primary }, calendarDayText: { color: COLORS.text, fontSize: 13, fontWeight: '700' }, calendarDayDisabled: { color: '#C7C2C6', fontWeight: '500' }, calendarDayTextActive: { color: '#FFF' }, calendarDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3, backgroundColor: '#EFA7B8' }, calendarDotActive: { backgroundColor: '#FFF' },
+  timeGroup: { marginTop: 15 }, timeGroupTitle: { color: COLORS.text, fontSize: 14, fontWeight: '800', marginBottom: 8 }, slots: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, slot: { width: '23.2%', height: 42, borderWidth: 1, borderColor: '#DCD6DA', alignItems: 'center', justifyContent: 'center' }, slotDisabled: { backgroundColor: '#F7F5F6', borderColor: '#EEE9EC' }, slotActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary }, slotText: { color: COLORS.text, fontSize: 12 }, slotTextDisabled: { color: '#B9B2B7' }, slotTextActive: { color: '#FFF', fontWeight: '800' }, slotLoader: { height: 90 }, empty: { paddingVertical: 32, alignItems: 'center', gap: 8 }, noAvailability: { marginTop: 14, padding: 10, backgroundColor: '#EFF5F2', flexDirection: 'row', alignItems: 'center', gap: 7 }, noAvailabilityText: { flex: 1, color: COLORS.sage, fontSize: 11, lineHeight: 15 }, demoNotice: { marginTop: 14, padding: 10, backgroundColor: '#FFF2D9', flexDirection: 'row', alignItems: 'center', gap: 7 }, demoNoticeText: { flex: 1, color: '#866624', fontSize: 11, lineHeight: 15 }, notice: { minHeight: 62, marginTop: 16, paddingHorizontal: 10, backgroundColor: COLORS.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 10 }, noticeIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EF758E', alignItems: 'center', justifyContent: 'center' }, noticeMark: { color: '#FFF', fontSize: 17, fontWeight: '800' }, noticeText: { flex: 1, color: COLORS.muted, fontSize: 11, lineHeight: 16 }, noticeStrong: { color: COLORS.text, fontWeight: '800' },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingTop: 11, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,.97)', borderTopWidth: 1, borderTopColor: COLORS.line }, continueButton: { height: 54, borderRadius: 27, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }, disabled: { opacity: .4 }, continueText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 });
