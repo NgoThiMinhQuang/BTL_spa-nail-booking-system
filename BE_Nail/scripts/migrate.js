@@ -5,8 +5,10 @@ import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-const migrationPath = path.resolve(currentDirectory, '../DB/migrations/001_home_content.sql');
-const sql = await fs.readFile(migrationPath, 'utf8');
+const migrationDirectory = path.resolve(currentDirectory, '../DB/migrations');
+const migrationFiles = (await fs.readdir(migrationDirectory))
+  .filter((file) => file.endsWith('.sql'))
+  .sort((left, right) => left.localeCompare(right));
 
 const connection = await mysql.createConnection({
   host: process.env.DB_HOST ?? '127.0.0.1',
@@ -19,8 +21,12 @@ const connection = await mysql.createConnection({
 });
 
 try {
-  await connection.query(sql);
-  console.log('Migration dữ liệu trang chủ hoàn tất.');
+  for (const file of migrationFiles) {
+    const sql = await fs.readFile(path.join(migrationDirectory, file), 'utf8');
+    await connection.query(sql);
+    console.log(`Đã chạy migration: ${file}`);
+  }
+  console.log('Toàn bộ migration đã hoàn tất.');
 } finally {
   await connection.end();
 }

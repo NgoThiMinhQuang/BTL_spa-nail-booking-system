@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import bookingRoutes from './routes/booking.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import staffRoutes from './routes/staff.routes.js';
@@ -19,6 +20,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhou
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 app.use((_req, res) => res.status(404).json({ message: 'API endpoint không tồn tại' }));
 app.use((error, _req, res, _next) => {
