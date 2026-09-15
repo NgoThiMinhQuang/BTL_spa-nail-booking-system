@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const COLORS = { background: '#FFF9FA', surface: '#FFF', pink: '#C95D7B', soft: '#FBE9EE', text: '#30282B', muted: '#8A7D81', line: '#F0E5E8' };
+const COLORS = { background: '#FFF9FA', surface: '#FFF', pink: '#D56B81', soft: '#FBE9EE', text: '#30282B', muted: '#8A7D81', line: '#F0E5E8' };
 
 function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string }) {
   return <View style={styles.infoRow}><View style={styles.iconBox}><Ionicons name={icon} size={21} color={COLORS.pink} /></View><View style={styles.infoCopy}><Text style={styles.label}>{label}</Text><Text style={styles.value}>{value}</Text></View></View>;

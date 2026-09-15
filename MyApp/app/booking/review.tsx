@@ -1,4 +1,5 @@
 import { createBooking } from '@/features/booking/booking.service';
+import { BookingProgress } from '@/components/booking/BookingProgress';
 import { fetchServiceById } from '@/features/service/service.service';
 import type { NailService } from '@/features/service/service.types';
 import { fetchStaffById } from '@/features/staff/staff.service';
@@ -9,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const C={bg:'#FFF8F8',pink:'#D64D72',dark:'#B92F5B',soft:'#FCE8ED',green:'#42A66C',sage:'#557C72',gold:'#E7A423',text:'#292530',muted:'#6D6875',line:'#EEE3E6'};
+const C={bg:'#FFF8F8',pink:'#D56B81',dark:'#9A5065',soft:'#FCE8ED',green:'#42A66C',sage:'#557C72',gold:'#E7A423',text:'#292530',muted:'#6D6875',line:'#EEE3E6'};
 export default function Review(){
  const p=useLocalSearchParams<{serviceId?:string;staffId?:string;date?:string;time?:string}>();
  const {serviceId='',staffId='',date='',time=''}=p;
@@ -22,8 +23,7 @@ export default function Review(){
  const dateText=date?new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(date+'T00:00:00')):'';
  return <SafeAreaView edges={['top']} style={s.safe}>
   <View style={s.header}><Pressable onPress={()=>router.back()} style={s.back}><Ionicons name="arrow-back" size={24} color={C.pink}/></Pressable><Text style={s.title}>Đặt lịch làm đẹp</Text><View style={s.back}/></View>
-  <View style={s.progress}><View style={s.track}/><View style={s.doneTrack}/>{[1,2,3,4].map(x=>x<3?<View key={x} style={[s.step,s.done]}><Ionicons name="checkmark" size={17} color="#FFF"/></View>:<View key={x} style={[s.step,x===3&&s.active]}><Text style={[s.num,x===3&&s.numActive]}>{x}</Text></View>)}</View>
-  <View style={s.labels}>{['Chọn dịch vụ\nNhân viên','Chọn ngày\ngiờ','Xác nhận\nthông tin','Hoàn tất'].map((x,i)=><Text key={x} style={[s.label,i===2&&s.labelActive]}>{x}</Text>)}</View>
+  <BookingProgress currentStep={3} />
   <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
    {!!error&&<View style={s.error}><Text style={s.errorText}>{error}</Text></View>}
    <Box icon="person" title="Thông tin nhân viên" change={()=>router.replace('/booking/select-service')}>

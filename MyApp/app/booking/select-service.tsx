@@ -1,6 +1,7 @@
 import { fetchServices } from '@/features/service/service.service';
 import type { NailService } from '@/features/service/service.types';
 import { fetchStaff } from '@/features/staff/staff.service';
+import { BookingProgress } from '@/components/booking/BookingProgress';
 import type { StaffMember } from '@/features/staff/staff.types';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,7 +10,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = {
-  background: '#FFF8F8', surface: '#FFFFFF', primary: '#D44E73', primaryDark: '#B92F5C',
+  background: '#FFF8F8', surface: '#FFFFFF', primary: '#D56B81', primaryDark: '#9A5065',
   primarySoft: '#FCE9EE', sage: '#587D73', sageSoft: '#E9F2EF', lavender: '#70637F',
   gold: '#E7A423', text: '#292530', muted: '#6F6877', line: '#F0E3E6',
 };
@@ -64,10 +65,7 @@ export default function SelectServiceScreen() {
         <View style={styles.headerButton} />
       </View>
 
-      <View style={styles.progress}>
-        {[1, 2, 3, 4].map((step) => <View key={step} style={styles.progressPart}>{step > 1 && <View style={styles.progressLine} />}<View style={[styles.step, step === 1 && styles.stepActive]}><Text style={[styles.stepNumber, step === 1 && styles.stepNumberActive]}>{step}</Text></View></View>)}
-      </View>
-      <View style={styles.stepLabels}><Text style={[styles.stepLabel, styles.stepLabelActive]}>Chọn dịch vụ{`\n`}Nhân viên</Text><Text style={styles.stepLabel}>Chọn ngày{`\n`}giờ</Text><Text style={styles.stepLabel}>Xác nhận{`\n`}thông tin</Text><Text style={styles.stepLabel}>Hoàn tất</Text></View>
+      <BookingProgress currentStep={1} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {!!error && <View style={styles.error}><Ionicons name="cloud-offline-outline" size={20} color={COLORS.primary} /><Text style={styles.errorText}>{error}</Text></View>}

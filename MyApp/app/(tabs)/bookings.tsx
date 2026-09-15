@@ -103,9 +103,9 @@ export default function BookingsScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#DF6E8D" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#D56B81" />}
         contentContainerStyle={styles.content}>
-        {loading && <View style={styles.state}><ActivityIndicator size="large" color="#DF6E8D" /><Text style={styles.stateText}>Đang tải lịch hẹn...</Text></View>}
+        {loading && <View style={styles.state}><ActivityIndicator size="large" color="#D56B81" /><Text style={styles.stateText}>Đang tải lịch hẹn...</Text></View>}
         {!loading && !!error && <View style={styles.state}><Ionicons name="cloud-offline-outline" size={38} color="#C66B7F" /><Text style={styles.stateTitle}>Không thể tải dữ liệu</Text><Text style={styles.stateText}>{error}</Text><Pressable style={styles.retryButton} onPress={refresh}><Text style={styles.retryText}>Thử lại</Text></Pressable></View>}
         {!loading && !error && visibleBookings.length === 0 && <View style={styles.state}><View style={styles.emptyIcon}><Ionicons name="calendar-outline" size={36} color="#D5738A" /></View><Text style={styles.stateTitle}>Chưa có lịch hẹn</Text><Text style={styles.stateText}>{filter === 'upcoming' ? 'Bạn chưa có lịch hẹn sắp tới.' : filter === 'completed' ? 'Chưa có lịch hẹn đã hoàn thành.' : 'Bạn chưa hủy lịch hẹn nào.'}</Text>{filter === 'upcoming' && <Pressable style={styles.bookButton} onPress={() => router.push('/booking/select-service')}><Text style={styles.bookText}>Đặt lịch ngay</Text></Pressable>}</View>}
         {visibleBookings.map((booking) => <BookingCard key={booking.id} booking={booking} filter={filter} />)}
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   title: { color: '#201C1E', fontSize: 26, fontWeight: '800' },
   tabs: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingBottom: 18 },
   tab: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  activeTab: { backgroundColor: '#DF6E8D', shadowColor: '#DF6E8D', shadowOpacity: .2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  activeTab: { backgroundColor: '#D56B81', shadowColor: '#D56B81', shadowOpacity: .2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   tabText: { color: '#766A6E', fontSize: 13, fontWeight: '600' }, activeTabText: { color: '#FFF', fontWeight: '800' },
   content: { paddingHorizontal: 20, paddingBottom: 32, gap: 17 },
   card: { minHeight: 184, padding: 15, borderRadius: 18, backgroundColor: '#FFF', flexDirection: 'row', gap: 14, borderWidth: 1, borderColor: '#F7ECEF', shadowColor: '#9D7781', shadowOpacity: .07, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
@@ -132,5 +132,5 @@ const styles = StyleSheet.create({
   bottomRow: { minHeight: 40, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 }, staffText: { flex: 1, color: '#84787B', fontSize: 12 },
   actionButton: { minWidth: 92, height: 36, paddingHorizontal: 12, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, pinkButton: { backgroundColor: '#F3A8B9' }, greenButton: { backgroundColor: '#86CBAE' }, grayButton: { backgroundColor: '#F0EAEC' }, actionText: { color: '#FFF', fontSize: 11, fontWeight: '800' }, grayButtonText: { color: '#8D6570', fontSize: 11, fontWeight: '800' },
   state: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, emptyIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FBE7EC', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, stateTitle: { color: '#372E31', fontSize: 19, fontWeight: '800', marginTop: 10 }, stateText: { color: '#8A7C80', fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 },
-  retryButton: { marginTop: 16, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: '#F7DFE5' }, retryText: { color: '#B4526C', fontWeight: '800', fontSize: 13 }, bookButton: { marginTop: 18, height: 44, paddingHorizontal: 24, borderRadius: 22, backgroundColor: '#DF6E8D', alignItems: 'center', justifyContent: 'center' }, bookText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  retryButton: { marginTop: 16, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: '#F7DFE5' }, retryText: { color: '#9A5065', fontWeight: '800', fontSize: 13 }, bookButton: { marginTop: 18, height: 44, paddingHorizontal: 24, borderRadius: 22, backgroundColor: '#D56B81', alignItems: 'center', justifyContent: 'center' }, bookText: { color: '#4D3540', fontWeight: '800', fontSize: 13 },
 });

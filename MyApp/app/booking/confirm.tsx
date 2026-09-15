@@ -1,4 +1,5 @@
 import { fetchAvailability } from '@/features/booking/booking.service';
+import { BookingProgress } from '@/components/booking/BookingProgress';
 import { fetchServiceById } from '@/features/service/service.service';
 import type { NailService } from '@/features/service/service.types';
 import { fetchStaffById } from '@/features/staff/staff.service';
@@ -9,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const COLORS = { background: '#FFF8F8', surface: '#FFFFFF', primary: '#D54C72', primaryDark: '#B92F5B', primarySoft: '#FCE8ED', sage: '#557C72', gold: '#E8A521', text: '#28242E', muted: '#6D6874', line: '#EEE4E6' };
+const COLORS = { background: '#FFF8F8', surface: '#FFFFFF', primary: '#D56B81', primaryDark: '#9A5065', primarySoft: '#FCE8ED', sage: '#557C72', gold: '#E8A521', text: '#28242E', muted: '#6D6874', line: '#EEE4E6' };
 const DISPLAY_SLOTS = Array.from({ length: 19 }, (_, index) => {
   const minutes = 9 * 60 + index * 30;
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -82,8 +83,7 @@ export default function ConfirmBookingScreen() {
   return <SafeAreaView edges={['top']} style={styles.safeArea}>
     <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.iconButton}><Ionicons name="arrow-back" size={24} color={COLORS.primary} /></Pressable><Text style={styles.title}>Đặt lịch làm đẹp</Text><View style={styles.iconButton} /></View>
 
-    <View style={styles.progress}><View style={styles.progressTrack} /><View style={styles.progressTrackDone} />{[1, 2, 3, 4].map((step) => step === 1 ? <View key={step} style={[styles.step, styles.stepDone]}><Ionicons name="checkmark" size={17} color="#FFF" /></View> : <View key={step} style={[styles.step, step === 2 && styles.stepActive]}><Text style={[styles.stepNumber, step === 2 && styles.stepNumberActive]}>{step}</Text></View>)}</View>
-    <View style={styles.stepLabels}><Text style={styles.stepLabel}>Chọn dịch vụ{`\n`}Nhân viên</Text><Text style={[styles.stepLabel, styles.stepLabelActive]}>Chọn ngày{`\n`}giờ</Text><Text style={styles.stepLabel}>Xác nhận{`\n`}thông tin</Text><Text style={styles.stepLabel}>Hoàn tất</Text></View>
+    <BookingProgress currentStep={2} />
 
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
       {!!error && <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={20} color={COLORS.primary} /><Text style={styles.errorText}>{error}</Text></View>}

@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const PALETTE = {
   background: '#FFF9F7',
   surface: '#FFFFFF',
-  primary: '#A96370',
+  primary: '#D56B81',
   primarySoft: '#F4E4E4',
   sage: '#738A7C',
   sageSoft: '#E8F0EC',

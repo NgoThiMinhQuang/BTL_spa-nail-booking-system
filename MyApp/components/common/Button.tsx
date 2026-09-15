@@ -6,4 +6,4 @@ export function Button({ title, style, ...props }: Props) {
   return <Pressable style={(state) => [styles.button, state.pressed && styles.pressed, typeof style === 'function' ? style(state) : style]} {...props}><Text style={styles.text}>{title}</Text></Pressable>;
 }
 
-const styles = StyleSheet.create({ button: { backgroundColor: '#C94F7C', borderRadius: 12, paddingHorizontal: 18, paddingVertical: 13, alignItems: 'center' }, pressed: { opacity: 0.75 }, text: { color: '#FFF', fontSize: 16, fontWeight: '700' } });
+const styles = StyleSheet.create({ button: { backgroundColor: '#D56B81', borderRadius: 12, paddingHorizontal: 18, paddingVertical: 13, alignItems: 'center' }, pressed: { opacity: 0.75 }, text: { color: '#4D3540', fontSize: 16, fontWeight: '700' } });

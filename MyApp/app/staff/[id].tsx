@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Share, StyleShe
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = {
-  ink: '#2D2830', muted: '#756D76', primary: '#D65376', primaryDark: '#B83D61',
+  ink: '#2D2830', muted: '#756D76', primary: '#D56B81', primaryDark: '#9A5065',
   blush: '#FFF0F3', cream: '#FFFBF5', white: '#FFFFFF', line: '#F0E3E3',
   sage: '#547D73', sageSoft: '#EAF3EF', lavender: '#766288', lavenderSoft: '#F2ECF6',
   gold: '#E5A229', goldSoft: '#FFF3D9', green: '#359257',

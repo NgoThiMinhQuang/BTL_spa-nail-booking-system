@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 type MenuItem = { icon: IconName; label: string; badge?: number; action?: () => void };
 
-const COLORS = { background: '#FFF9FA', surface: '#FFFFFF', pink: '#C95D7B', pinkSoft: '#FBE9EE', text: '#30282B', muted: '#8A7D81', line: '#F0E7E9' };
+const COLORS = { background: '#FFF9FA', surface: '#FFFFFF', pink: '#D56B81', pinkSoft: '#FBE9EE', text: '#30282B', muted: '#8A7D81', line: '#F0E7E9' };
 
 export default function ProfileScreen() {
   const [customer, setCustomer] = useState<HomeCustomer | null>(null);

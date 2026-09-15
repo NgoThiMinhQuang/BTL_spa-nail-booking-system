@@ -16,7 +16,7 @@ const categories: { id: CategoryId; label: string; icon: 'infinity' | 'bottle-to
 ];
 
 const cardMeta: Record<string, { eyebrow: string; rating: string; reviews: number; color: string; softColor: string; badge?: string }> = {
-  gel: { eyebrow: 'XU HƯỚNG HÀN QUỐC', rating: '4.9', reviews: 420, color: '#B85270', softColor: '#FBE8ED', badge: 'Best Seller' },
+  gel: { eyebrow: 'XU HƯỚNG HÀN QUỐC', rating: '4.9', reviews: 420, color: '#D56B81', softColor: '#FBE8ED', badge: 'Best Seller' },
   art: { eyebrow: 'BOUTIQUE ART', rating: '5.0', reviews: 215, color: '#397B76', softColor: '#E3F1EF', badge: 'Yêu thích' },
   french: { eyebrow: 'THANH LỊCH', rating: '4.9', reviews: 186, color: '#7D6599', softColor: '#EEE8F5' },
   extension: { eyebrow: 'FORM CHUẨN', rating: '4.8', reviews: 180, color: '#A87932', softColor: '#F6EEDC' },
@@ -96,7 +96,7 @@ export default function ServicesScreen() {
       <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[2]} refreshControl={<RefreshControl refreshing={loading} onRefresh={loadServices} tintColor="#397B76" />} contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View>
-            <View style={styles.brandRow}><Ionicons name="flower-outline" size={21} color="#B85270" /><Text style={styles.brand}>Nail<Text style={styles.brandAccent}>House</Text></Text></View>
+            <View style={styles.brandRow}><Ionicons name="flower-outline" size={21} color="#D56B81" /><Text style={styles.brand}>Nail<Text style={styles.brandAccent}>House</Text></Text></View>
             <View style={styles.locationRow}><Ionicons name="location-outline" size={12} color="#557A75" /><Text style={styles.location}>DIAMOND PLAZA, Q.1</Text></View>
           </View>
           <View style={styles.headerActions}><View><Ionicons name="notifications-outline" size={23} color="#30272A" /><View style={styles.notificationDot} /></View><View style={styles.avatar}><Text style={styles.avatarText}>M</Text></View></View>
@@ -104,7 +104,7 @@ export default function ServicesScreen() {
 
         <View style={styles.intro}>
           <View><Text style={styles.kicker}>HAUTE BEAUTÉ</Text><Text style={styles.title}>Dịch vụ Nail</Text></View>
-          <View style={styles.designCount}><MaterialCommunityIcons name="flower-tulip-outline" size={15} color="#B85270" /><Text style={styles.designCountText}>52 mẫu thiết kế</Text></View>
+          <View style={styles.designCount}><MaterialCommunityIcons name="flower-tulip-outline" size={15} color="#D56B81" /><Text style={styles.designCountText}>52 mẫu thiết kế</Text></View>
         </View>
 
         <View style={styles.filtersArea}>
@@ -131,14 +131,14 @@ export default function ServicesScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FBFAF6' }, container: { paddingBottom: 28 },
   header: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, brand: { color: '#333033', fontSize: 20, fontWeight: '700' }, brandAccent: { color: '#B85270' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 }, brand: { color: '#333033', fontSize: 20, fontWeight: '700' }, brandAccent: { color: '#D56B81' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3, marginLeft: 26 }, location: { color: '#697775', fontSize: 8, letterSpacing: .55, fontWeight: '700' },
   headerActions: { flexDirection: 'row', gap: 14, alignItems: 'center' }, notificationDot: { position: 'absolute', right: 1, top: 0, width: 6, height: 6, borderRadius: 3, backgroundColor: '#D34E6E' },
   avatar: { width: 37, height: 37, borderRadius: 19, backgroundColor: '#DCEBE8', alignItems: 'center', justifyContent: 'center' }, avatarText: { color: '#397B76', fontSize: 15, fontWeight: '800' },
   intro: { paddingHorizontal: 18, marginBottom: 14, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }, kicker: { color: '#708D86', fontSize: 9, letterSpacing: 1.1, fontWeight: '800' }, title: { color: '#30282B', fontSize: 28, fontWeight: '800', marginTop: 3 },
   designCount: { backgroundColor: '#F7E9ED', borderRadius: 16, paddingHorizontal: 11, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 5 }, designCountText: { color: '#A04763', fontSize: 10, fontWeight: '700' },
   filtersArea: { backgroundColor: '#FBFAF6', paddingBottom: 12 }, searchBox: { marginHorizontal: 18, height: 45, borderRadius: 14, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E9E5DF', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 9 }, input: { flex: 1, color: '#332D2F', fontSize: 12 },
-  categoryList: { paddingHorizontal: 18, paddingTop: 12, gap: 8 }, category: { paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: '#F0EEE8', flexDirection: 'row', alignItems: 'center', gap: 6 }, activeCategory: { backgroundColor: '#B85270' }, categoryText: { color: '#665D60', fontSize: 11, fontWeight: '700' }, activeCategoryText: { color: '#FFF' },
+  categoryList: { paddingHorizontal: 18, paddingTop: 12, gap: 8 }, category: { paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: '#F0EEE8', flexDirection: 'row', alignItems: 'center', gap: 6 }, activeCategory: { backgroundColor: '#D56B81' }, categoryText: { color: '#665D60', fontSize: 11, fontWeight: '700' }, activeCategoryText: { color: '#4D3540' },
   serviceList: { paddingHorizontal: 16, gap: 14 }, card: { backgroundColor: '#FFF', borderRadius: 20, padding: 12, borderLeftWidth: 4, borderWidth: 1, borderColor: '#EFEAE5' }, cardMain: { flexDirection: 'row', gap: 12 }, serviceImage: { width: 105, height: 105, borderRadius: 14 }, imageBadge: { position: 'absolute', left: 6, top: 6, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8 }, imageBadgeText: { color: '#FFF', fontSize: 7, fontWeight: '800' },
   cardContent: { flex: 1, paddingTop: 2 }, cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eyebrow: { maxWidth: '55%', fontSize: 8, letterSpacing: .55, fontWeight: '800' }, ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 2 }, rating: { color: '#4C4346', fontSize: 10, fontWeight: '700' }, reviews: { color: '#998F92', fontSize: 9 },
   serviceName: { color: '#30272A', fontSize: 18, fontWeight: '800', marginTop: 8 }, description: { color: '#82777A', fontSize: 10, lineHeight: 15, marginTop: 4 }, priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 7 }, price: { fontSize: 17, fontWeight: '800' }, duration: { flexDirection: 'row', alignItems: 'center', gap: 3 }, durationText: { color: '#7D7477', fontSize: 9 },

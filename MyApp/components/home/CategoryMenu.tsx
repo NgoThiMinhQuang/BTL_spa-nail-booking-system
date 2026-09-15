@@ -7,7 +7,7 @@ type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 type MenuRoute = '/services' | '/booking/select-service' | '/staff' | '/modal';
 
 const items: { label: string; note: string; icon: IconName; color: string; bg: string; route: MenuRoute }[] = [
-  { label: 'Dịch vụ', note: 'Khám phá mẫu nail', icon: 'bottle-tonic', color: '#D46887', bg: '#FBE8ED', route: '/services' },
+  { label: 'Dịch vụ', note: 'Khám phá mẫu nail', icon: 'bottle-tonic', color: '#D56B81', bg: '#FBE8ED', route: '/services' },
   { label: 'Đặt lịch', note: 'Đặt lịch nhanh chóng', icon: 'calendar-month', color: '#B6813A', bg: '#F8EEDC', route: '/booking/select-service' },
   { label: 'Nhân viên', note: 'Đội ngũ chuyên nghiệp', icon: 'account', color: '#A76294', bg: '#F2E5F1', route: '/staff' },
   { label: 'Ưu đãi', note: 'Khuyến mãi hấp dẫn', icon: 'sale', color: '#78845C', bg: '#E9EDD8', route: '/modal' },

@@ -22,7 +22,7 @@ const ALL = 'Tất cả';
 const COLORS = {
   ink: '#2D2630',
   muted: '#756A73',
-  primary: '#D95778',
+  primary: '#D56B81',
   primaryDark: '#B93E62',
   blush: '#FFF0F3',
   cream: '#FFF9F1',
