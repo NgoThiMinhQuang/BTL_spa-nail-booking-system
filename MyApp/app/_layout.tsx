@@ -7,6 +7,7 @@ export default function RootLayout() {
         name="(tabs)"
       />
       <Stack.Screen name="service/[id]" />
+      <Stack.Screen name="personal-info" />
       <Stack.Screen
         name="modal"
         options={{

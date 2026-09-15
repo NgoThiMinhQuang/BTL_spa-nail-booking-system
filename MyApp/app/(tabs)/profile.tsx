@@ -42,7 +42,7 @@ export default function ProfileScreen() {
 
   const comingSoon = (label: string) => Alert.alert(label, 'Tính năng này đang được hoàn thiện.');
   const menuItems: MenuItem[] = [
-    { icon: 'person-outline', label: 'Thông tin cá nhân', action: () => comingSoon('Thông tin cá nhân') },
+    { icon: 'person-outline', label: 'Thông tin cá nhân', action: () => router.push('/personal-info') },
     { icon: 'calendar-outline', label: 'Lịch hẹn của tôi', action: () => router.push('/bookings') },
     { icon: 'heart-outline', label: 'Yêu thích', action: () => router.push('/favorites') },
     { icon: 'notifications-outline', label: 'Thông báo', badge: 5, action: () => comingSoon('Thông báo') },
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
             <Text style={styles.email}>{customer?.email ?? 'minh@nailhouse.vn'}</Text>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
-          <Pressable hitSlop={10} onPress={() => comingSoon('Thông tin cá nhân')} style={styles.profileArrow}><Ionicons name="chevron-forward" size={22} color="#9B8C90" /></Pressable>
+          <Pressable hitSlop={10} onPress={() => router.push('/personal-info')} style={styles.profileArrow}><Ionicons name="chevron-forward" size={22} color="#9B8C90" /></Pressable>
         </View>
 
         <View style={styles.menuCard}>
