@@ -9,7 +9,7 @@ export async function getHome(req, res, next) {
   try {
     const customerId = Number(req.query.customerId ?? 1);
     const [customerResult, bannerResult, servicesResult, designsResult, artistsResult, appointmentResult] = await Promise.all([
-      pool.query(`SELECT c.customer_id AS id, u.full_name AS name, u.avatar
+      pool.query(`SELECT c.customer_id AS id, u.full_name AS name, u.email, u.avatar
         FROM customer c JOIN users u ON u.user_id = c.user_id
         WHERE c.customer_id = ? AND u.status = 'ACTIVE' LIMIT 1`, [customerId]),
       pool.query(`SELECT promotion_id AS id, title, subtitle, button_text AS buttonText, image, discount_percent AS discountPercent
