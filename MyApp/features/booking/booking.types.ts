@@ -1,14 +1,21 @@
-export type BookingStatus = 'pending' | 'confirmed' | 'processing' | 'completed' | 'cancelled';
+export type BookingStatus = 'pending' | 'confirmed' | 'processing' | 'completed' | 'cancelled' | 'no_show';
 
 export type Booking = {
   id: string;
   customerId: string;
   serviceId: string;
-  staffId: string;
+  staffId: string | null;
   startsAt: string;
   endsAt: string;
   status: BookingStatus;
   note?: string | null;
+  createdAt?: string;
+  serviceName?: string;
+  serviceImageUrl?: string | null;
+  staffName?: string | null;
+  staffAvatarUrl?: string | null;
+  price?: number;
+  duration?: number;
 };
 
 export type BookingDraft = {

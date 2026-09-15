@@ -99,6 +99,11 @@ export default function SelectStaffScreen() {
 
       <View style={styles.ornament}><View style={styles.ornamentLine} /><Ionicons name="heart" size={10} color={PALETTE.primary} /><View style={styles.ornamentLine} /></View>
 
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading && staff.length > 0} onRefresh={loadStaff} tintColor={PALETTE.primary} />}
+        contentContainerStyle={styles.pageContent}
+      >
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={18} color={PALETTE.primary} />
@@ -128,11 +133,7 @@ export default function SelectStaffScreen() {
       {loading && !staff.length ? (
         <View style={styles.center}><ActivityIndicator color={PALETTE.primary} /><Text style={styles.stateText}>Đang tìm chuyên viên phù hợp...</Text></View>
       ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadStaff} tintColor={PALETTE.primary} />}
-          contentContainerStyle={styles.list}
-        >
+        <View style={styles.list}>
           {!!error && <View style={styles.messageBox}><Ionicons name="cloud-offline-outline" size={22} color={PALETTE.primary} /><Text style={styles.messageText}>{error}</Text><Pressable onPress={loadStaff}><Text style={styles.retry}>Thử lại</Text></Pressable></View>}
           {!error && !visibleStaff.length && <View style={styles.empty}><Ionicons name="people-outline" size={34} color={PALETTE.sage} /><Text style={styles.stateText}>Chưa tìm thấy chuyên viên phù hợp.</Text></View>}
 
@@ -165,56 +166,58 @@ export default function SelectStaffScreen() {
             <Text style={styles.promiseText}>“Vẻ đẹp của bạn là niềm hạnh phúc của chúng tôi”</Text>
             <Text style={styles.promiseBrand}>— Nail House —</Text>
           </View>
-        </ScrollView>
+        </View>
       )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: PALETTE.background },
-  header: { paddingHorizontal: 14, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { minHeight: 72, paddingHorizontal: 14, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   heading: { flex: 1, alignItems: 'center' },
-  title: { color: PALETTE.text, fontSize: 21, fontWeight: '800' },
-  subtitle: { color: PALETTE.muted, fontSize: 10, marginTop: 4, textAlign: 'center' },
+  title: { color: PALETTE.text, fontSize: 26, fontWeight: '800' },
+  subtitle: { color: PALETTE.muted, fontSize: 12, lineHeight: 17, marginTop: 4, textAlign: 'center' },
   ornament: { height: 24, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center' },
   ornamentLine: { width: 34, height: 1, backgroundColor: '#E7CECE' },
+  pageContent: { paddingBottom: 30 },
   searchRow: { paddingHorizontal: 14, flexDirection: 'row', gap: 9 },
-  searchBox: { flex: 1, height: 43, borderRadius: 14, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.surface, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchInput: { flex: 1, color: PALETTE.text, fontSize: 12, paddingVertical: 0 },
-  filterButton: { width: 43, height: 43, borderRadius: 14, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.surface, alignItems: 'center', justifyContent: 'center' },
+  searchBox: { flex: 1, height: 48, borderRadius: 15, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.surface, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchInput: { flex: 1, color: PALETTE.text, fontSize: 14, paddingVertical: 0 },
+  filterButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.surface, alignItems: 'center', justifyContent: 'center' },
   categories: { paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
-  category: { height: 34, borderRadius: 12, paddingHorizontal: 15, backgroundColor: PALETTE.surface, borderWidth: 1, borderColor: PALETTE.line, alignItems: 'center', justifyContent: 'center' },
+  category: { height: 40, borderRadius: 14, paddingHorizontal: 16, backgroundColor: PALETTE.surface, borderWidth: 1, borderColor: PALETTE.line, alignItems: 'center', justifyContent: 'center' },
   categoryActive: { backgroundColor: PALETTE.primary, borderColor: PALETTE.primary },
-  categoryText: { color: '#746669', fontSize: 11, fontWeight: '700' },
+  categoryText: { color: '#746669', fontSize: 13, fontWeight: '700' },
   categoryTextActive: { color: '#FFFFFF' },
-  list: { paddingHorizontal: 14, paddingBottom: 28, gap: 10 },
-  card: { minHeight: 124, borderRadius: 17, padding: 10, backgroundColor: PALETTE.surface, borderWidth: 1, borderColor: PALETTE.line, flexDirection: 'row', alignItems: 'center', shadowColor: '#6E4851', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  list: { paddingHorizontal: 14, gap: 12 },
+  card: { minHeight: 148, borderRadius: 19, padding: 12, backgroundColor: PALETTE.surface, borderWidth: 1, borderColor: PALETTE.line, flexDirection: 'row', alignItems: 'center', shadowColor: '#6E4851', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   cardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
-  avatarFrame: { width: 78, height: 96, borderRadius: 14, overflow: 'hidden', backgroundColor: PALETTE.primarySoft },
+  avatarFrame: { width: 92, height: 116, borderRadius: 15, overflow: 'hidden', backgroundColor: PALETTE.primarySoft },
   avatar: { width: '100%', height: '100%' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },
   initial: { color: PALETTE.primary, fontSize: 29, fontWeight: '800' },
   onlineDot: { position: 'absolute', right: 6, bottom: 6, width: 11, height: 11, borderRadius: 6, backgroundColor: '#75A46E', borderWidth: 2, borderColor: '#FFFFFF' },
   info: { flex: 1, paddingHorizontal: 11 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { color: PALETTE.text, fontSize: 14, fontWeight: '800', maxWidth: '58%' },
+  name: { color: PALETTE.text, fontSize: 17, fontWeight: '800', maxWidth: '58%' },
   favoriteBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: '#FFF5DC', borderRadius: 7, paddingHorizontal: 5, paddingVertical: 3 },
-  favoriteText: { color: '#A66B22', fontSize: 7, fontWeight: '700' },
-  specialty: { color: PALETTE.muted, fontSize: 10, marginTop: 3 },
+  favoriteText: { color: '#A66B22', fontSize: 9, fontWeight: '700' },
+  specialty: { color: PALETTE.muted, fontSize: 12, marginTop: 4 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 7 },
-  rating: { color: PALETTE.text, fontSize: 11, fontWeight: '800' },
-  reviews: { color: PALETTE.muted, fontSize: 9 },
+  rating: { color: PALETTE.text, fontSize: 13, fontWeight: '800' },
+  reviews: { color: PALETTE.muted, fontSize: 11 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
-  detail: { flex: 1, color: '#716568', fontSize: 9 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  stateText: { color: PALETTE.muted, fontSize: 11 },
+  detail: { flex: 1, color: '#716568', fontSize: 11 },
+  center: { minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  stateText: { color: PALETTE.muted, fontSize: 13 },
   empty: { paddingVertical: 70, alignItems: 'center', gap: 10 },
   messageBox: { borderRadius: 14, padding: 14, backgroundColor: PALETTE.primarySoft, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  messageText: { flex: 1, color: '#7D5159', fontSize: 10 },
-  retry: { color: PALETTE.primary, fontSize: 10, fontWeight: '800' },
+  messageText: { flex: 1, color: '#7D5159', fontSize: 12 },
+  retry: { color: PALETTE.primary, fontSize: 12, fontWeight: '800' },
   promise: { marginTop: 4, borderRadius: 17, paddingVertical: 17, alignItems: 'center', backgroundColor: PALETTE.primarySoft },
-  promiseText: { color: '#9A747A', fontSize: 10, fontStyle: 'italic', marginTop: 4 },
-  promiseBrand: { color: PALETTE.primary, fontSize: 9, marginTop: 4 },
+  promiseText: { color: '#9A747A', fontSize: 12, fontStyle: 'italic', marginTop: 4 },
+  promiseBrand: { color: PALETTE.primary, fontSize: 11, marginTop: 4 },
 });

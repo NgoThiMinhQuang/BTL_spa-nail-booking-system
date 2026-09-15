@@ -74,7 +74,7 @@ export default function ConfirmBookingScreen() {
 
   const continueToReview = () => {
     if (!selectedTime) return;
-    router.push({ pathname: '/booking/review', params: { serviceId, staffId, date: selectedDate, time: selectedTime, demo: slots.length ? '0' : '1' } });
+    router.push({ pathname: '/booking/review', params: { serviceId, staffId, date: selectedDate, time: selectedTime } });
   };
 
   if (loading && !service) return <SafeAreaView style={styles.center}><ActivityIndicator color={COLORS.primary} /><Text style={styles.stateText}>Đang chuẩn bị lịch trống...</Text></SafeAreaView>;
@@ -107,7 +107,7 @@ export default function ConfirmBookingScreen() {
 
       <View style={styles.panel}>
         <View style={styles.panelTitleRow}><Ionicons name="time-outline" size={24} color={COLORS.primary} /><Text style={styles.panelTitle}>Chọn giờ</Text></View>
-        {loading ? <ActivityIndicator style={styles.slotLoader} color={COLORS.primary} /> : <>{!slots.length && <View style={styles.demoNotice}><Ionicons name="flask-outline" size={18} color={COLORS.primary} /><Text style={styles.demoNoticeText}>Đang dùng khung giờ mẫu để xem trước giao diện.</Text></View>}{slotGroups.map((group) => <View key={group.title} style={styles.timeGroup}><Text style={styles.timeGroupTitle}>{group.title}</Text><View style={styles.slots}>{group.slots.map((time) => { const active = selectedTime === time; const available = !slots.length || slots.includes(time); return <Pressable key={time} disabled={!available} onPress={() => setSelectedTime(time)} style={[styles.slot, !available && styles.slotDisabled, active && styles.slotActive]}><Text style={[styles.slotText, !available && styles.slotTextDisabled, active && styles.slotTextActive]}>{time}</Text></Pressable>; })}</View></View>)}</>}
+        {loading ? <ActivityIndicator style={styles.slotLoader} color={COLORS.primary} /> : <>{slots.length === 0 && <View style={styles.noAvailability}><Ionicons name="calendar-outline" size={20} color={COLORS.sage} /><Text style={styles.noAvailabilityText}>Ngày này chưa có ca làm việc hoặc không còn giờ trống. Vui lòng chọn ngày khác.</Text></View>}{slotGroups.map((group) => <View key={group.title} style={styles.timeGroup}><Text style={styles.timeGroupTitle}>{group.title}</Text><View style={styles.slots}>{group.slots.map((time) => { const active = selectedTime === time; const available = slots.includes(time); return <Pressable key={time} disabled={!available} onPress={() => setSelectedTime(time)} style={[styles.slot, !available && styles.slotDisabled, active && styles.slotActive]}><Text style={[styles.slotText, !available && styles.slotTextDisabled, active && styles.slotTextActive]}>{time}</Text></Pressable>; })}</View></View>)}</>}
         <View style={styles.notice}><View style={styles.noticeIcon}><Text style={styles.noticeMark}>!</Text></View><Text style={styles.noticeText}>Thời gian làm dịch vụ: <Text style={styles.noticeStrong}>{service?.duration} phút</Text>{`\n`}Vui lòng đến sớm 10 phút để được phục vụ tốt nhất.</Text><Ionicons name="flower-outline" size={23} color="#F4BBC9" /></View>
       </View>
     </ScrollView>

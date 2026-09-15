@@ -19,6 +19,35 @@ function timeToMinutes(value) {
   return hours * 60 + minutes;
 }
 
+function imageUrl(req, imagePath) {
+  if (!imagePath || /^https?:\/\//i.test(imagePath)) return imagePath;
+  return `${req.protocol}://${req.get('host')}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`;
+}
+
+export async function getBookings(req, res, next) {
+  try {
+    const customerId = Number(req.query.customerId ?? 1);
+    if (!Number.isInteger(customerId)) return res.status(400).json({ message: 'Khách hàng không hợp lệ.' });
+
+    const [rows] = await pool.query(`SELECT b.booking_id AS id, b.customer_id AS customerId,
+        b.service_id AS serviceId, b.staff_id AS staffId, b.start_time AS startsAt,
+        b.end_time AS endsAt, LOWER(b.status) AS status, b.note, b.created_at AS createdAt,
+        s.service_name AS serviceName, s.image AS serviceImage, s.price, s.duration,
+        u.full_name AS staffName, u.avatar AS staffAvatar
+      FROM booking b JOIN services s ON s.service_id = b.service_id
+      LEFT JOIN staff st ON st.staff_id = b.staff_id LEFT JOIN users u ON u.user_id = st.user_id
+      WHERE b.customer_id = ? ORDER BY b.start_time DESC`, [customerId]);
+
+    res.json({ data: rows.map(({ serviceImage, staffAvatar, ...booking }) => ({
+      ...booking,
+      id: String(booking.id), customerId: String(booking.customerId), serviceId: String(booking.serviceId),
+      staffId: booking.staffId == null ? null : String(booking.staffId),
+      price: Number(booking.price), duration: Number(booking.duration),
+      serviceImageUrl: imageUrl(req, serviceImage), staffAvatarUrl: imageUrl(req, staffAvatar),
+    })) });
+  } catch (error) { next(error); }
+}
+
 export async function getAvailableSlots(req, res, next) {
   try {
     const serviceId = Number(req.query.serviceId);

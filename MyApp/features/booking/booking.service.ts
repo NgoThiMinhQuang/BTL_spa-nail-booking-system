@@ -17,3 +17,14 @@ export async function createBooking(draft: BookingDraft): Promise<Booking> {
   });
   return response.data;
 }
+
+export async function fetchBookings(customerId = '1'): Promise<Booking[]> {
+  const response = await api<ApiResponse<Booking[]>>(`/api/bookings?customerId=${customerId}`);
+  return response.data.map((booking) => ({
+    ...booking,
+    id: String(booking.id), customerId: String(booking.customerId), serviceId: String(booking.serviceId),
+    staffId: booking.staffId == null ? null : String(booking.staffId),
+    price: booking.price == null ? undefined : Number(booking.price),
+    duration: booking.duration == null ? undefined : Number(booking.duration),
+  }));
+}
