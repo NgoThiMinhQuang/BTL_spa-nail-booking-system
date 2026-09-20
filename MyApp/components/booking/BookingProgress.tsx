@@ -39,8 +39,8 @@ const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   circle: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EEECEF', borderWidth: 3, borderColor: '#FFF9FA', alignItems: 'center', justifyContent: 'center' },
   completedCircle: { backgroundColor: '#55A875' }, activeCircle: { backgroundColor: '#D56B81' },
-  number: { color: '#332E35', fontSize: 14, fontWeight: '800' }, activeNumber: { color: '#FFF' },
+  number: { color: '#332E35', fontSize: 15, fontWeight: '800' }, activeNumber: { color: '#FFF' },
   labels: { marginTop: 4, paddingHorizontal: 17, flexDirection: 'row' },
-  label: { flex: 1, minHeight: 34, color: '#8A8188', fontSize: 10, lineHeight: 14, textAlign: 'center' },
+  label: { flex: 1, minHeight: 34, color: '#8A8188', fontSize: 12, lineHeight: 18, textAlign: 'center' },
   activeLabel: { color: '#30282B', fontWeight: '800' },
 });
