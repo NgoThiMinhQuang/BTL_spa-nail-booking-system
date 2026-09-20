@@ -19,4 +19,8 @@ MySQL cần hoạt động và cấu hình `BE_Nail/.env` phải đúng.
 
 Đây là giao diện phát triển nội bộ, kế thừa backend hiện chưa có đăng nhập/phân quyền. Bộ chọn nhân viên không phải cơ chế xác thực. Cần bổ sung xác thực và kiểm tra quyền theo tài khoản trước khi triển khai công khai, đặc biệt với API chứa thông tin khách hàng. Chưa triển khai thao tác bắt đầu/hoàn thành lịch hẹn.
 
-Font Google Fonts có dự phòng Arial/Georgia khi offline. Hình ảnh lấy từ dữ liệu và thư mục uploads hiện có.
+Font hệ thống đồng bộ với ứng dụng khách hàng (system-ui, Apple system, Segoe UI, Roboto); không tải font từ Google Fonts. Hình ảnh lấy từ dữ liệu và thư mục uploads hiện có.
+
+## Trang lịch làm việc
+
+Mở `/staff/#schedule`. Có chế độ ngày, tuần (thứ Hai đến Chủ Nhật), tháng; tìm kiếm, lọc trạng thái và xem chi tiết. Các chế độ tuần/tháng tổng hợp dữ liệu từ API hiện có, tối đa 4 yêu cầu đồng thời. Thống kê theo khoảng thời gian được chọn. Khách sắp tới là lịch chưa thực hiện và chưa qua giờ hẹn trong khoảng đó. Trang hiện chỉ đọc trạng thái từ CSDL, không có thao tác thay đổi trạng thái.

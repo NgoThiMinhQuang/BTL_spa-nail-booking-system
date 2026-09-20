@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { view: 'home', date: localDate(), staffId: '', data: null, selected: null, query: '', status: '', request: 0 };
+const state = { view: location.hash === '#schedule' ? 'schedule' : 'home', calendarMode: 'day', rangeBookings: [], date: localDate(), staffId: '', data: null, selected: null, query: '', status: '', request: 0 };
 const labels = { PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', PROCESSING: 'Đang thực hiện', COMPLETED: 'Hoàn thành', CANCELLED: 'Đã hủy', NO_SHOW: 'Không đến' };
 const titles = { home: 'Trang chủ nhân viên', schedule: 'Lịch làm việc', customers: 'Khách hàng của tôi', services: 'Dịch vụ của tôi', profile: 'Hồ sơ cá nhân' };
 function localDate(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -22,6 +22,17 @@ async function load() {
     const data = await request(`/api/staff-dashboard/${encodeURIComponent(state.staffId)}?date=${state.date}`);
     if (requestId !== state.request) return;
     state.data = data;
+    state.rangeBookings = data.bookings;
+    if (state.view === 'schedule' && state.calendarMode !== 'day') {
+      const dates = scheduleDates();
+      const results = [];
+      for (let i = 0; i < dates.length; i += 4) {
+        const batch = await Promise.all(dates.slice(i, i + 4).map(date => date === data.date ? data : request('/api/staff-dashboard/' + encodeURIComponent(state.staffId) + '?date=' + date)));
+        if (requestId !== state.request) return;
+        results.push(...batch);
+      }
+      state.rangeBookings = results.flatMap(item => item.bookings).sort((a,b) => a.startsAt.localeCompare(b.startsAt));
+    }
     if (!data.bookings.some((b) => String(b.id) === String(state.selected))) state.selected = data.bookings.find((b) => b.status === 'PROCESSING')?.id ?? data.bookings[0]?.id ?? null;
     $('#account-avatar').innerHTML = avatar(data.profile.name, data.profile.avatar);
     $('#sync-time').textContent = `Đã cập nhật lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
@@ -34,8 +45,8 @@ async function load() {
   } finally { if (requestId === state.request) { $('#content').setAttribute('aria-busy', 'false'); $('#refresh').disabled = false; } }
 }
 function dateControls() { return `<div class="date-controls"><button class="icon-button" data-day="-1" aria-label="Ngày trước">‹</button><input type="date" id="work-date" aria-label="Ngày làm việc" value="${state.date}"><button class="icon-button" data-day="1" aria-label="Ngày sau">›</button><button class="text-button" data-today>Hôm nay</button></div>`; }
-function customerCards(limit) { const rows = state.data.customers.filter((c) => `${c.name} ${c.phone}`.toLocaleLowerCase('vi').includes(state.query.toLocaleLowerCase('vi'))).slice(0, limit); return rows.length ? `<div class="customer-grid">${rows.map((c) => `<article class="customer-card">${avatar(c.name, c.avatar)}<h3>${esc(c.name)}</h3><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a><span>${c.visits} lịch hẹn</span><small>Lịch gần nhất · ${esc(c.lastVisit)}</small></article>`).join('')}</div>` : empty('Chưa có khách hàng', 'Khách hàng có lịch hẹn với bạn sẽ xuất hiện tại đây.'); }
-function serviceCards(limit) { const rows = state.data.services.filter((s) => s.name.toLocaleLowerCase('vi').includes(state.query.toLocaleLowerCase('vi'))).slice(0, limit); return rows.length ? `<div class="service-grid">${rows.map((s) => `<article class="service-card">${safeImage(s.image) ? `<img class="service-image" src="${safeImage(s.image)}" alt="${esc(s.name)}" loading="lazy">` : '<div class="service-image placeholder">✳</div>'}<div><small>${esc(s.category || 'Dịch vụ NailHouse')}</small><h3>${esc(s.name)}</h3><p>${esc(s.description || 'Chăm sóc tỉ mỉ bởi chuyên viên NailHouse.')}</p><div class="service-meta"><strong>${money(s.price)}</strong><span>◷ ${s.duration} phút</span></div></div></article>`).join('')}</div>` : empty('Chưa được phân công dịch vụ', 'Dịch vụ chuyên môn sẽ hiển thị khi được cập nhật trong hệ thống.'); }
+function customerCards(limit, query = state.query) { const rows = state.data.customers.filter((c) => `${c.name} ${c.phone}`.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi'))).slice(0, limit); return rows.length ? `<div class="customer-grid">${rows.map((c) => `<article class="customer-card">${avatar(c.name, c.avatar)}<h3>${esc(c.name)}</h3><a href="tel:${esc(c.phone)}">${esc(c.phone)}</a><span>${c.visits} lịch hẹn</span><small>Lịch gần nhất · ${esc(c.lastVisit)}</small></article>`).join('')}</div>` : empty('Chưa có khách hàng', 'Khách hàng có lịch hẹn với bạn sẽ xuất hiện tại đây.'); }
+function serviceCards(limit, query = state.query) { const rows = state.data.services.filter((s) => s.name.toLocaleLowerCase('vi').includes(query.toLocaleLowerCase('vi'))).slice(0, limit); return rows.length ? `<div class="service-grid">${rows.map((s) => `<article class="service-card">${safeImage(s.image) ? `<img class="service-image" src="${safeImage(s.image)}" alt="${esc(s.name)}" loading="lazy">` : '<div class="service-image placeholder">✳</div>'}<div><small>${esc(s.category || 'Dịch vụ NailHouse')}</small><h3>${esc(s.name)}</h3><p>${esc(s.description || 'Chăm sóc tỉ mỉ bởi chuyên viên NailHouse.')}</p><div class="service-meta"><strong>${money(s.price)}</strong><span>◷ ${s.duration} phút</span></div></div></article>`).join('')}</div>` : empty('Chưa được phân công dịch vụ', 'Dịch vụ chuyên môn sẽ hiển thị khi được cập nhật trong hệ thống.'); }
 function detail() {
   const b = state.data.bookings.find((item) => String(item.id) === String(state.selected));
   if (!b) return `<aside class="panel detail-panel"><div class="section-heading"><h2>Chi tiết lịch hẹn</h2><span>↗</span></div>${empty('Sẵn sàng cho lịch hẹn mới', 'Chọn một lịch hẹn để xem thông tin khách hàng và dịch vụ.')}<div class="detail-note">Một chút chuẩn bị, một trải nghiệm tốt hơn.</div></aside>`;
@@ -50,13 +61,14 @@ function render() {
   if (!state.data) return;
   const { profile, bookings, shifts } = state.data;
   $('#page-title').textContent = titles[state.view];
+  document.querySelector('main').classList.toggle('schedule-page', state.view === 'schedule');
+  $('#page-subtitle').textContent = state.view === 'schedule' ? 'Quản lý lịch hẹn của bạn, chăm sóc khách hàng thật chu đáo mỗi ngày.' : 'Chào mừng bạn trở lại! Cùng tạo nên những trải nghiệm tuyệt vời cho khách hàng hôm nay nhé!';
   document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.view));
   let html = '';
   if (state.view === 'home') {
-    const next = bookings.find((b) => ['PENDING', 'CONFIRMED'].includes(b.status) && new Date(b.startsAt.replace(' ', 'T')) >= new Date());
-    html = `<section class="hero"><div class="hero-copy"><span class="eyebrow">CHÀO MỪNG TRỞ LẠI</span><h2>Xin chào, <em>${esc(profile.name)}!</em> <span class="wave">✦</span></h2><p>Mỗi bộ nail là một câu chuyện đẹp.<br>Cảm ơn bạn đã luôn tận tâm làm đẹp mỗi ngày!</p><span class="hero-quote">“Khách hàng hạnh phúc, là thành công của chúng ta!”</span></div><div class="hero-photo"><img src="/uploads/banner/nail-banner-v2.png" alt="Nghệ thuật làm móng tại NailHouse"><div class="photo-caption">Good Nails<br>Brighter Days</div></div></section><div class="stats"><article><span class="stat-icon rose-bg">▦</span><div><p>Lịch hẹn trong ngày</p><strong>${bookings.length.toString().padStart(2, '0')}</strong><small>${state.date === localDate() ? 'Hôm nay' : state.date}</small></div></article><article><span class="stat-icon ochre-bg">◷</span><div><p>Đang thực hiện</p><strong>${bookings.filter((b) => b.status === 'PROCESSING').length.toString().padStart(2, '0')}</strong><small>lịch hẹn</small></div></article><article><span class="stat-icon green-bg">✓</span><div><p>Đã hoàn thành</p><strong>${bookings.filter((b) => b.status === 'COMPLETED').length.toString().padStart(2, '0')}</strong><small>lịch hẹn trong ngày</small></div></article><article><span class="stat-icon neutral-bg">↗</span><div><p>Lịch hẹn tiếp theo</p><strong class="next-time">${next ? next.startsAt.slice(11) : '—'}</strong><small>${next ? esc(next.customerName) : 'Chưa có lịch sắp tới'}</small></div></article></div><div class="work-grid">${appointmentPanel()}${detail()}</div><section class="panel lower-panel"><div class="section-heading"><div><span class="eyebrow">NHỮNG GƯƠNG MẶT THÂN QUEN</span><h2>Khách hàng của tôi</h2></div><button class="text-button" data-view="customers">Xem tất cả ↗</button></div>${customerCards(4)}</section><section class="panel lower-panel"><div class="section-heading"><div><span class="eyebrow">CHĂM CHÚT BẰNG CHUYÊN MÔN</span><h2>Dịch vụ của tôi</h2></div><button class="text-button" data-view="services">Xem tất cả ↗</button></div>${serviceCards(3)}</section>`;
+    html = homePage();
   } else if (state.view === 'schedule') {
-    html = `<section class="panel shifts"><div class="section-heading"><div><h2>Ca làm việc · 7 ngày</h2><p>Từ ${longDate(state.date)}</p></div></div>${shifts.length ? `<div class="shift-list">${shifts.map((s) => `<button class="shift-card" data-date="${s.date}"><small>${longDate(s.date)}</small><strong>${s.start} – ${s.end}</strong><span>${s.status === 'OFF' ? 'Nghỉ' : 'Có lịch làm việc'}</span></button>`).join('')}</div>` : empty('Chưa có ca làm việc', 'Chưa có ca được phân công trong 7 ngày kể từ ngày đang chọn.')}</section><div class="work-grid">${appointmentPanel()}${detail()}</div>`;
+    html = schedulePage();
   } else if (state.view === 'customers' || state.view === 'services') {
     html = `<section class="panel lower-panel"><div class="section-heading"><h2>${titles[state.view]}</h2><label class="search"><span>⌕</span><input id="search" value="${esc(state.query)}" placeholder="Tìm kiếm…" aria-label="Tìm kiếm"></label></div>${state.view === 'customers' ? customerCards() : serviceCards()}</section>`;
   } else {
@@ -64,33 +76,24 @@ function render() {
   }
   $('#content').innerHTML = html;
   $('#content').classList.toggle('home-view', state.view === 'home');
-  if (state.view === 'home') {
-    const bottom = document.createElement('div');
-    bottom.className = 'bottom-grid';
-    document.querySelectorAll('#content > .lower-panel').forEach(panel => bottom.append(panel));
-    $('#content').append(bottom);
-    document.querySelectorAll('.stats article').forEach((card, index) => {
-      if (index === 3) return;
-      const link = document.createElement('button');
-      link.className = 'stat-link';
-      link.textContent = 'Xem chi tiết  →';
-      link.dataset.stat = ['', 'PROCESSING', 'COMPLETED'][index];
-      card.lastElementChild.append(link);
-    });
-  }
+  document.body.classList.toggle('staff-home', state.view === 'home');
   decorateIcons();
 }
 document.addEventListener('click', (event) => {
   const stat = event.target.closest('[data-stat]');
-  if (stat) { state.view = 'schedule'; state.status = stat.dataset.stat; state.query = ''; render(); }
+  if (stat) { state.calendarMode = 'day'; history.replaceState(null, '', '#schedule'); state.view = 'schedule'; state.status = stat.dataset.stat; state.query = ''; render(); }
   const view = event.target.closest('[data-view]');
-  if (view) { state.view = view.dataset.view; state.query = ''; state.status = ''; render(); }
+  if (view) { state.view = view.dataset.view; state.query = ''; state.status = ''; history.replaceState(null, '', state.view === 'schedule' ? '#schedule' : location.pathname); if (state.view === 'schedule' && state.calendarMode !== 'day') load(); else render(); }
   const booking = event.target.closest('[data-booking]');
-  if (booking) { state.selected = booking.dataset.booking; render(); }
+  if (booking) { state.selected = booking.dataset.booking; if (state.view === 'home') { state.view = 'schedule'; state.calendarMode = 'day'; history.replaceState(null, '', '#schedule'); } render(); }
+  const monthNav = event.target.closest('[data-home-month]');
+  if (monthNav) { const d = new Date((state.homeMonth || state.date.slice(0,7)) + '-01T12:00:00'); d.setMonth(d.getMonth() + Number(monthNav.dataset.homeMonth)); state.homeMonth = localDate(d).slice(0,7); render(); }
+  const mode = event.target.closest('[data-mode]');
+  if (mode) { state.calendarMode = mode.dataset.mode; state.selected = null; load(); }
   const day = event.target.closest('[data-day]');
   const today = event.target.closest('[data-today]');
   const date = event.target.closest('[data-date]');
-  if (day || today || date) { const d = new Date(`${state.date}T12:00:00`); if (day) d.setDate(d.getDate() + Number(day.dataset.day)); state.date = today ? localDate() : date ? date.dataset.date : localDate(d); load(); }
+  if (day || today || date) { const d = new Date(`${state.date}T12:00:00`); if (day) { const amount = Number(day.dataset.day); if (state.view === 'schedule' && state.calendarMode === 'month') { d.setDate(1); d.setMonth(d.getMonth() + amount); } else d.setDate(d.getDate() + amount * (state.view === 'schedule' && state.calendarMode === 'week' ? 7 : 1)); } state.date = today ? localDate() : date ? date.dataset.date : localDate(d); if (date) state.calendarMode = 'day'; if (state.view === 'home') state.homeMonth = state.date.slice(0,7); load(); }
 });
 document.addEventListener('change', (event) => {
   if (event.target.id === 'staff-select') { state.staffId = event.target.value; state.selected = null; load(); }
@@ -113,8 +116,9 @@ $('#global-search-form').addEventListener('submit', (event) => {
   state.query = $('#global-search').value.trim();
   state.status = '';
   state.view = 'home';
+  history.replaceState(null, '', location.pathname);
   render();
-  $('.appointments').scrollIntoView({behavior:'smooth',block:'start'});
+  $('.home-agenda').scrollIntoView({behavior:'smooth',block:'start'});
 });
 $('#refresh').addEventListener('click', () => state.staffId ? load() : init());
 init();
@@ -136,7 +140,7 @@ function icon(type) {
 function decorateIcons() {
  document.querySelectorAll('nav [data-view]').forEach(button => button.querySelector('span').innerHTML=icon(button.dataset.view));
  $('.brand-mark').innerHTML=icon('flower');
- document.querySelectorAll('.stat-icon').forEach((el,i)=>el.innerHTML=icon(['schedule','play','done','clock'][i]));
- document.querySelectorAll('.section-heading h2').forEach(el=>{const span=document.createElement('span');span.className='heading-icon';span.innerHTML=icon(el.closest('.appointments')||el.closest('.detail-panel')?'schedule':el.textContent.includes('Khách')?'customers':'flower');el.prepend(span);});
+ document.querySelectorAll('.stat-icon').forEach((el,i)=>el.innerHTML=icon((state.view === 'schedule' ? ['schedule','done','play','done'] : ['schedule','play','done','clock'])[i]));
+ document.querySelectorAll('.section-heading h2').forEach(el=>{const span=document.createElement('span');span.className='heading-icon';span.innerHTML=icon(el.closest('.appointments')||el.closest('.detail-panel')||el.closest('.schedule-list')||el.closest('.schedule-detail')||el.closest('.home-agenda')||el.closest('.home-calendar')?'schedule':el.textContent.includes('Khách')?'customers':'flower');el.prepend(span);});
 }
 decorateIcons();

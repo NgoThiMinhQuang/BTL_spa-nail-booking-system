@@ -1,0 +1,90 @@
+/* Shared customer palette: MyApp/constants/colors.ts and customer service/staff screens.
+   Keep this file last: a single color layer for every staff view. */
+:root{--nh-primary:#D56B81;--nh-primary-dark:#B93E62;--nh-blush:#FFF0F3;--nh-cream:#FFFCF9;--nh-ink:#2D2430;--nh-muted:#756A73;--nh-line:#F0DFE3;--nh-sage:#4E7D74;--nh-sage-soft:#E8F3EF;--nh-lavender:#765E8B;--nh-lavender-soft:#F1EBF7;--nh-gold:#9B6D1D;--nh-gold-soft:#FFF1D5}
+#nailhouse{--paper:var(--nh-cream);--ink:var(--nh-ink);--muted:var(--nh-muted);--rose:var(--nh-primary);--line:var(--nh-line);--brand:var(--nh-primary);--brand-dark:var(--nh-primary-dark);--brand-soft:var(--nh-blush);background:var(--nh-cream);color:var(--nh-ink)}
+#nailhouse .sidebar{background:#FFF1F2;border-color:var(--nh-line)}
+#nailhouse .topbar{background:#FFF;border-color:var(--nh-line)}
+#nailhouse .brand,#nailhouse h1,#nailhouse h2,#nailhouse h3,#nailhouse .section-heading h2{color:var(--nh-ink)}
+#nailhouse .brand .rose,#nailhouse .brand-mark,#nailhouse .heading-icon{color:var(--nh-primary)}
+#nailhouse .brand-mark{border-color:var(--nh-primary)}
+#nailhouse nav button,#nailhouse nav button span{color:#806F78}
+#nailhouse nav button.active{background:#FBE7EC;color:var(--nh-primary-dark)}
+#nailhouse nav button.active span{color:var(--nh-primary)}
+#nailhouse nav button:hover{background:#FCE9EF}
+#nailhouse .sidebar-note,#nailhouse .welcome-photo img,#nailhouse .service-image{filter:none;opacity:1}
+#nailhouse .sidebar-note p{color:#493B40}
+#nailhouse .global-search,#nailhouse .search{background:#FCF8FA;border-color:#EEDFE5}
+#nailhouse input,#nailhouse select{color:var(--nh-ink)}
+#nailhouse .subtitle,#nailhouse .section-heading p,#nailhouse .brand small,#nailhouse .sidebar-footer,#nailhouse footer{color:#8A7B80}
+#nailhouse .panel{background:#FFF;border-color:#F0E5E8}
+#nailhouse .button,#nailhouse .today-button,#nailhouse .home-agenda .section-heading>.home-link,#nailhouse .call-button{background:var(--nh-primary);color:#FFF;border-color:var(--nh-primary)}
+#nailhouse .button:hover,#nailhouse .today-button:hover,#nailhouse .home-agenda .section-heading>.home-link:hover,#nailhouse .call-button:hover{background:var(--nh-primary-dark);color:#FFF}
+#nailhouse .button.secondary{background:#FFF;color:var(--nh-primary-dark);border-color:#EED4DC}
+#nailhouse .text-button,#nailhouse .home-link,#nailhouse .calendar-caption button,#nailhouse .select-booking{color:var(--nh-primary-dark)}
+#nailhouse .text-button:hover,#nailhouse .home-link:hover,#nailhouse .select-booking:hover{background:var(--nh-blush)}
+#nailhouse .home-welcome{background:#FFF4F3;border-color:#F3E1E2}
+#nailhouse .home-welcome h2>span{color:var(--nh-primary)}
+#nailhouse .home-welcome p,#nailhouse .welcome-date,#nailhouse .home-kicker{color:#866D74}
+#nailhouse .welcome-photo:after{background:linear-gradient(90deg,#FFF4F3 0%,#FFF4F310 45%)}
+#nailhouse .welcome-photo>span{background:#FFF9F1E8;color:#866D74}
+#nailhouse .home-metric{background:#FFF;border-color:#EEE4E8}
+#nailhouse .metric-copy>span:first-child,#nailhouse .stats p{color:#493B40}
+#nailhouse .metric-note,#nailhouse .metric-copy strong small,#nailhouse .stats small{color:#8A7B80}
+#nailhouse .blue .metric-symbol,#nailhouse .blue .attention-icon{background:#FBE8ED;color:var(--nh-primary)}
+#nailhouse .blue .metric-copy>strong{color:var(--nh-primary-dark)}
+#nailhouse .sage .metric-symbol,#nailhouse .sage .attention-icon,#nailhouse .green-bg{background:var(--nh-sage-soft);color:var(--nh-sage)}
+#nailhouse .sage .metric-copy>strong{color:var(--nh-sage)}
+#nailhouse .sand .metric-symbol,#nailhouse .sand .attention-icon,#nailhouse .ochre-bg{background:var(--nh-gold-soft);color:var(--nh-gold)}
+#nailhouse .sand .metric-copy>strong{color:var(--nh-gold)}
+#nailhouse .mauve .metric-symbol,#nailhouse .neutral-bg{background:var(--nh-lavender-soft);color:var(--nh-lavender)}
+#nailhouse .mauve .metric-copy>strong{color:var(--nh-lavender)}
+#nailhouse .rose-bg{background:#FBE8ED;color:var(--nh-primary-dark)}
+#nailhouse .schedule-stats article:nth-child(1){background:#FFF7F8;border-color:#F5DDE3}
+#nailhouse .schedule-stats article:nth-child(2){background:#FAF7FC;border-color:#E9E0EF}
+#nailhouse .schedule-stats article:nth-child(3){background:#FFFBF3;border-color:#F3E7CB}
+#nailhouse .schedule-stats article:nth-child(4){background:#F6FBF9;border-color:#DDECE7}
+#nailhouse .schedule-stats article:nth-child(1) strong{color:var(--nh-primary-dark)}
+#nailhouse .schedule-stats article:nth-child(2) strong{color:var(--nh-lavender)}
+#nailhouse .schedule-stats article:nth-child(3) strong{color:var(--nh-gold)}
+#nailhouse .schedule-stats article:nth-child(4) strong{color:var(--nh-sage)}
+#nailhouse .home-calendar-grid button{color:var(--nh-muted)}
+#nailhouse .home-calendar-grid button.selected-date,#nailhouse .month-day.today>strong{background:var(--nh-primary);color:white}
+#nailhouse .home-calendar-grid button:hover{background:#FBE7EC;color:var(--nh-primary-dark)}
+#nailhouse .calendar-caption>span{background:var(--nh-primary)}
+#nailhouse .home-month-nav strong,#nailhouse .booking-person h3,#nailhouse .schedule-person strong{color:var(--nh-ink)}
+#nailhouse .home-shift{background:#E8F3EF;border-color:#DDECE7}
+#nailhouse .home-shift h3,#nailhouse .shift-symbol,#nailhouse .shift-times p,#nailhouse .shift-summary strong{color:var(--nh-sage)}
+#nailhouse .home-shift small,#nailhouse .home-shift .shift-message,#nailhouse .shift-summary span{color:#6F8580}
+#nailhouse .shift-times,#nailhouse .shift-summary{border-color:#D4E6DF}
+#nailhouse .attention-row strong,#nailhouse .attention-clear strong{color:#493B40}
+#nailhouse .attention-row small,#nailhouse .attention-clear p,#nailhouse .home-progress p,#nailhouse .home-progress>small,#nailhouse .home-agenda-foot,#nailhouse .home-calendar .calendar-caption{color:#8A7B80}
+#nailhouse .attention-clear>span{color:var(--nh-sage)}
+#nailhouse .home-progress progress{background:#FBE7EC;accent-color:var(--nh-primary)}
+#nailhouse .home-progress progress::-webkit-progress-bar{background:#FBE7EC}
+#nailhouse .home-progress progress::-webkit-progress-value{background:var(--nh-primary)}
+#nailhouse .home-progress progress::-moz-progress-bar{background:var(--nh-primary)}
+#nailhouse .progress-numbers strong,#nailhouse .progress-numbers>span{color:var(--nh-primary-dark)}
+#nailhouse .schedule-table th{background:#FAF7FA;color:#756A73}
+#nailhouse .schedule-table td,#nailhouse .booking-info dd{color:#493B40;border-color:#F2E9EE}
+#nailhouse .schedule-person a,#nailhouse .schedule-service,#nailhouse .duration,#nailhouse dt{color:#806F78}
+#nailhouse .schedule-table .is-selected td,#nailhouse .selected td{background:#FFF0F3;border-color:#F1C9D4}
+#nailhouse .badge.confirmed,#nailhouse .month-booking{background:var(--nh-lavender-soft);color:var(--nh-lavender)}
+#nailhouse .badge.processing,#nailhouse .badge.pending,#nailhouse .month-booking.processing{background:var(--nh-gold-soft);color:var(--nh-gold)}
+#nailhouse .badge.completed,#nailhouse .month-booking.completed{background:var(--nh-sage-soft);color:var(--nh-sage)}
+#nailhouse .badge.cancelled,#nailhouse .badge.no_show{background:#FBE8ED;color:#B93E62}
+#nailhouse .schedule-tip,#nailhouse .contact-pill,#nailhouse .booking-code,#nailhouse .customer-note{background:#FFF0F3;color:#9A5065}
+#nailhouse .mode-tabs button.active{background:#FBE7EC;color:var(--nh-primary-dark);border-color:#F1C9D4}
+#nailhouse .service-progress .progress .done span{background:var(--nh-sage)}
+#nailhouse .service-progress .progress .done small{color:var(--nh-sage)}
+#nailhouse .service-meta strong,#nailhouse .home-services .service-meta strong{color:var(--nh-primary-dark)}
+#nailhouse .customer-card h3,#nailhouse .service-card h3{color:var(--nh-ink)}
+#nailhouse .customer-card a,#nailhouse .service-card p,#nailhouse .service-meta span{color:var(--nh-muted)}
+#nailhouse .customer-card>span:not(.avatar){color:var(--nh-primary-dark)}
+#nailhouse .profile-cover{background:#FFF0F3;border-color:var(--nh-line)}
+#nailhouse .profile-stats strong{color:var(--nh-primary-dark)}
+#nailhouse .shift-card{background:#F6FBF9;border-color:#DDECE7}
+#nailhouse .shift-card strong,#nailhouse .shift-card span{color:var(--nh-sage)}
+#nailhouse .empty-icon{background:#FFF0F3;color:var(--nh-primary)}
+#nailhouse .empty h3{color:#493B40}
+#nailhouse .empty p{color:#8A7B80}
+@media(max-width:600px){#nailhouse .welcome-photo:after{background:linear-gradient(180deg,#FFF4F3,transparent 70%)}}

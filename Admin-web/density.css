@@ -1,0 +1,88 @@
+/* Readable type and compact cards, independent of the shared color palette. */
+#nailhouse{font-size:14px}
+#nailhouse main{padding-top:18px}
+#nailhouse .page-heading{margin-bottom:14px}
+#nailhouse .page-heading h1{font-size:24px;line-height:1.3}
+#nailhouse .subtitle{font-size:13px;line-height:1.5}
+#nailhouse .global-search input,#nailhouse .account select{font-size:14px}
+#nailhouse .button.secondary{font-size:12px}
+#nailhouse .home-welcome{min-height:0;margin-bottom:14px;grid-template-columns:1.4fr 1fr}
+#nailhouse .home-welcome>div:first-child{padding:18px 24px}
+#nailhouse .home-kicker{font-size:10px;letter-spacing:1.2px}
+#nailhouse .home-welcome h2{font-size:28px;line-height:1.3;margin:8px 0}
+#nailhouse .home-welcome p{font-size:14px;line-height:1.5}
+#nailhouse .welcome-date{font-size:12px;margin-top:12px}
+#nailhouse .welcome-photo{min-height:0}
+#nailhouse .welcome-photo>span{font-size:11px;padding:6px 10px}
+#nailhouse .home-metrics{gap:12px;margin-bottom:14px}
+#nailhouse .home-metric{padding:14px 16px;gap:13px;align-items:center}
+#nailhouse .metric-symbol{width:40px;height:40px}
+#nailhouse .metric-copy>span:first-child{font-size:13px;line-height:1.4}
+#nailhouse .metric-copy>strong{font-size:29px;margin:5px 0 6px}
+#nailhouse .metric-copy strong small{font-size:11px}
+#nailhouse .metric-note{font-size:11px;line-height:1.4}
+#nailhouse .home-layout{gap:16px}
+#nailhouse .section-heading{padding:14px 16px}
+#nailhouse .section-heading h2{font-size:16px;line-height:1.35}
+#nailhouse .section-heading p{font-size:12px;margin-top:4px}
+#nailhouse .home-link,#nailhouse .text-button{font-size:12px}
+#nailhouse .home-table-tools{padding:0 14px 10px;gap:8px}
+#nailhouse .search{padding:6px 10px}
+#nailhouse .search input,#nailhouse .home-table-tools select{font-size:12px}
+#nailhouse .schedule-table th{font-size:11px;padding:10px 8px}
+#nailhouse .schedule-table td{padding:12px 8px;font-size:12px}
+#nailhouse .schedule-table td:first-child>strong{font-size:13px}
+#nailhouse .schedule-person strong{font-size:12px}
+#nailhouse .schedule-person a{font-size:11px}
+#nailhouse .schedule-service,#nailhouse .schedule-table .duration{font-size:12px}
+#nailhouse .schedule-table .badge{font-size:10px}
+#nailhouse .home-agenda-foot{padding:10px 14px;font-size:11px}
+#nailhouse .empty{padding:24px 18px}
+#nailhouse .empty-icon{width:36px;height:36px;font-size:21px;margin-bottom:10px}
+#nailhouse .empty h3{font-size:15px;margin-bottom:6px}
+#nailhouse .empty p{font-size:12px;line-height:1.6;max-width:380px}
+#nailhouse .home-calendar{padding-bottom:10px;align-self:start}
+#nailhouse .home-planning{align-items:start;gap:12px;margin-bottom:12px}
+#nailhouse .home-calendar .section-heading{padding:12px 13px 7px}
+#nailhouse .home-calendar .section-heading h2{font-size:15px}
+#nailhouse .home-month-nav{padding:3px 12px 8px}
+#nailhouse .home-month-nav strong{font-size:13px}
+#nailhouse .home-calendar-grid{gap:2px;padding:0 10px}
+#nailhouse .home-calendar-grid .weekday{font-size:10px;padding:4px 0}
+#nailhouse .home-calendar-grid button{aspect-ratio:auto;height:28px;min-height:28px;width:28px;justify-self:center;font-size:12px}
+#nailhouse .calendar-caption{font-size:10px;padding:8px 12px 0;gap:5px}
+#nailhouse .calendar-caption button{font-size:10px}
+#nailhouse .home-shift{padding:14px 13px}
+#nailhouse .shift-symbol{margin-bottom:7px}
+#nailhouse .home-shift h3{font-size:14px}
+#nailhouse .home-shift>small{font-size:11px}
+#nailhouse .shift-times{padding:10px 0}
+#nailhouse .shift-times p{font-size:13px;line-height:1.5}
+#nailhouse .shift-summary{margin-top:10px}
+#nailhouse .shift-summary span{font-size:11px;line-height:1.4}
+#nailhouse .home-shift .shift-message{font-size:11px;margin-top:10px;line-height:1.5}
+#nailhouse .home-attention .section-heading{padding:13px 14px 6px}
+#nailhouse .attention-label{font-size:10px}
+#nailhouse .attention-clear{padding:12px 14px 16px}
+#nailhouse .attention-clear strong,#nailhouse .attention-row strong{font-size:13px}
+#nailhouse .attention-clear p,#nailhouse .attention-row small{font-size:12px;line-height:1.5;margin-top:4px}
+#nailhouse .home-progress{padding:14px}
+#nailhouse .home-progress h3{font-size:15px}
+#nailhouse .home-progress p{font-size:12px;margin-top:5px;line-height:1.5}
+#nailhouse .home-progress>small{font-size:10px;line-height:1.4}
+#nailhouse .progress-numbers{margin:10px 0 8px}
+#nailhouse .home-bottom{gap:12px;margin-top:12px}
+#nailhouse .home-bottom .section-heading{padding:12px}
+#nailhouse .home-bottom .section-heading h2{font-size:14px}
+#nailhouse .home-bottom .home-link{font-size:11px}
+#nailhouse .home-customers .customer-grid{grid-template-columns:repeat(auto-fit,minmax(95px,1fr));gap:10px;padding:0 12px 12px}
+#nailhouse .home-customers .customer-card h3{font-size:12px;margin:7px 0 4px}
+#nailhouse .home-customers .customer-card a,#nailhouse .home-customers .customer-card>span:not(.avatar){font-size:11px}
+#nailhouse .home-services .service-grid{grid-template-columns:1fr;gap:10px;padding-bottom:12px}
+#nailhouse .home-services .service-card h3{font-size:12px;line-height:1.4}
+#nailhouse .home-services .service-meta strong,#nailhouse .home-services .service-meta span{font-size:11px}
+#nailhouse .home-services .service-image{width:48px;height:50px}
+@media(min-width:1500px){#nailhouse .home-services .service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#nailhouse .home-bottom{grid-template-columns:1fr 1.15fr}}
+@media(max-width:1200px){#nailhouse .home-bottom .section-heading{flex-wrap:wrap;gap:5px}#nailhouse .metric-note{font-size:10px}#nailhouse .home-table-tools{flex-wrap:wrap}#nailhouse .home-agenda .schedule-table{min-width:560px}}
+@media(max-width:900px){#nailhouse .home-metric{padding:12px}#nailhouse .metric-symbol{width:32px;height:32px}#nailhouse .metric-copy>span:first-child{font-size:12px}#nailhouse .home-planning{grid-template-columns:1fr}}
+@media(max-width:600px){#nailhouse .home-welcome{grid-template-columns:1fr}#nailhouse .home-welcome>div:first-child{padding:16px}#nailhouse .home-welcome h2{font-size:25px}#nailhouse .home-welcome p{font-size:13px}#nailhouse .welcome-photo{height:70px;min-height:70px}#nailhouse .home-kicker{font-size:9px}#nailhouse .home-metric{padding:12px 10px}#nailhouse .metric-copy>strong{font-size:27px}#nailhouse .metric-copy>span:first-child{font-size:12px}#nailhouse .metric-note{font-size:10px}#nailhouse .home-planning{grid-template-columns:1fr}#nailhouse .home-calendar-grid button{height:32px;width:32px;font-size:13px}#nailhouse .home-shift{display:grid;grid-template-columns:1fr 1fr;gap:5px 12px}#nailhouse .home-shift .shift-symbol,#nailhouse .home-shift .shift-message{display:none}#nailhouse .home-shift .shift-times{grid-column:2;grid-row:1/3;padding:0;border:0}#nailhouse .home-shift .shift-summary{grid-column:1/-1;margin-top:5px;padding-top:8px}#nailhouse .home-bottom{grid-template-columns:1fr}#nailhouse .home-bottom .section-heading{flex-direction:row;align-items:center}#nailhouse .home-services .service-grid{grid-template-columns:1fr}#nailhouse .home-calendar{width:100%}#nailhouse .home-agenda .section-heading{flex-wrap:wrap;gap:8px}#nailhouse .home-agenda-foot{font-size:10px}#nailhouse .subtitle{font-size:12px}}
