@@ -4,7 +4,7 @@ Web dùng HTML/CSS/JavaScript và được Express phục vụ cùng API, không
 
 ## Chạy
 
-Trong thư mục `BE_Nail`, chạy `npm run dev`, sau đó mở `http://localhost:3000/staff/`.
+Trong thư mục `Admin-web` hoặc `BE_Nail`, chạy `npm run dev`. Sau khi backend kết nối MySQL và sẵn sàng, trình duyệt tự mở giao diện nhân viên tại `http://localhost:3000/staff/` (hoặc cổng `PORT` trong `.env`). Trình duyệt chỉ tự mở một lần, không mở lại khi backend tự khởi động lại do sửa mã.
 MySQL cần hoạt động và cấu hình `BE_Nail/.env` phải đúng.
 
 ## Dữ liệu và chức năng

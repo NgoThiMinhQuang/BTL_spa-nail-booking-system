@@ -77,6 +77,7 @@ function render() {
   $('#content').innerHTML = html;
   $('#content').classList.toggle('home-view', state.view === 'home');
   document.body.classList.toggle('staff-home', state.view === 'home');
+  if (state.view === 'schedule') arrangeSchedule();
   decorateIcons();
 }
 document.addEventListener('click', (event) => {
@@ -85,7 +86,7 @@ document.addEventListener('click', (event) => {
   const view = event.target.closest('[data-view]');
   if (view) { state.view = view.dataset.view; state.query = ''; state.status = ''; history.replaceState(null, '', state.view === 'schedule' ? '#schedule' : location.pathname); if (state.view === 'schedule' && state.calendarMode !== 'day') load(); else render(); }
   const booking = event.target.closest('[data-booking]');
-  if (booking) { state.selected = booking.dataset.booking; if (state.view === 'home') { state.view = 'schedule'; state.calendarMode = 'day'; history.replaceState(null, '', '#schedule'); } render(); }
+  if (booking) { state.scheduleDetailOpen = true; state.selected = booking.dataset.booking; if (state.view === 'home') { state.view = 'schedule'; state.calendarMode = 'day'; history.replaceState(null, '', '#schedule'); } render(); }
   const monthNav = event.target.closest('[data-home-month]');
   if (monthNav) { const d = new Date((state.homeMonth || state.date.slice(0,7)) + '-01T12:00:00'); d.setMonth(d.getMonth() + Number(monthNav.dataset.homeMonth)); state.homeMonth = localDate(d).slice(0,7); render(); }
   const mode = event.target.closest('[data-mode]');
@@ -93,7 +94,7 @@ document.addEventListener('click', (event) => {
   const day = event.target.closest('[data-day]');
   const today = event.target.closest('[data-today]');
   const date = event.target.closest('[data-date]');
-  if (day || today || date) { const d = new Date(`${state.date}T12:00:00`); if (day) { const amount = Number(day.dataset.day); if (state.view === 'schedule' && state.calendarMode === 'month') { d.setDate(1); d.setMonth(d.getMonth() + amount); } else d.setDate(d.getDate() + amount * (state.view === 'schedule' && state.calendarMode === 'week' ? 7 : 1)); } state.date = today ? localDate() : date ? date.dataset.date : localDate(d); if (date) state.calendarMode = 'day'; if (state.view === 'home') state.homeMonth = state.date.slice(0,7); load(); }
+  if (day || today || date) { const d = new Date(`${state.date}T12:00:00`); if (day) { const amount = Number(day.dataset.day); if (state.view === 'schedule' && state.calendarMode === 'month') { d.setDate(1); d.setMonth(d.getMonth() + amount); } else d.setDate(d.getDate() + amount * (state.view === 'schedule' && state.calendarMode === 'week' ? 7 : 1)); } state.date = today ? localDate() : date ? date.dataset.date : localDate(d); if (date) state.calendarMode = 'day'; state.homeMonth = state.date.slice(0,7); load(); }
 });
 document.addEventListener('change', (event) => {
   if (event.target.id === 'staff-select') { state.staffId = event.target.value; state.selected = null; load(); }
