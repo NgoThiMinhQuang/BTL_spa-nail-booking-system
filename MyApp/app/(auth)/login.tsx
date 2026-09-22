@@ -41,7 +41,7 @@ export default function LoginScreen() {
       >
         {/* Top Header Section with Banner & Logo */}
         <ImageBackground
-          source={require('../../assets/images/banner/login-banner.png')}
+          source={require('../../assets/images/banner/nail-banner-v2.png')}
           style={[styles.headerBanner, { paddingTop: insets.top + 20 }]}
           resizeMode="cover"
         >
