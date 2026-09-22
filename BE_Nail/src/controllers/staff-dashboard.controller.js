@@ -14,7 +14,9 @@ export async function staffDashboard(req, res, next) {
         FROM staff st JOIN users u ON u.user_id=st.user_id WHERE st.staff_id=? AND u.status='ACTIVE'`, [id]),
       pool.query(`SELECT b.booking_id AS id, DATE_FORMAT(b.start_time,'%Y-%m-%d %H:%i') AS startsAt,
         DATE_FORMAT(b.end_time,'%Y-%m-%d %H:%i') AS endsAt, b.status, b.note,
-        u.full_name AS customerName, u.phone, u.avatar, s.service_name AS serviceName, s.duration, s.price
+        b.customer_id AS customerId, DATE_FORMAT(b.created_at,'%d/%m/%Y %H:%i') AS createdAt,
+        u.full_name AS customerName, u.phone, u.email, u.avatar, s.service_name AS serviceName, s.duration, s.price,
+        s.image AS serviceImage, s.description AS serviceDescription, s.buffer_time AS bufferTime
         FROM booking b JOIN customer c ON c.customer_id=b.customer_id JOIN users u ON u.user_id=c.user_id
         JOIN services s ON s.service_id=b.service_id WHERE b.staff_id=? AND b.start_time>=? AND b.start_time<DATE_ADD(?, INTERVAL 1 DAY)
         ORDER BY b.start_time`, [id, date, date]),
