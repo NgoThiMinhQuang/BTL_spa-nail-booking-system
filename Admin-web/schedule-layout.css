@@ -1,0 +1,65 @@
+#nailhouse .schedule-page .page-heading{min-height:130px;margin:0 0 16px;padding:23px 24px;border-radius:12px;background:linear-gradient(90deg,#FCE8ECEF 0%,#FCE8ECEA 43%,#FCE8EC15 80%),url('/uploads/banner/nail-banner-v2.png') right center/cover}
+#nailhouse .schedule-page .page-heading h1{font-size:30px;margin-bottom:9px}
+#nailhouse .schedule-page .page-heading .subtitle{max-width:600px;font-size:14px;color:#806F78}
+#nailhouse .schedule-page .page-heading .button{background:#FFFFFFDF}
+#nailhouse .schedule-workspace .schedule-toolbar{padding:10px 0;border:0;background:transparent;margin-bottom:12px;box-shadow:none;border-radius:0;gap:10px}
+#nailhouse .schedule-workspace .schedule-date{background:white;padding:11px 14px}
+#nailhouse .schedule-workspace .schedule-date input{font-size:14px}
+#nailhouse .schedule-workspace .mode-tabs button{font-size:13px;padding:12px 22px}
+#nailhouse .schedule-workspace .schedule-toolbar select{font-size:13px;padding:12px}
+#nailhouse .schedule-workspace .schedule-columns{grid-template-columns:minmax(0,2.45fr) minmax(280px,1fr);gap:18px}
+#nailhouse .schedule-workspace .schedule-aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+#nailhouse .schedule-workspace .schedule-aside>.panel{width:100%;margin:0}
+#nailhouse .schedule-workspace .schedule-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 14px}
+#nailhouse .schedule-workspace .schedule-stats article{padding:17px 16px;min-height:100px;gap:15px}
+#nailhouse .schedule-workspace .schedule-stats .stat-icon{width:43px;height:43px}
+#nailhouse .schedule-workspace .schedule-stats p{font-size:13px}
+#nailhouse .schedule-workspace .schedule-stats strong{font-size:30px}
+#nailhouse .schedule-workspace .schedule-stats small{display:block;margin:6px 0 0;font-size:11px}
+#nailhouse .schedule-workspace .schedule-stats article:nth-child(2){background:#F6FBF9;border-color:#DDECE7}
+#nailhouse .schedule-workspace .schedule-stats article:nth-child(2) strong{color:#4E7D74}
+#nailhouse .schedule-workspace .schedule-stats article:nth-child(2) .stat-icon{background:#E8F3EF;color:#4E7D74}
+#nailhouse .schedule-workspace .schedule-table td{padding:17px 9px;font-size:12px}
+#nailhouse .schedule-workspace .schedule-table th{font-size:11px;padding:12px 9px}
+#nailhouse .schedule-workspace .schedule-table th:first-child{padding-left:13px}
+#nailhouse .schedule-workspace .schedule-table td:first-child{border-left:3px solid #D56B81;padding-left:10px}
+#nailhouse .schedule-workspace tr[data-status="confirmed"] td:first-child{border-left-color:#73A28C}
+#nailhouse .schedule-workspace tr[data-status="processing"] td:first-child{border-left-color:#749BB8}
+#nailhouse .schedule-workspace tr[data-status="pending"] td:first-child{border-left-color:#D5B566}
+#nailhouse .schedule-workspace tr[data-status="completed"] td:first-child{border-left-color:#A38BB8}
+#nailhouse .schedule-workspace .schedule-person{min-width:135px;gap:10px}
+#nailhouse .schedule-workspace .schedule-person .avatar{width:37px;height:37px}
+#nailhouse .schedule-workspace .schedule-person strong{font-size:12px}
+#nailhouse .schedule-workspace .schedule-person a{font-size:11px}
+#nailhouse .schedule-workspace .select-booking{font-size:11px;padding:7px 10px;white-space:nowrap;border:1px solid #DDA5B5;border-radius:5px;background:#FFF;color:#B93E62}
+#nailhouse .schedule-workspace .select-booking:hover{background:#FFF0F3}
+#nailhouse .workday-card .section-heading h2{font-size:15px}
+#nailhouse .workday-hours{display:flex;align-items:center;gap:10px;padding:6px 15px 10px;flex-wrap:wrap}
+#nailhouse .workday-hours>svg{color:#D56B81;width:22px;height:22px}
+#nailhouse .workday-hours>strong{font-size:18px;line-height:1.6;font-weight:600}
+#nailhouse .workday-hours .badge{font-size:10px}
+#nailhouse .workday-card dl{margin:0 15px 10px}
+#nailhouse .workday-card dl>div{font-size:12px;padding:7px 0}
+#nailhouse .workday-card .shift-disclosure{margin:0;border:0;border-radius:0;border-top:1px solid #F0E5E8;background:#FFFCFD}
+#nailhouse .workday-card summary{padding:12px 15px;font-size:12px;color:#B93E62}
+#nailhouse .workday-card .shift-list{display:grid;grid-template-columns:1fr;max-height:240px;overflow:auto}
+#nailhouse .workday-card .shift-card{gap:5px;padding:10px}
+#nailhouse .schedule-aside .home-calendar-grid button{height:29px;width:29px}
+#nailhouse .schedule-aside .home-calendar-grid button.selected-date{background:#D56B81;color:white}
+#nailhouse .schedule-aside .upcoming-panel h2{font-size:15px}
+#nailhouse .schedule-aside .upcoming-row{padding:14px 0}
+#nailhouse .schedule-aside .upcoming-row b{font-size:12px}
+#nailhouse .schedule-aside .upcoming-row small{font-size:11px}
+#nailhouse .schedule-aside .empty{padding:20px 15px}
+#nailhouse .schedule-aside .empty-icon{display:none}
+#nailhouse .schedule-aside .empty h3{font-size:13px}
+#nailhouse .booking-detail-drawer{border:1px solid #F0DFE3;border-radius:10px;margin-top:14px;overflow:hidden;background:white}
+#nailhouse .booking-detail-drawer>summary{cursor:pointer;padding:13px 16px;font-size:13px;color:#B93E62;background:#FFFAFC}
+#nailhouse .booking-detail-drawer .schedule-detail{border:0;border-top:1px solid #F0DFE3;border-radius:0;box-shadow:none}
+#nailhouse .booking-detail-drawer:not([open])>.schedule-detail{display:none}
+#nailhouse .workday-reminder{display:flex;align-items:center;gap:12px;padding:17px 18px;background:#FFF0F3;border-radius:10px;margin-top:16px;color:#B7637A}
+#nailhouse .workday-reminder p{font-size:12px;font-style:italic;line-height:1.6}
+#nailhouse .workday-reminder svg{flex-shrink:0}
+@media(max-width:1150px){#nailhouse .schedule-workspace .schedule-columns{grid-template-columns:minmax(0,1fr) 265px;gap:12px}#nailhouse .schedule-workspace .schedule-stats article{padding:13px 10px;gap:8px}#nailhouse .schedule-workspace .schedule-stats p{font-size:11px}#nailhouse .schedule-workspace .schedule-stats .stat-icon{width:31px;height:31px}#nailhouse .schedule-workspace .schedule-table{min-width:590px}#nailhouse .schedule-page .page-heading .subtitle{max-width:470px}}
+@media(max-width:900px){#nailhouse .schedule-workspace .schedule-columns{grid-template-columns:1fr}#nailhouse .schedule-workspace .schedule-aside{display:grid;grid-template-columns:1fr 1fr;align-items:start}#nailhouse .schedule-workspace .upcoming-panel{grid-column:1/-1}#nailhouse .schedule-workspace .schedule-stats p{font-size:13px}}
+@media(max-width:600px){#nailhouse .schedule-page .page-heading{padding:18px 15px;min-height:120px}#nailhouse .schedule-page .page-heading h1{font-size:26px}#nailhouse .schedule-page .page-heading .subtitle{font-size:12px}#nailhouse .schedule-workspace .schedule-stats{gap:7px}#nailhouse .schedule-workspace .schedule-stats article{display:block;padding:12px 9px;min-height:112px}#nailhouse .schedule-workspace .schedule-stats .stat-icon{display:none}#nailhouse .schedule-workspace .schedule-stats p{font-size:11px;min-height:30px}#nailhouse .schedule-workspace .schedule-stats strong{font-size:27px}#nailhouse .schedule-workspace .schedule-stats small{font-size:10px}#nailhouse .schedule-workspace .schedule-aside{display:flex}#nailhouse .schedule-workspace .schedule-toolbar .mode-tabs button{padding:10px 13px;font-size:12px}#nailhouse .schedule-workspace .schedule-toolbar select{font-size:11px;padding:10px 7px}#nailhouse .workday-reminder{padding:13px}#nailhouse .workday-reminder p{font-size:11px}}

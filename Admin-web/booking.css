@@ -1,0 +1,67 @@
+/* Appointment detail: compact spacing and one readable type scale. */
+#nailhouse .booking-page{font-size:14px;line-height:1.5}
+#nailhouse .booking-page .page-heading{margin-bottom:8px}
+.booking-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;color:var(--nh-muted);font-size:13px}
+.booking-topline>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.booking-back{border:0;background:none;color:var(--nh-primary-dark);padding:8px 0;cursor:pointer;font:inherit}
+.booking-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,1fr) minmax(0,.9fr);gap:16px;align-items:start}
+.booking-column{display:grid;gap:14px;min-width:0}
+.booking-card{background:#fff;border:1px solid var(--nh-line);border-radius:10px;padding:18px;min-width:0}
+#nailhouse .booking-card-title{display:flex;align-items:center;gap:8px;font-size:16px;line-height:1.4;font-weight:600;margin:0 0 16px;letter-spacing:0}
+.booking-card-title>span{display:grid;place-items:center;color:var(--nh-primary-dark);width:22px;height:24px;flex-shrink:0}
+.booking-card-title svg{width:20px;height:20px}
+.booking-customer{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+#nailhouse .booking-customer .avatar.large{width:48px;height:48px;flex:0 0 48px;font-size:19px}
+#nailhouse .booking-card h3{font-size:16px;font-weight:600;margin:0 0 4px;line-height:1.45;overflow-wrap:anywhere}
+.booking-soft-label{display:block;font-size:12px;color:var(--nh-muted)}
+.booking-contact{display:grid;gap:8px;font-size:14px;overflow-wrap:anywhere}
+.booking-contact a,.booking-contact>span{display:flex;align-items:center;gap:9px;color:var(--nh-muted);text-decoration:none}
+.booking-contact b,.booking-contact a>span{color:var(--nh-primary);font-size:16px;width:18px;text-align:center;flex-shrink:0}
+.booking-customer-stat{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #f1e9ec;padding-top:10px;margin-top:12px;font-size:13px;color:var(--nh-muted)}
+.booking-customer-stat strong{color:var(--nh-ink);font-size:18px;font-weight:600}.booking-customer-stat small{font-size:13px;font-weight:400}
+.booking-service-summary{display:flex;align-items:center;gap:12px}
+.booking-service-summary>div{min-width:0}
+.booking-service-summary img,.booking-service-placeholder{width:80px;height:92px;object-fit:cover;border-radius:7px;flex-shrink:0}
+.booking-service-placeholder{display:grid;place-items:center;background:var(--nh-blush);color:var(--nh-primary)}
+.booking-service-placeholder svg{width:32px;height:32px}
+.booking-price{display:block;font-size:18px;font-weight:600;color:var(--nh-primary-dark);margin:4px 0}
+.booking-service-summary p,.booking-service-summary small{display:block;font-size:13px;color:var(--nh-muted);margin:2px 0}
+.booking-description,.booking-note p{font-size:14px;line-height:1.6;color:var(--nh-muted);margin:12px 0 0;white-space:pre-line;overflow-wrap:anywhere}
+.booking-note{background:#fffaf8;border-color:#eee2dd}
+#nailhouse .booking-note .booking-card-title{margin-bottom:8px}
+.booking-note p{margin:0}
+.booking-facts{display:grid;gap:0;margin:0;font-size:14px}
+.booking-facts>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;align-items:baseline;padding:9px 0;border:0;border-bottom:1px solid #f5eff1}
+.booking-facts>div:first-child{padding-top:0}.booking-facts>div:last-child{padding-bottom:0;border-bottom:0}
+.booking-facts dt{color:var(--nh-muted);line-height:1.5;font-size:13px}.booking-facts dd{margin:0;font-weight:500;line-height:1.5;overflow-wrap:anywhere;text-align:left}
+.booking-muted{font-size:12px;color:var(--nh-muted);font-weight:400}
+#nailhouse .booking-page .badge{font-size:12px;padding:4px 9px;line-height:1.4;white-space:normal}
+.booking-timeline{list-style:none;padding:0;margin:0}
+.booking-timeline li{position:relative;display:flex;gap:12px;padding:0 0 17px}
+.booking-timeline li:last-child{padding-bottom:0}
+.booking-timeline li:not(:last-child):before{content:'';position:absolute;left:8px;top:21px;bottom:4px;width:1px;background:#e9dfe3}
+.timeline-dot{width:18px;height:18px;margin-top:2px;box-sizing:border-box;border-radius:50%;border:2px solid #e5dfe2;background:white;flex-shrink:0;display:grid;place-items:center;color:#fff;font-size:11px;position:relative}
+.complete .timeline-dot{background:var(--nh-primary);border-color:var(--nh-primary)}
+.current .timeline-dot{border:5px solid var(--nh-primary);box-shadow:0 0 0 3px #fdf0f3}
+.booking-timeline strong{display:block;font-size:14px;font-weight:500}.booking-timeline small{display:block;font-size:12px;color:var(--nh-muted);margin-top:2px}
+.booking-timeline li:not(.complete):not(.current) strong{color:var(--nh-muted)}
+.booking-status-foot{display:flex;gap:6px;align-items:center;border-top:1px solid #f1e9ec;padding-top:10px;margin-top:14px;font-size:12px;color:var(--nh-muted)}
+.booking-status-foot svg{width:14px;height:14px;flex-shrink:0}.booking-terminal p{font-size:14px;color:var(--nh-muted);line-height:1.6;margin-top:10px}
+.booking-actions{display:grid;gap:8px}
+.booking-actions button,.booking-actions a{display:flex;align-items:center;justify-content:center;min-height:40px;text-align:center;padding:8px 10px;border:1px solid #e8d7dd;border-radius:6px;background:#fff;color:var(--nh-primary-dark);font:inherit;font-size:14px;line-height:1.5;text-decoration:none}
+.booking-actions .booking-primary{background:#f4e7ec;color:#936378;border-color:#ecdae2}
+.booking-actions .booking-soft{background:#faf6f8;border-color:#eee5e9}
+.booking-actions button:disabled{cursor:not-allowed;opacity:1;color:#947e87}
+.booking-actions a{border-color:#dba6b5;color:var(--nh-primary-dark);font-weight:500}
+.booking-actions a:hover{background:var(--nh-blush)}
+.booking-action-note{font-size:12px;line-height:1.5;color:var(--nh-muted);margin:10px 0 0}
+.booking-next-heading{display:flex;align-items:start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#nailhouse .booking-next-heading .booking-card-title{margin-bottom:10px}
+.booking-next-heading>button{border:0;background:none;color:var(--nh-primary-dark);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;padding:3px 0}
+.booking-next-heading+.booking-description{margin-top:4px;font-size:13px}
+.booking-next{display:flex;align-items:center;gap:10px;padding:11px 0;width:100%;text-align:left;background:none;border:0;border-top:1px solid #f1e9ec;cursor:pointer;color:var(--nh-ink)}
+.booking-next>span{min-width:0;overflow-wrap:anywhere}
+.booking-next:hover{background:#fff8fa}.booking-next time{font-size:14px;font-weight:600}.booking-next strong{font-size:14px;font-weight:500;display:block;line-height:1.5}.booking-next small{font-size:12px;color:var(--nh-muted);display:block;margin-top:2px}.booking-next-arrow{margin-left:auto;color:var(--nh-primary);font-size:20px}
+.booking-page button:focus-visible,.booking-page a:focus-visible{outline:3px solid #bd5675;outline-offset:3px}
+@media(max-width:1200px){.booking-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.booking-column:last-child{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+@media(max-width:700px){.booking-grid{grid-template-columns:minmax(0,1fr);gap:12px}.booking-column{gap:12px}.booking-column:last-child{grid-column:auto;grid-template-columns:minmax(0,1fr)}.booking-topline{align-items:start;flex-direction:column;gap:4px}.booking-card{padding:16px}.booking-facts>div{grid-template-columns:94px minmax(0,1fr)}}
