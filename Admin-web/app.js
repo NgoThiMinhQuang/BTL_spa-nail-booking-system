@@ -76,8 +76,11 @@ function render() {
     html = homePage();
   } else if (state.view === 'schedule') {
     html = schedulePage();
-  } else if (state.view === 'customers' || state.view === 'services') {
-    html = `<section class="panel lower-panel"><div class="section-heading"><h2>${titles[state.view]}</h2><label class="search"><span>⌕</span><input id="search" value="${esc(state.query)}" placeholder="Tìm kiếm…" aria-label="Tìm kiếm"></label></div>${state.view === 'customers' ? customerCards() : serviceCards()}</section>`;
+  } else if (state.view === 'customers') {
+    $('#page-subtitle').textContent = 'Quản lý thông tin khách hàng đã đặt lịch với bạn.';
+    html = customersPage();
+  } else if (state.view === 'services') {
+    html = `<section class="panel lower-panel"><div class="section-heading"><h2>${titles[state.view]}</h2><label class="search"><span>⌕</span><input id="search" value="${esc(state.query)}" placeholder="Tìm kiếm…" aria-label="Tìm kiếm"></label></div>${serviceCards()}</section>`;
   } else {
     html = `<section class="panel profile"><div class="profile-cover"></div>${avatar(profile.name, profile.avatar, true)}<p class="eyebrow">CHUYÊN VIÊN NAILHOUSE</p><h2>${esc(profile.name)}</h2><p>${esc(profile.specialty || 'Chuyên viên chăm sóc sắc đẹp')}</p><div class="profile-stats"><div><strong>${profile.experienceYears}</strong><span>Năm kinh nghiệm</span></div><div><strong>${profile.rating} / 5</strong><span>Đánh giá</span></div><div><strong>${state.data.services.length}</strong><span>Dịch vụ chuyên môn</span></div></div><dl><div><dt>Số điện thoại</dt><dd>${esc(profile.phone || 'Chưa cập nhật')}</dd></div><div><dt>Email</dt><dd>${esc(profile.email || 'Chưa cập nhật')}</dd></div><div><dt>Chuyên môn</dt><dd>${esc(profile.specialty || 'Chưa cập nhật')}</dd></div></dl></section>`;
   }
@@ -91,7 +94,7 @@ document.addEventListener('click', (event) => {
   const stat = event.target.closest('[data-stat]');
   if (stat) { state.calendarMode = 'day'; history.replaceState(null, '', '#schedule'); state.view = 'schedule'; state.status = stat.dataset.stat; state.query = ''; render(); }
   const view = event.target.closest('[data-view]');
-  if (view) { state.view = view.dataset.view; state.query = ''; state.status = ''; history.replaceState(null, '', state.view === 'schedule' ? '#schedule' : location.pathname); if (state.view === 'schedule' && state.calendarMode !== 'day') load(); else render(); }
+  if (view) { state.view = view.dataset.view; state.query = ''; state.status = ''; state.customerPage = 1; history.replaceState(null, '', state.view === 'schedule' ? '#schedule' : location.pathname); if (state.view === 'schedule' && state.calendarMode !== 'day') load(); else render(); }
   const booking = event.target.closest('[data-booking]');
   if (booking) {
     state.selected = booking.dataset.booking;
@@ -103,6 +106,11 @@ document.addEventListener('click', (event) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
+  const cust = event.target.closest('[data-customer]');
+  if (cust) { state.customerId = cust.dataset.customer; render(); return; }
+  const cpage = event.target.closest('[data-cpage]');
+  if (cpage && !cpage.disabled) { state.customerPage = Number(cpage.dataset.cpage); render(); return; }
+  if (event.target.closest('#export-customers')) { exportCustomers(); return; }
   const monthNav = event.target.closest('[data-home-month]');
   if (monthNav) { const d = new Date((state.homeMonth || state.date.slice(0,7)) + '-01T12:00:00'); d.setMonth(d.getMonth() + Number(monthNav.dataset.homeMonth)); state.homeMonth = localDate(d).slice(0,7); render(); }
   const mode = event.target.closest('[data-mode]');
@@ -116,8 +124,10 @@ document.addEventListener('change', (event) => {
   if (event.target.id === 'staff-select') { state.staffId = event.target.value; state.selected = null; if (state.view === 'booking') state.view = 'schedule'; load(); }
   if (event.target.id === 'work-date' && event.target.value) { state.date = event.target.value; load(); }
   if (event.target.id === 'status-filter') { state.status = event.target.value; render(); }
+  if (event.target.id === 'customer-filter') { state.customerFilter = event.target.value; state.customerPage = 1; render(); }
+  if (event.target.id === 'customer-sort') { state.customerSort = event.target.value; state.customerPage = 1; render(); }
 });
-document.addEventListener('input', (event) => { if (event.target.id === 'search') { const pos = event.target.selectionStart; state.query = event.target.value; render(); $('#search').focus(); $('#search').setSelectionRange(pos, pos); } });
+document.addEventListener('input', (event) => { if (event.target.id === 'search') { const pos = event.target.selectionStart; state.query = event.target.value; if (state.view === 'customers') state.customerPage = 1; render(); $('#search').focus(); $('#search').setSelectionRange(pos, pos); } });
 async function init() {
   try {
     const staff = await request('/api/staff');
