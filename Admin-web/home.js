@@ -6,22 +6,61 @@ function homeCalendar() {
   return `<section class="panel home-calendar"><div class="section-heading"><h2>Lịch của tôi</h2></div><div class="home-month-nav"><button data-home-month="-1" class="icon-button" aria-label="Tháng trước">‹</button><strong>Tháng ${first.getMonth()+1}, ${first.getFullYear()}</strong><button data-home-month="1" class="icon-button" aria-label="Tháng sau">›</button></div><div class="home-calendar-grid">${['T2','T3','T4','T5','T6','T7','CN'].map(d=>`<span class="weekday">${d}</span>`).join('')}${Array.from({length:offset},()=>'<span></span>').join('')}${Array.from({length:count},(_,i)=>{const date=`${month}-${String(i+1).padStart(2,'0')}`;return `<button data-date="${date}" class="${date===state.date?'selected-date':''} ${date===localDate()?'today-date':''}" aria-label="${longDate(date)}" aria-pressed="${date===state.date}">${i+1}</button>`;}).join('')}</div><div class="calendar-caption"><span></span> Ngày đang xem <button data-today>Về hôm nay</button></div></section>`;
 }
 function homePage() {
-  const {profile,bookings,shifts}=state.data;
-  const completed=bookings.filter(b=>b.status==='COMPLETED').length;
-  const processing=bookings.filter(b=>b.status==='PROCESSING').length;
-  const cancelled=bookings.filter(b=>b.status==='CANCELLED').length;
-  const pending=bookings.filter(b=>b.status==='PENDING');
-  const active=bookings.filter(b=>!['CANCELLED','NO_SHOW'].includes(b.status));
-  const percent=active.length?Math.round(completed/active.length*100):0;
-  const dayShifts=shifts.filter(s=>s.date===state.date);
-  const rows=bookings.filter(b=>(!state.status||b.status===state.status)&&`${b.customerName} ${b.phone} ${b.serviceName}`.toLocaleLowerCase('vi').includes(state.query.toLocaleLowerCase('vi')));
-  const next=bookings.find(b=>['CONFIRMED','PENDING'].includes(b.status)&&new Date(b.startsAt.replace(' ','T'))>=new Date());
-  const inProgress=bookings.find(b=>b.status==='PROCESSING');
-  const dateLabel=state.date===localDate()?'hôm nay':'trong ngày';
-  return `<section class="home-welcome"><div><span class="home-kicker">KHÔNG GIAN LÀM VIỆC · NAILHOUSE</span><h2>Xin chào, <span>${esc(profile.name)}.</span></h2><p>Một ngày làm việc hiệu quả, bắt đầu từ sự chuẩn bị chu đáo.</p><div class="welcome-date">${icon('schedule')} ${longDate(state.date)}</div></div><div class="welcome-photo"><img src="/uploads/banner/nail-banner-v2.png" alt="Chăm sóc móng tại NailHouse"><span>Chăm chút từng trải nghiệm.</span></div></section><div class="home-metrics">${[
-    ['schedule','blue','Lịch hẹn '+dateLabel,bookings.length,'','Xem toàn bộ lịch'],
-    ['done','sage','Đã hoàn thành',completed,'COMPLETED',active.length?`${percent}% lịch cần thực hiện`:'Chưa có lịch cần thực hiện'],
-    ['clock','sand','Đang thực hiện',processing,'PROCESSING','Khách đang được chăm sóc'],
-    ['clock','mauve','Đã hủy',cancelled,'CANCELLED','Theo ngày đang chọn'],
-  ].map(([symbol,color,label,value,status,note])=>`<button class="home-metric ${color}" data-stat="${status}"><span class="metric-symbol">${icon(symbol)}</span><span class="metric-copy"><span>${label}</span><strong>${value}<small>lịch hẹn</small></strong><span class="metric-note">${note} <b>↗</b></span></span></button>`).join('')}</div><div class="home-layout"><div class="home-primary"><section class="panel home-agenda"><div class="section-heading"><div><h2>Lịch làm việc ${dateLabel}</h2><p>${longDate(state.date)}</p></div><button class="home-link" data-view="schedule">Xem toàn bộ lịch ↗</button></div><div class="home-table-tools"><label class="search"><span>⌕</span><input id="search" aria-label="Tìm lịch hẹn" placeholder="Tìm khách hàng, dịch vụ…" value="${esc(state.query)}"></label><select id="status-filter" aria-label="Lọc trạng thái"><option value="">Tất cả trạng thái</option>${Object.entries(labels).map(([value,label])=>`<option value="${value}" ${state.status===value?'selected':''}>${label}</option>`).join('')}</select></div>${scheduleTable(rows)}<div class="home-agenda-foot"><span>${rows.length} lịch hẹn · ${esc(profile.name)}</span><span>Chọn lịch để xem chi tiết →</span></div></section><div class="home-bottom"><section class="panel home-customers"><div class="section-heading"><h2>Khách hàng của tôi</h2><button class="home-link" data-view="customers">Xem tất cả ↗</button></div>${customerCards(4, '')}</section><section class="panel home-services"><div class="section-heading"><h2>Dịch vụ của tôi</h2><button class="home-link" data-view="services">Xem tất cả ↗</button></div>${serviceCards(4, '')}</section></div></div><aside class="home-secondary"><div class="home-planning">${homeCalendar()}<section class="home-shift"><span class="shift-symbol">${icon('clock')}</span><h3>Ca làm việc</h3><small>${state.date.split('-').reverse().join('/')}</small><div class="shift-times">${dayShifts.length?dayShifts.map(s=>`<p>${s.status==='OFF'?'Nghỉ':`${s.start} – ${s.end}`}</p>`).join(''):'<p>Chưa có ca được phân công</p>'}</div><div class="shift-summary"><strong>${bookings.length}</strong><span>lịch hẹn<br>trong ngày</span></div><p class="shift-message">Dành thời gian chuẩn bị trước mỗi cuộc hẹn.</p></section></div><section class="panel home-attention"><div class="section-heading"><h2>Cần chú ý</h2><span class="attention-label">Theo lịch đã chọn</span></div>${inProgress?`<button class="attention-row sage" data-booking="${inProgress.id}"><span class="attention-icon">${icon('play')}</span><span><strong>Đang phục vụ ${esc(inProgress.customerName)}</strong><small>${esc(inProgress.serviceName)} · từ ${inProgress.startsAt.slice(11)}</small></span><b>↗</b></button>`:''}${pending.length?`<button class="attention-row sand" data-stat="PENDING"><span class="attention-icon">${icon('clock')}</span><span><strong>${pending.length} lịch hẹn chờ xác nhận</strong><small>Kiểm tra thông tin trước khi đón khách.</small></span><b>↗</b></button>`:''}${next?`<button class="attention-row blue" data-booking="${next.id}"><span class="attention-icon">${icon('schedule')}</span><span><strong>Lịch tiếp theo · ${next.startsAt.slice(11)}</strong><small>${esc(next.customerName)} · ${esc(next.serviceName)}</small></span><b>↗</b></button>`:''}${!inProgress&&!pending.length&&!next?`<div class="attention-clear"><span>${icon('done')}</span><div><strong>Không có việc cần chú ý</strong><p>Các lịch chờ xác nhận và khách sắp tới sẽ hiển thị tại đây.</p></div></div>`:''}</section><section class="panel home-progress"><div><h3>Tiến độ ${dateLabel}</h3><p>${active.length?'Số lịch đã hoàn thành trên số lịch cần thực hiện.':'Chưa có lịch cần thực hiện trong ngày này.'}</p></div><div class="progress-numbers"><strong>${completed}<span> / ${active.length}</span></strong><span>${percent}%</span></div><progress max="100" value="${percent}" aria-label="Tỷ lệ lịch hẹn hoàn thành">${percent}%</progress><small>Không tính lịch đã hủy hoặc khách không đến.</small></section></aside></div>`;
+  const { profile, bookings, shifts } = state.data;
+  const completed = bookings.filter(b => b.status === 'COMPLETED').length;
+  const processing = bookings.filter(b => b.status === 'PROCESSING').length;
+  const pending = bookings.filter(b => b.status === 'PENDING');
+  const dayShifts = shifts.filter(s => s.date === state.date);
+  const ordered = [...bookings].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const rows = ordered.filter(b => (!state.status || b.status === state.status) &&
+    `${b.customerName} ${b.phone} ${b.serviceName}`.toLocaleLowerCase('vi').includes(state.query.toLocaleLowerCase('vi')));
+  const next = ordered.find(b => ['CONFIRMED', 'PENDING'].includes(b.status) &&
+    new Date(b.startsAt.replace(' ', 'T')) >= new Date());
+  const inProgress = ordered.find(b => b.status === 'PROCESSING');
+  const dateLabel = state.date === localDate() ? 'hôm nay' : 'trong ngày';
+  const metrics = [
+    ['schedule', 'Tổng lịch hẹn', bookings.length, ''],
+    ['clock', 'Chờ xác nhận', pending.length, 'PENDING'],
+    ['play', 'Đang thực hiện', processing, 'PROCESSING'],
+    ['done', 'Đã hoàn thành', completed, 'COMPLETED'],
+  ];
+  return `
+    <div class="home-overview-heading"><h2>Tổng quan ${dateLabel}</h2><span>${longDate(state.date)}</span></div>
+    <div class="home-metrics">
+      ${metrics.map(([symbol, label, value, status]) => `
+        <button class="home-metric" data-stat="${status}" aria-label="${esc(label)}: ${value}. Xem danh sách">
+          <span class="metric-symbol" aria-hidden="true">${icon(symbol)}</span>
+          <span class="metric-copy"><span>${label}</span><strong>${value}<small>lịch hẹn</small></strong></span>
+        </button>`).join('')}
+    </div>
+    <div class="home-layout">
+      <div class="home-primary">
+        <section class="panel home-agenda">
+          <div class="section-heading"><div><h2>Lịch hẹn ${dateLabel}</h2><p>${bookings.length} lịch hẹn của ${esc(profile.name)}</p></div><button class="home-link" data-view="schedule">Mở lịch làm việc ↗</button></div>
+          <div class="home-table-tools">
+            <label class="search"><span aria-hidden="true">⌕</span><input id="search" aria-label="Tìm lịch hẹn" placeholder="Tìm tên khách, số điện thoại, dịch vụ…" value="${esc(state.query)}"></label>
+            <select id="status-filter" aria-label="Lọc trạng thái"><option value="">Tất cả trạng thái</option>${Object.entries(labels).map(([value, label]) => `<option value="${value}" ${state.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
+          </div>
+          ${scheduleTable(rows)}
+          <div class="home-agenda-foot"><span>Hiển thị ${rows.length} / ${bookings.length} lịch hẹn</span><span>Giờ tại cửa hàng</span></div>
+        </section>
+      </div>
+      <aside class="home-secondary" aria-label="Việc cần làm, ca làm và chọn ngày">
+        <section class="panel home-attention">
+          <div class="section-heading"><h2>Cần chú ý</h2><span class="attention-label">${state.date.split('-').reverse().join('/')}</span></div>
+          <div class="attention-list">
+          ${inProgress ? `<button class="attention-row sage" data-booking="${esc(inProgress.id)}"><span class="attention-icon">${icon('play')}</span><span><strong>Đang phục vụ ${esc(inProgress.customerName)}</strong><small>${esc(inProgress.serviceName)} · từ ${esc(inProgress.startsAt.slice(11))}</small></span><b aria-hidden="true">›</b></button>` : ''}
+          ${pending.length ? `<button class="attention-row sand" data-stat="PENDING"><span class="attention-icon">${icon('clock')}</span><span><strong>${pending.length} lịch chờ xác nhận</strong><small>Xem danh sách khách đang chờ.</small></span><b aria-hidden="true">›</b></button>` : ''}
+          ${next ? `<button class="attention-row blue" data-booking="${esc(next.id)}"><span class="attention-icon">${icon('schedule')}</span><span><strong>Tiếp theo · ${esc(next.startsAt.slice(11))}</strong><small>${esc(next.customerName)} · ${esc(next.serviceName)}</small></span><b aria-hidden="true">›</b></button>` : ''}
+          ${!inProgress && !pending.length && !next ? `<div class="attention-clear"><span>${icon('done')}</span><div><strong>Mọi việc đã xong</strong><p>Lịch chờ xác nhận và khách sắp tới sẽ hiện ở đây.</p></div></div>` : ''}
+          </div>
+        </section>
+        <section class="panel home-shift">
+          <div class="home-shift-heading"><div><h2>Ca làm ${dateLabel}</h2><p class="shift-date">${longDate(state.date)}</p></div><span aria-hidden="true">${icon('clock')}</span></div>
+          <div class="shift-times">${dayShifts.length ? dayShifts.map(s => `<p>${s.status === 'OFF' ? 'Ngày nghỉ' : `${esc(s.start)} – ${esc(s.end)}`}</p>`).join('') : '<p class="shift-empty">Chưa có ca được phân công</p>'}</div>
+          <button class="home-link" data-view="schedule">Xem lịch làm việc ↗</button>
+        </section>
+        ${homeCalendar()}
+      </aside>
+    </div>`;
 }

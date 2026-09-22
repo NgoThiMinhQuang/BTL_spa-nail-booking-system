@@ -1,0 +1,136 @@
+/* Home — bố cục gọn 2 cột, thang chữ đồng bộ trang chi tiết lịch hẹn.
+   Base 14px / 1.5 · H2 16px · body 14px · muted 12–13px. File này nạp cuối nên thắng các lớp cũ. */
+#nailhouse.staff-home { font-size:14px; line-height:1.5; }
+#nailhouse.staff-home .page-heading { margin-bottom:16px; gap:12px; align-items:center; }
+#nailhouse.staff-home .page-heading h1 { font-size:24px; font-weight:600; line-height:1.35; letter-spacing:-.3px; margin:0 0 4px; }
+#nailhouse.staff-home .subtitle { font-size:13px; line-height:1.5; }
+#nailhouse.staff-home .button.secondary { font-size:13px; padding:8px 12px; }
+
+/* Tiêu đề tổng quan */
+#nailhouse.staff-home .home-overview-heading { display:flex; justify-content:space-between; align-items:baseline; gap:8px 16px; flex-wrap:wrap; margin:0 0 10px; }
+#nailhouse.staff-home .home-overview-heading h2 { font-size:15px; font-weight:600; margin:0; }
+#nailhouse.staff-home .home-overview-heading > span { font-size:13px; color:var(--nh-muted); }
+
+/* 4 thẻ số liệu */
+#nailhouse.staff-home .home-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+#nailhouse.staff-home .home-metric { display:flex; align-items:center; gap:12px; text-align:left; padding:14px 16px; border:1px solid var(--nh-line); border-radius:10px; background:#fff; cursor:pointer; }
+#nailhouse.staff-home .home-metric:hover { border-color:#d8a4b3; background:#fffafb; }
+#nailhouse.staff-home .metric-symbol { display:grid; place-items:center; width:40px; height:40px; flex:0 0 40px; border-radius:10px; background:#fff3f5; color:var(--nh-primary-dark); }
+#nailhouse.staff-home .metric-symbol svg { width:20px; height:20px; }
+#nailhouse.staff-home .metric-copy { min-width:0; }
+#nailhouse.staff-home .metric-copy > span:first-child { display:block; font-size:13px; line-height:1.4; color:var(--nh-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#nailhouse.staff-home .metric-copy > strong { display:flex; align-items:baseline; gap:6px; font-size:26px; line-height:1.2; font-weight:600; color:var(--nh-ink); margin:4px 0 0; font-variant-numeric:tabular-nums; }
+#nailhouse.staff-home .metric-copy strong small { font-size:12px; font-weight:400; color:var(--nh-muted); }
+
+/* Khung 2 cột: trái lịch hẹn, phải việc phụ */
+#nailhouse.staff-home .home-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; align-items:start; gap:16px; }
+#nailhouse.staff-home .home-primary, #nailhouse.staff-home .home-secondary { display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:16px; min-width:0; }
+#nailhouse.staff-home .panel { border:1px solid var(--nh-line); border-radius:10px; background:#fff; box-shadow:none; overflow:hidden; }
+#nailhouse.staff-home .section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px 12px; }
+#nailhouse.staff-home .section-heading h2 { font-size:16px; line-height:1.4; font-weight:600; margin:0; }
+#nailhouse.staff-home .section-heading p { font-size:13px; line-height:1.5; margin:4px 0 0; color:var(--nh-muted); }
+#nailhouse.staff-home .heading-icon { display:none; }
+#nailhouse.staff-home .home-link { font-size:13px; font-weight:500; line-height:1.5; padding:6px 0; background:none; border:0; cursor:pointer; color:var(--nh-primary-dark); white-space:nowrap; }
+#nailhouse.staff-home .home-link:hover { text-decoration:underline; }
+#nailhouse.staff-home .home-agenda .section-heading > .home-link { background:var(--nh-blush); border:1px solid #f0dce2; padding:7px 10px; border-radius:6px; text-decoration:none; }
+#nailhouse.staff-home .home-agenda .section-heading > .home-link:hover { background:#fbe4ec; }
+
+/* Ô tìm kiếm + lọc */
+#nailhouse.staff-home .home-table-tools { display:flex; gap:10px; padding:0 18px 12px; }
+#nailhouse.staff-home .home-table-tools .search { display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; padding:8px 10px; background:#fcfafb; border:1px solid #e9dfe3; border-radius:6px; }
+#nailhouse.staff-home .home-table-tools input { flex:1; min-width:0; border:0; background:transparent; outline:none; font-size:14px; }
+#nailhouse.staff-home .home-table-tools select { flex:0 0 auto; font-size:13px; padding:8px 10px; border:1px solid #e9dfe3; border-radius:6px; background:#fff; }
+
+/* Bảng lịch hẹn — chữ bằng trang booking */
+#nailhouse.staff-home .schedule-table-wrap { overflow-x:auto; }
+#nailhouse.staff-home .schedule-table { width:100%; min-width:640px; border-collapse:collapse; }
+#nailhouse.staff-home .schedule-table th { font-size:12px; font-weight:500; padding:10px 12px; color:var(--nh-muted); background:#faf7f8; white-space:nowrap; text-align:left; }
+#nailhouse.staff-home .schedule-table td { padding:12px; font-size:14px; line-height:1.5; border-top:1px solid #f1e9ec; color:var(--nh-ink); vertical-align:middle; }
+#nailhouse.staff-home .schedule-table th:first-child, #nailhouse.staff-home .schedule-table td:first-child { padding-left:18px; }
+#nailhouse.staff-home .schedule-table td:first-child > strong { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
+#nailhouse.staff-home .schedule-person { display:flex; align-items:center; gap:10px; min-width:150px; }
+#nailhouse.staff-home .schedule-person .avatar { width:34px; height:34px; font-size:12px; flex-shrink:0; }
+#nailhouse.staff-home .schedule-person strong { display:block; font-size:14px; font-weight:500; }
+#nailhouse.staff-home .schedule-person a { display:block; font-size:12px; color:var(--nh-muted); margin-top:2px; }
+#nailhouse.staff-home .schedule-service { font-size:14px; min-width:110px; max-width:210px; overflow-wrap:anywhere; }
+#nailhouse.staff-home .schedule-table .duration { font-size:13px; color:var(--nh-muted); white-space:nowrap; }
+#nailhouse.staff-home .schedule-table .badge { font-size:12px; line-height:1.4; padding:4px 8px; white-space:nowrap; }
+#nailhouse.staff-home .select-booking { display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:34px; font-size:18px; border:1px solid #efdce2; border-radius:6px; background:#fff; cursor:pointer; }
+#nailhouse.staff-home .select-booking:hover { background:var(--nh-blush); }
+#nailhouse.staff-home .home-agenda-foot { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:12px; padding:10px 18px; border-top:1px solid #f1e9ec; color:var(--nh-muted); }
+#nailhouse.staff-home .empty { padding:32px 20px; text-align:center; }
+#nailhouse.staff-home .empty h3 { font-size:15px; }
+#nailhouse.staff-home .empty p { font-size:13px; line-height:1.6; }
+
+/* Cột phải: Cần chú ý lên đầu cho gọn */
+#nailhouse.staff-home .home-attention .attention-label { font-size:12px; color:var(--nh-muted); white-space:nowrap; }
+#nailhouse.staff-home .attention-list { padding:2px 0 8px; }
+#nailhouse.staff-home .attention-row { display:flex; align-items:center; gap:12px; width:calc(100% - 36px); margin:0 18px; padding:12px 0; background:none; border:0; border-top:1px solid #f1e9ec; text-align:left; cursor:pointer; }
+#nailhouse.staff-home .attention-row:first-child { border-top:0; }
+#nailhouse.staff-home .attention-row:hover { background:#fffafb; }
+#nailhouse.staff-home .attention-row > span:nth-child(2) { flex:1; min-width:0; }
+#nailhouse.staff-home .attention-row strong { display:block; font-size:14px; font-weight:500; line-height:1.5; overflow-wrap:anywhere; }
+#nailhouse.staff-home .attention-row small { display:block; font-size:13px; line-height:1.5; margin-top:2px; color:var(--nh-muted); overflow-wrap:anywhere; }
+#nailhouse.staff-home .attention-row > b { font-size:18px; font-weight:400; color:var(--nh-primary-dark); }
+#nailhouse.staff-home .attention-icon { display:grid; place-items:center; width:34px; height:34px; flex:0 0 34px; border-radius:8px; background:#fff3f5; color:var(--nh-primary-dark); }
+#nailhouse.staff-home .attention-icon svg { width:18px; height:18px; }
+#nailhouse.staff-home .attention-row.sage .attention-icon { background:var(--nh-sage-soft); color:var(--nh-sage); }
+#nailhouse.staff-home .attention-row.sand .attention-icon { background:var(--nh-gold-soft); color:var(--nh-gold); }
+#nailhouse.staff-home .attention-clear { display:flex; gap:10px; padding:4px 18px 16px; align-items:flex-start; }
+#nailhouse.staff-home .attention-clear > span { color:var(--nh-sage); }
+#nailhouse.staff-home .attention-clear svg { width:20px; height:20px; }
+#nailhouse.staff-home .attention-clear strong { font-size:14px; }
+#nailhouse.staff-home .attention-clear p { font-size:13px; line-height:1.5; color:var(--nh-muted); margin:3px 0 0; }
+
+/* Ca làm */
+#nailhouse.staff-home .home-shift { padding:16px 18px; }
+#nailhouse.staff-home .home-shift-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+#nailhouse.staff-home .home-shift-heading h2 { font-size:16px; font-weight:600; line-height:1.4; margin:0; }
+#nailhouse.staff-home .shift-date { font-size:12px; color:var(--nh-muted); margin:4px 0 0; }
+#nailhouse.staff-home .home-shift-heading > span { display:flex; color:#ab7c6b; }
+#nailhouse.staff-home .home-shift-heading svg { width:20px; height:20px; }
+#nailhouse.staff-home .shift-times { padding:10px 0 6px; }
+#nailhouse.staff-home .shift-times p { font-size:20px; line-height:1.5; font-weight:600; font-variant-numeric:tabular-nums; }
+#nailhouse.staff-home .shift-times .shift-empty { font-size:14px; font-weight:400; color:var(--nh-muted); }
+#nailhouse.staff-home .home-shift .home-link { padding:4px 0 0; }
+
+/* Lịch tháng */
+#nailhouse.staff-home .home-calendar { padding-bottom:14px; }
+#nailhouse.staff-home .home-calendar .section-heading { padding:16px 18px 8px; }
+#nailhouse.staff-home .home-month-nav { display:flex; align-items:center; justify-content:space-between; padding:0 16px 10px; }
+#nailhouse.staff-home .home-month-nav strong { font-size:14px; font-weight:500; }
+#nailhouse.staff-home .home-month-nav .icon-button { width:30px; height:30px; font-size:18px; line-height:1; border:1px solid var(--nh-line); border-radius:6px; background:#fff; cursor:pointer; }
+#nailhouse.staff-home .home-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); padding:0 14px; gap:3px; text-align:center; }
+#nailhouse.staff-home .home-calendar-grid .weekday { font-size:12px; padding:5px 0; color:var(--nh-muted); }
+#nailhouse.staff-home .home-calendar-grid button { width:32px; height:32px; font-size:14px; line-height:1; justify-self:center; border:0; border-radius:7px; background:transparent; cursor:pointer; color:var(--nh-ink); }
+#nailhouse.staff-home .home-calendar-grid button:hover { background:var(--nh-blush); }
+#nailhouse.staff-home .calendar-caption { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; padding:12px 16px 0; color:var(--nh-muted); }
+#nailhouse.staff-home .calendar-caption > span { width:8px; height:8px; border-radius:50%; background:var(--nh-primary); }
+#nailhouse.staff-home .calendar-caption button { font-size:12px; background:none; border:0; cursor:pointer; color:var(--nh-primary-dark); padding:4px 0; }
+#nailhouse.staff-home .home-view button:focus-visible, #nailhouse.staff-home .home-view a:focus-visible { outline:3px solid #bd5675; outline-offset:2px; }
+
+/* Dọn tàn dư lớp cũ: welcome/progress/bottom không còn dùng */
+#nailhouse.staff-home .home-welcome, #nailhouse.staff-home .home-progress, #nailhouse.staff-home .home-bottom, #nailhouse.staff-home .home-planning { display:none; }
+
+@media(max-width:1250px) {
+  #nailhouse.staff-home .home-layout { grid-template-columns:minmax(0,1fr); }
+  #nailhouse.staff-home .home-secondary { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; }
+  #nailhouse.staff-home .home-attention { grid-column:1/-1; }
+}
+@media(max-width:900px) {
+  #nailhouse.staff-home .home-secondary { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  #nailhouse.staff-home .home-attention { grid-column:1/-1; }
+}
+@media(max-width:700px) {
+  #nailhouse.staff-home .page-heading h1 { font-size:22px; }
+  #nailhouse.staff-home .home-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  #nailhouse.staff-home .home-metric { padding:12px; gap:10px; }
+  #nailhouse.staff-home .metric-symbol { width:34px; height:34px; flex-basis:34px; }
+  #nailhouse.staff-home .metric-copy > strong { font-size:24px; }
+  #nailhouse.staff-home .home-secondary { grid-template-columns:minmax(0,1fr); }
+  #nailhouse.staff-home .section-heading { padding:14px 14px 10px; }
+  #nailhouse.staff-home .home-table-tools { flex-direction:column; padding:0 14px 12px; }
+  #nailhouse.staff-home .home-table-tools select { width:100%; }
+  #nailhouse.staff-home .attention-row { width:calc(100% - 28px); margin:0 14px; }
+  #nailhouse.staff-home .home-calendar-grid button { width:36px; height:36px; }
+}

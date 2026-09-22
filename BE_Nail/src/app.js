@@ -19,7 +19,7 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' }, contentS
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(currentDirectory, '../public/uploads')));
-app.use('/staff', express.static(path.resolve(currentDirectory, '../../Admin-web')));
+app.use('/staff', express.static(path.resolve(currentDirectory, '../../Admin-web'), { maxAge: 0, etag: true }));
 app.get('/api/staff-dashboard/:id', staffDashboard);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhouse-api' }));
