@@ -83,7 +83,10 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
-          onPress={() => Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất khỏi NailHouse?', [{ text: 'Hủy', style: 'cancel' }, { text: 'Đăng xuất', style: 'destructive' }])}
+          onPress={() => Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất khỏi Nailora?', [
+            { text: 'Hủy', style: 'cancel' },
+            { text: 'Đăng xuất', style: 'destructive', onPress: () => router.replace('/(auth)/login') }
+          ])}
           style={({ pressed }) => [styles.logoutButton, pressed && styles.menuPressed]}>
           <Ionicons name="log-out-outline" size={21} color={COLORS.pink} />
           <Text style={styles.logoutText}>Đăng xuất</Text>

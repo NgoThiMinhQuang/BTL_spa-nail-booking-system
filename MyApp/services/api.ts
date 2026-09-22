@@ -1,4 +1,9 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { Platform } from 'react-native';
+
+const ENV_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_URL = Platform.OS === 'web'
+  ? (ENV_URL ?? 'http://localhost:3000')
+  : (ENV_URL ?? 'http://192.168.0.101:3000');
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
