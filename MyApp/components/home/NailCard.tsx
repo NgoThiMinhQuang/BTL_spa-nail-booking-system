@@ -29,14 +29,10 @@ export function NailCard({
     </View>
   );
 }
-<<<<<<< HEAD
 const styles = StyleSheet.create({
   wrapper: { width: 112 },
-  card: { width: 112, height: 102, overflow: "hidden" },
+  card: { width: 112, height: 102, overflow: 'hidden' },
   image: { borderRadius: 11 },
-  heart: { position: "absolute", right: 7, bottom: 6 },
-  title: { color: "#54464A", fontSize: 10, marginTop: 5 },
+  heart: { position: 'absolute', right: 7, bottom: 6 },
+  title: { color: '#54464A', fontSize: 12, marginTop: 5 },
 });
-=======
-const styles = StyleSheet.create({ wrapper: { width: 112 }, card: { width: 112, height: 102, overflow: 'hidden' }, image: { borderRadius: 11 }, heart: { position: 'absolute', right: 7, bottom: 6 }, title: { color: '#54464A', fontSize: 12, marginTop: 5 } });
->>>>>>> 5d2b2592422c3965de46fd0367a366556bc05692

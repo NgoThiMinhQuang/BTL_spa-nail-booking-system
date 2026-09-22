@@ -1,9 +1,23 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const ENV_URL = process.env.EXPO_PUBLIC_API_URL;
-const API_URL = Platform.OS === 'web'
-  ? (ENV_URL ?? 'http://localhost:3000')
-  : (ENV_URL ?? 'http://192.168.0.101:3000');
+const getApiUrl = () => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (envUrl) {
+    return envUrl;
+  }
+  if (Platform.OS === 'web') {
+    return 'http://localhost:3000';
+  }
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:3000`;
+  }
+  return 'http://10.0.2.2:3000';
+};
+
+const API_URL = getApiUrl();
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
