@@ -43,7 +43,6 @@ Dành cho quản lý và nhân viên:
 - Theo dõi lịch làm việc.
 
 
----
 
 # 2. Đối tượng sử dụng hệ thống
 
@@ -56,7 +55,7 @@ Hệ thống gồm 3 nhóm người dùng:
 | Admin/Manager | Chủ cửa hàng quản lý toàn bộ hệ thống |
 
 
----
+
 
 # 3. Quy trình nghiệp vụ tổng quan
 
@@ -131,7 +130,7 @@ Khách hàng đăng nhập để sử dụng các chức năng:
 - Đánh giá.
 
 
----
+
 
 ## Cập nhật thông tin cá nhân
 
@@ -143,7 +142,6 @@ Khách hàng có thể:
 - Đổi mật khẩu.
 
 
----
 
 # 4.2. Xem danh sách dịch vụ Nail
 
@@ -179,7 +177,7 @@ Thời gian:
 ```
 
 
----
+
 
 # 4.3. Xem thông tin nhân viên
 
