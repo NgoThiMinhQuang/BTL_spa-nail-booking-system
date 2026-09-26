@@ -93,7 +93,7 @@ Customer đánh giá
 ```
 
 
----
+
 
 # 4. Nghiệp vụ Mobile Application (Khách hàng)
 
@@ -118,7 +118,7 @@ Hệ thống:
 - Tạo tài khoản mới.
 
 
----
+
 
 ## Đăng nhập
 
@@ -214,7 +214,7 @@ Rating:
 ```
 
 
----
+
 
 # 4.4. Đặt lịch dịch vụ
 
@@ -252,7 +252,7 @@ Tạo Booking
 ```
 
 
----
+
 
 # 4.5. Lựa chọn nhân viên
 
@@ -309,7 +309,7 @@ Hệ thống tự động:
 Sau đó tạo booking.
 
 
----
+
 
 # 4.6. Kiểm tra lịch trống
 
@@ -348,7 +348,7 @@ Khách đặt:
 ```
 
 
----
+
 
 ## Quy tắc kiểm tra trùng lịch
 
@@ -398,7 +398,7 @@ Tổng thời gian chiếm lịch:
 ```
 
 
----
+
 
 # 4.7. Quản lý lịch hẹn
 
@@ -425,7 +425,7 @@ Bao gồm:
 - Không đến.
 
 
----
+
 
 # 4.8. Hủy lịch
 
@@ -448,7 +448,7 @@ Booking Status = No-show
 ```
 
 
----
+
 
 # 4.9. Thanh toán
 
@@ -501,7 +501,7 @@ Unpaid
 ```
 
 
----
+
 
 # 4.10. Đánh giá dịch vụ
 
@@ -521,7 +521,7 @@ Khách hàng có thể:
 - Upload hình ảnh.
 
 
----
+
 
 # 5. Nghiệp vụ Web Administration
 
@@ -541,7 +541,7 @@ Có toàn quyền:
 - Quản lý dịch vụ.
 
 
----
+
 
 ## Staff
 
@@ -560,7 +560,7 @@ Không được:
 - Quản lý nhân viên khác.
 
 
----
+
 
 # 5.2. Dashboard
 
@@ -574,7 +574,7 @@ Admin xem:
 - Dịch vụ phổ biến.
 
 
----
+
 
 # 5.3. Quản lý dịch vụ
 
@@ -601,7 +601,7 @@ Thông tin:
 - Ẩn/hiện dịch vụ.
 
 
----
+
 
 # 5.4. Quản lý nhân viên
 
@@ -628,7 +628,7 @@ Chuyên môn:
 ```
 
 
----
+
 
 # 5.5. Quản lý lịch đặt
 
@@ -649,7 +649,7 @@ Thông tin:
 | Status | Trạng thái |
 
 
----
+
 
 # 5.6. Duyệt và điều chỉnh lịch
 
@@ -694,7 +694,7 @@ Hoa
 ```
 
 
----
+
 
 # 5.7. Tạo lịch thủ công (Walk-in Customer)
 
@@ -722,7 +722,7 @@ Mục đích:
 - Tránh khách App đặt trùng.
 
 
----
+
 
 # 5.8. Staff quản lý lịch làm việc
 
@@ -751,7 +751,7 @@ Completed
 ```
 
 
----
+
 
 # 5.9. Quản lý khách hàng
 
@@ -765,7 +765,7 @@ Admin xem:
 - Số lần No-show.
 
 
----
+
 
 # 5.10. Báo cáo doanh thu
 
@@ -779,7 +779,7 @@ Thống kê:
 - Dịch vụ phổ biến.
 
 
----
+
 
 # 6. Database Schema
 
@@ -797,7 +797,7 @@ Thống kê:
 | role | Customer/Staff/Admin |
 
 
----
+
 
 ## Services
 
@@ -811,7 +811,7 @@ Thống kê:
 | buffer_time | Thời gian nghỉ |
 
 
----
+
 
 ## Staff
 
@@ -823,7 +823,7 @@ Thống kê:
 | specialty | Chuyên môn |
 
 
----
+
 
 ## Bookings
 
@@ -841,7 +841,7 @@ Thống kê:
 | note | Ghi chú |
 
 
----
+
 
 # 7. Kiến trúc hệ thống
 
@@ -871,7 +871,7 @@ Thống kê:
 ```
 
 
----
+
 
 # 8. Kết luận
 
