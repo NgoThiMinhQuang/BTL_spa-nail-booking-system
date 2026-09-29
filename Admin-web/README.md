@@ -1,32 +1,91 @@
-# NailHouse — Không gian nhân viên
+# NailHouse — Không gian nhân viên (Admin web)
 
-Web dùng HTML/CSS/JavaScript và được Express phục vụ cùng API, không cần cài thêm thư viện hoặc cấu hình IP riêng.
+Giao diện cho nhân viên NailHouse, viết bằng **React 19 + TypeScript + Vite**.
+Backend Express phục vụ bản build tĩnh tại `/staff`, cùng cổng với API.
 
 ## Chạy
 
-Trong thư mục `Admin-web` hoặc `BE_Nail`, chạy `npm run dev`. Sau khi backend kết nối MySQL và sẵn sàng, trình duyệt tự mở giao diện nhân viên tại `http://localhost:3000/staff/` (hoặc cổng `PORT` trong `.env`). Trình duyệt chỉ tự mở một lần, không mở lại khi backend tự khởi động lại do sửa mã.
-MySQL cần hoạt động và cấu hình `BE_Nail/.env` phải đúng.
+### Phát triển (Vite dev server + backend)
+
+```bash
+# 1) backend (cổng 3000) — cần MySQL và file .env đúng
+cd BE_Nail && npm start
+
+# 2) giao diện (cổng 5173, tự proxy /api và /uploads sang 3000)
+cd Admin-web && npm run dev
+```
+
+Mở `http://localhost:5173`.
+
+### Chạy thật (Express phục vụ bản build)
+
+```bash
+cd Admin-web && npm run build     # tạo Admin-web/dist
+cd ../BE_Nail && npm start        # mở http://localhost:3000/staff/
+```
+
+Kiểm tra kiểu dữ liệu: `npm run typecheck`.
+
+## Cấu trúc mã nguồn
+
+```
+src/
+  main.tsx                 điểm vào, chọn trang theo state.view
+  store.tsx                trạng thái toàn cục (useReducer) + toàn bộ lệnh gọi API
+  types.ts                 kiểu dữ liệu khớp 1-1 với response của API
+  lib/
+    utils.ts               money, fmtNum, longDate, safeImage, initials, downloadCsv
+    customers.ts           lọc / sắp xếp / phân khúc / thống kê khách hàng
+  hooks/
+    usePager.ts            phân trang dùng chung (store ngoài React)
+    useNavigation.ts       chuyển trang, mở lịch hẹn, lùi/kền khoảng thời gian
+  components/
+    Layout.tsx             sidebar, topbar, tiêu đề trang
+    BookingTable.tsx       bảng lịch hẹn dùng chung (trang chủ + trang lịch)
+    PageBar.tsx            thanh phân trang
+    CustomerDrawer.tsx     drawer hồ sơ khách + hộp thoại ghi chú
+    MiniCalendar.tsx       lịch tháng nhỏ
+    Icon / Avatar / Stars / Primitives / SearchTools
+  pages/
+    HomePage, SchedulePage, BookingPage, CustomersPage, SimplePages
+  styles/                  10 file CSS của bản cũ, thêm react-fixes.css
+```
+
+## Nguyên tắc
+
+- **Một nơi gọi API.** `AppProvider` giữ đúng một vòng tải dữ liệu. Các hook khác
+  chỉ đọc state — tránh gọi trùk khi nhiều component cùng dùng.
+- **Một khoá trang cho mỗi danh sách.** `usePager(key, rows, size)` lưu trang trong
+  `useSyncExternalStore` nên giữ được vị trí khi chuyển qua lại menu. Trang tự về 1
+  khi đổi ngày, bộ lọc, tìm kiếm, nhân viên hoặc chế độ xem lịch.
+- **Không lạm dụng effect.** Phần lớn logic là phép tính thuần trong render; chỉ
+  `useEffect` dùng cho việc tải dữ liệu, khoá cuộn nền và bắt phím trong drawer.
+- **CSS giữ nguyên.** 10 file CSS của bản vanilla được chuyển sang `src/styles` và
+  nạp đúng thứ tự cũ (theme.css cuối cùng). `react-fixes.css` chứa phần bổ sung
+  cho React: hộp thoại dạng `div`, và ẩn các lớp đã bị bỏ.
 
 ## Dữ liệu và chức năng
 
-- Chọn nhân viên đang hoạt động từ `/api/staff`.
-- Dashboard lấy dữ liệu từ `/api/staff-dashboard/:id?date=YYYY-MM-DD`.
-- Lịch hẹn, ca làm 7 ngày, khách hàng, dịch vụ và hồ sơ truy vấn trực tiếp MySQL.
-- Thống kê tính theo ngày đang chọn; không có dữ liệu thì hiển thị trạng thái trống.
-- Tìm kiếm khách hàng/dịch vụ, lọc trạng thái, đổi ngày và xem chi tiết lịch hẹn.
-- Nút liên hệ khách dùng `tel:`. Không thay đổi trạng thái hoặc ghi dữ liệu giả.
-- Ngày và giờ lịch hẹn giữ nguyên giờ địa phương trong MySQL.
+- Chọn nhân viên từ `/api/staff`; dashboard lấy từ
+  `/api/staff-dashboard/:id?date=YYYY-MM-DD`. Chế độ tuần/tháng gọi thêm theo lô 4
+  request đồng thời rồi gộp.
+- Hồ sơ khách: `GET /api/staff/customers/:id?staffId=`. Lưu ghi chú nội bộ:
+  `PUT /api/staff/customers/:id/note`.
+- Trang chủ, lịch làm việc (ngày/tuần/tháng), khách hàng, dịch vụ và hồ sơ cá nhân
+  đều có phân trang; chế độ tháng là lịch nên không phân trang.
+- Hóa đơn chỉ hiện khi lịch hẹn đã `COMPLETED`, có CSS `@media print` riêng.
+- Các nút cập nhật trạng thái lịch hẹn vẫn vô hiệu hóa vì chưa có API tương ứng.
 
-Đây là giao diện phát triển nội bộ, kế thừa backend hiện chưa có đăng nhập/phân quyền. Bộ chọn nhân viên không phải cơ chế xác thực. Cần bổ sung xác thực và kiểm tra quyền theo tài khoản trước khi triển khai công khai, đặc biệt với API chứa thông tin khách hàng. Chưa triển khai thao tác bắt đầu/hoàn thành lịch hẹn.
+## Lưu ý bảo mật
 
-Font hệ thống đồng bộ với ứng dụng khách hàng (system-ui, Apple system, Segoe UI, Roboto); không tải font từ Google Fonts. Hình ảnh lấy từ dữ liệu và thư mục uploads hiện có.
+Đây là giao diện phát triển nội bộ, kế thừa backend **chưa có đăng nhập/phân quyền**.
+Bộ chọn nhân viên không phải cơ chế xác thực. Cần bổ sung xác thực và kiểm tra quyền
+theo tài khoản trước khi triển khai công khai, đặc biệt với API chứa thông tin khách hàng.
 
-## Trang lịch làm việc
+Font hệ thống đồng bộ với ứng dụng khách hàng (system-ui, Apple system, Segoe UI,
+Roboto); không tải font từ Google Fonts. Hình ảnh lấy từ dữ liệu và thư mục uploads.
 
-## Chi tiết lịch hẹn
+## Bản vanilla cũ
 
-Nhấn nút xem lịch hẹn ở trang chủ hoặc lịch làm việc để mở trang chi tiết ba cột: khách hàng và dịch vụ, thông tin và tiến trình lịch hẹn, thao tác và lịch tiếp theo trong ngày. Dữ liệu lấy từ API dashboard, không tạo số liệu đánh giá hoặc mốc thời gian giả. Liên hệ khách hàng dùng `tel:`; các nút cập nhật lịch hẹn đang vô hiệu hóa vì chưa có API tương ứng. Bố cục chuyển xuống hai hoặc một cột trên màn hình nhỏ.
-
-## Chế độ xem lịch
-
-Mở `/staff/#schedule`. Có chế độ ngày, tuần (thứ Hai đến Chủ Nhật), tháng; tìm kiếm, lọc trạng thái và xem chi tiết. Các chế độ tuần/tháng tổng hợp dữ liệu từ API hiện có, tối đa 4 yêu cầu đồng thời. Thống kê theo khoảng thời gian được chọn. Khách sắp tới là lịch chưa thực hiện và chưa qua giờ hẹn trong khoảng đó. Trang hiện chỉ đọc trạng thái từ CSDL, không có thao tác thay đổi trạng thái.
+Mã nguồn HTML/CSS/JS trước khi chuyển sang React nằm ở thư mục `legacy/`.
+Không còn được phục vụ; giữ lại để đối chiếu khi cần.

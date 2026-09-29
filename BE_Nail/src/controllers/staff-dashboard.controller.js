@@ -20,10 +20,18 @@ export async function staffDashboard(req, res, next) {
         FROM booking b JOIN customer c ON c.customer_id=b.customer_id JOIN users u ON u.user_id=c.user_id
         JOIN services s ON s.service_id=b.service_id WHERE b.staff_id=? AND b.start_time>=? AND b.start_time<DATE_ADD(?, INTERVAL 1 DAY)
         ORDER BY b.start_time`, [id, date, date]),
-      pool.query(`SELECT c.customer_id AS id, u.full_name AS name, u.phone, u.avatar, COUNT(*) AS visits,
-        DATE_FORMAT(MAX(b.start_time),'%d/%m/%Y') AS lastVisit
+      pool.query(`SELECT c.customer_id AS id, u.full_name AS name, u.phone, u.email, u.avatar,
+        c.address, DATE_FORMAT(c.birthday,'%d/%m/%Y') AS birthday, c.note,
+        c.total_spending, c.no_show_count, COUNT(b.booking_id) AS visits,
+        DATE_FORMAT(MAX(b.start_time),'%d/%m/%Y') AS lastVisit,
+        COALESCE((SELECT ROUND(AVG(r.rating),1) FROM review r JOIN booking rb ON rb.booking_id=r.booking_id
+          WHERE rb.customer_id=c.customer_id AND rb.staff_id=?),0) AS rating,
+        (SELECT COUNT(*) FROM review r JOIN booking rb ON rb.booking_id=r.booking_id
+          WHERE rb.customer_id=c.customer_id AND rb.staff_id=?) AS reviewCount
         FROM booking b JOIN customer c ON c.customer_id=b.customer_id JOIN users u ON u.user_id=c.user_id
-        WHERE b.staff_id=? GROUP BY c.customer_id,u.full_name,u.phone,u.avatar ORDER BY MAX(b.start_time) DESC`, [id]),
+        WHERE b.staff_id=? GROUP BY c.customer_id,u.full_name,u.phone,u.email,u.avatar,
+          c.address,c.birthday,c.note,c.total_spending,c.no_show_count
+        ORDER BY MAX(b.start_time) DESC`, [id, id, id]),
       pool.query(`SELECT s.service_id AS id, s.service_name AS name, s.description, s.image, s.price, s.duration,
         c.category_name AS category FROM staff_service ss JOIN services s ON s.service_id=ss.service_id
         LEFT JOIN service_category c ON c.category_id=s.category_id WHERE ss.staff_id=? AND s.status='ACTIVE' ORDER BY s.service_name`, [id]),
@@ -32,6 +40,23 @@ export async function staffDashboard(req, res, next) {
         AND work_date<DATE_ADD(?, INTERVAL 7 DAY) ORDER BY work_date,start_time`, [id, date, date]),
     ]);
     if (!profiles[0]) return res.status(404).json({ message: 'Không tìm thấy nhân viên.' });
-    res.json({ data: { profile: profiles[0], bookings, customers, services, shifts, date } });
+    res.json({
+      data: {
+        profile: profiles[0],
+        bookings,
+        customers: customers.map((customer) => ({
+          ...customer,
+          id: String(customer.id),
+          visits: Number(customer.visits ?? 0),
+          rating: Number(customer.rating ?? 0),
+          reviewCount: Number(customer.reviewCount ?? 0),
+          total_spending: Number(customer.total_spending ?? 0),
+          no_show_count: Number(customer.no_show_count ?? 0),
+        })),
+        services,
+        shifts,
+        date,
+      },
+    });
   } catch (error) { next(error); }
 }

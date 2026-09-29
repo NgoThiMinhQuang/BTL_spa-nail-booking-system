@@ -1,0 +1,323 @@
+/* ===== Lớp trạng thái toàn cục của ứng dụng nhân viên =====
+   Thay cho đối tượng `state` toàn cục của bản vanilla. Mọi việc gọi API
+   tập trung ở AppProvider để chỉ có đúng MỘT vòng tải dữ liệu chạy. */
+
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useReducer,
+  useRef, type ReactNode, type Dispatch,
+} from 'react';
+import type { Dashboard, StaffOption } from './types';
+import { localDate } from './lib/utils';
+import { resetPages } from './hooks/usePager';
+
+export type ViewName = 'home' | 'schedule' | 'customers' | 'services' | 'profile' | 'booking';
+export type CalendarMode = 'day' | 'week' | 'month';
+
+export interface AppState {
+  view: ViewName;
+  calendarMode: CalendarMode;
+  rangeBookings: Dashboard['bookings'];
+  date: string;
+  staffId: string;
+  data: Dashboard | null;
+  staffList: StaffOption[];
+  selected: string | null;
+  query: string;
+  status: string;
+  homeMonth: string;
+  customerFilter: string;
+  customerSort: string;
+  customerId: string | null;
+  feedback: string;
+  loading: boolean;
+  /** Tăng mỗi lần bấm nút làm mới để kích hoạt lại vòng tải. */
+  reloadToken: number;
+}
+
+export const initialState: AppState = {
+  view: location.hash === '#schedule' ? 'schedule' : 'home',
+  calendarMode: 'day',
+  rangeBookings: [],
+  date: localDate(),
+  staffId: '',
+  data: null,
+  staffList: [],
+  selected: null,
+  query: '',
+  status: '',
+  homeMonth: localDate().slice(0, 7),
+  customerFilter: 'all',
+  customerSort: 'recent',
+  customerId: null,
+  feedback: '',
+  loading: true,
+  reloadToken: 0,
+};
+
+export type Action =
+  | { type: 'staffLoaded'; staff: StaffOption[]; staffId: string }
+  | { type: 'staffChanged'; staffId: string }
+  | { type: 'loadStart' }
+  | { type: 'loadDone'; data: Dashboard; rangeBookings: Dashboard['bookings']; selected: string | null }
+  | { type: 'loadError'; message: string }
+  | { type: 'initError'; message: string }
+  | { type: 'view'; view: ViewName }
+  | { type: 'stat'; status: string }
+  | { type: 'booking'; id: string; date: string | null }
+  | { type: 'date'; date: string }
+  | { type: 'dateField'; date: string }
+  | { type: 'today' }
+  | { type: 'mode'; mode: CalendarMode }
+  | { type: 'homeMonth'; month: string }
+  | { type: 'query'; query: string }
+  | { type: 'status'; status: string }
+  | { type: 'customerFilter'; value: string }
+  | { type: 'customerSort'; value: string }
+  | { type: 'customerSegment'; key: string }
+  | { type: 'customerOpen'; id: string | null }
+  | { type: 'customerNote'; id: string; note: string | null }
+  | { type: 'refresh' };
+
+const ACTIVE_NAV: Record<ViewName, ViewName> = {
+  booking: 'schedule', home: 'home', schedule: 'schedule',
+  customers: 'customers', services: 'services', profile: 'profile',
+};
+
+/** Chọn lịch hẹn hợp lệ đầu tiên (ưu tiên lịch đang thực hiện). */
+function pickSelected(bookings: Dashboard['bookings'], current: string | null): string | null {
+  const still = bookings.find((b) => String(b.id) === String(current));
+  if (still) return String(still.id);
+  const running = bookings.find((b) => b.status === 'PROCESSING');
+  const fallback = running?.id ?? bookings[0]?.id;
+  return fallback === undefined ? null : String(fallback);
+}
+
+export function reducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case 'staffLoaded':
+      return { ...state, staffList: action.staff, staffId: action.staffId };
+
+    case 'staffChanged':
+      return {
+        ...state, staffId: action.staffId, selected: null,
+        customerId: null, feedback: '', loading: true, reloadToken: state.reloadToken + 1,
+      };
+
+    case 'loadStart':
+      return { ...state, loading: true, feedback: '' };
+
+    case 'loadDone':
+      return {
+        ...state, loading: false, feedback: '',
+        data: action.data, rangeBookings: action.rangeBookings, selected: action.selected,
+      };
+
+    case 'loadError':
+      return { ...state, loading: false, data: null, feedback: action.message };
+
+    case 'initError':
+      return { ...state, loading: false, feedback: action.message };
+
+    case 'view':
+      resetPages();
+      return {
+        ...state, view: action.view, query: '', status: '',
+        customerFilter: 'all', customerSort: 'recent', customerId: null,
+      };
+
+    case 'stat':
+      resetPages();
+      return { ...state, view: 'schedule', calendarMode: 'day', status: action.status, query: '' };
+
+    case 'booking':
+      resetPages();
+      return { ...state, view: 'booking', selected: String(action.id), date: action.date ?? state.date };
+
+    case 'date':
+      resetPages(`schedule-${state.calendarMode}`);
+      return { ...state, date: action.date, homeMonth: action.date.slice(0, 7) };
+
+    case 'dateField':
+      resetPages(`schedule-${state.calendarMode}`);
+      return { ...state, date: action.date, homeMonth: action.date.slice(0, 7) };
+
+    case 'today':
+      resetPages(`schedule-${state.calendarMode}`);
+      return { ...state, date: localDate(), homeMonth: localDate().slice(0, 7) };
+
+    case 'mode':
+      resetPages(`schedule-${action.mode}`);
+      return { ...state, calendarMode: action.mode, selected: null };
+
+    case 'homeMonth':
+      return { ...state, homeMonth: action.month };
+
+    case 'query':
+      resetPages('home', `schedule-${state.calendarMode}`, 'customers', 'services');
+      return { ...state, query: action.query };
+
+    case 'status':
+      resetPages('home', `schedule-${state.calendarMode}`);
+      return { ...state, status: action.status };
+
+    case 'customerFilter':
+      resetPages('customers');
+      return { ...state, customerFilter: action.value };
+
+    case 'customerSort':
+      resetPages('customers');
+      return { ...state, customerSort: action.value };
+
+    case 'customerSegment': {
+      resetPages('customers');
+      if (action.key === 'rating') {
+        return {
+          ...state,
+          customerSort: state.customerSort === 'rating' ? 'recent' : 'rating',
+          customerFilter: 'all',
+        };
+      }
+      return { ...state, customerFilter: state.customerFilter === action.key ? 'all' : action.key };
+    }
+
+    case 'customerOpen':
+      return { ...state, customerId: action.id === null ? null : String(action.id) };
+
+    case 'customerNote': {
+      if (!state.data) return state;
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          customers: state.data.customers.map((c) => (
+            String(c.id) === String(action.id) ? { ...c, note: action.note } : c
+          )),
+        },
+      };
+    }
+
+    case 'refresh':
+      return { ...state, loading: true, feedback: '', reloadToken: state.reloadToken + 1 };
+
+    default:
+      return state;
+  }
+}
+
+export async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, {
+    cache: 'no-store',
+    ...options,
+    signal: options.signal ?? AbortSignal.timeout(12000),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.message || 'Không thể tải dữ liệu.');
+  return payload.data as T;
+}
+
+/** Các ngày cần gọi API theo chế độ xem lịch. */
+export function scheduleDates(anchorDate: string, mode: CalendarMode): string[] {
+  const anchor = new Date(`${anchorDate}T12:00:00`);
+  let count = 1;
+  if (mode === 'week') {
+    anchor.setDate(anchor.getDate() - (anchor.getDay() + 6) % 7);
+    count = 7;
+  }
+  if (mode === 'month') {
+    anchor.setDate(1);
+    count = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  }
+  return Array.from({ length: count }, (_, index) => {
+    const d = new Date(anchor);
+    d.setDate(d.getDate() + index);
+    return localDate(d);
+  });
+}
+
+interface Store {
+  state: AppState;
+  dispatch: Dispatch<Action>;
+  activeNav: ViewName;
+  /** Tải lại ngay (không chờ effect). */
+  reload: () => void;
+}
+
+const AppContext = createContext<Store | null>(null);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const seq = useRef(0);
+
+  /* Danh sách nhân viên: chỉ gọi một lần khi khởi động. */
+  useEffect(() => {
+    let alive = true;
+    apiRequest<StaffOption[]>('/api/staff')
+      .then((staff) => {
+        if (!alive) return;
+        if (!staff.length) throw new Error('Chưa có nhân viên hoạt động trong hệ thống.');
+        dispatch({ type: 'staffLoaded', staff, staffId: String(staff[0].id) });
+      })
+      .catch((error: Error) => { if (alive) dispatch({ type: 'initError', message: error.message }); });
+    return () => { alive = false; };
+  }, []);
+
+  /* Dashboard: một vòng tải duy nhất, chạy khi đổi nhân viên / ngày / chế độ. */
+  const { staffId, date, calendarMode, reloadToken, selected } = state;
+  useEffect(() => {
+    if (!staffId) return;
+    const id = ++seq.current;
+    dispatch({ type: 'loadStart' });
+    (async () => {
+      try {
+        const first = await apiRequest<Dashboard>(
+          `/api/staff-dashboard/${encodeURIComponent(staffId)}?date=${date}`,
+        );
+        let range = first.bookings;
+        if (calendarMode !== 'day') {
+          const dates = scheduleDates(date, calendarMode);
+          const results: Dashboard[] = [];
+          for (let i = 0; i < dates.length; i += 4) {
+            results.push(...await Promise.all(
+              dates.slice(i, i + 4).map((d) => (
+                d === first.date
+                  ? Promise.resolve(first)
+                  : apiRequest<Dashboard>(
+                    `/api/staff-dashboard/${encodeURIComponent(staffId)}?date=${d}`,
+                  )
+              )),
+            ));
+          }
+          range = results
+            .flatMap((item) => item.bookings)
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+        }
+        if (id !== seq.current) return;
+        dispatch({
+          type: 'loadDone',
+          data: first,
+          rangeBookings: range,
+          selected: pickSelected(first.bookings, selected),
+        });
+      } catch (error) {
+        if (id !== seq.current) return;
+        dispatch({ type: 'loadError', message: (error as Error).message });
+      }
+    })();
+  }, [staffId, date, calendarMode, reloadToken, selected]);
+
+  const reload = useCallback(() => { dispatch({ type: 'refresh' }); }, []);
+
+  const value = useMemo<Store>(
+    () => ({ state, dispatch, activeNav: ACTIVE_NAV[state.view], reload }),
+    [state, reload],
+  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}
+
+export function useApp(): Store {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp phải nằm trong AppProvider');
+  return ctx;
+}
+
+export { pickSelected };

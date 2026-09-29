@@ -1,0 +1,37 @@
+/* Bổ sung cho bản React: các lớp mới + dọn lớp không còn dùng.
+   Nạp sau các file gốc nhưng TRƯỚC theme.css (lớp màu chung). */
+
+/* ---- Hộp thoại ghi chú: bản React dùng div thay vì <dialog> ---- */
+.cust-dialog-backdrop{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;
+  background:rgba(45,36,48,.42);backdrop-filter:blur(2px)}
+.cust-dialog{width:min(480px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:20px;
+  background:#fff;border:1px solid var(--nh-line);border-radius:14px;
+  box-shadow:0 24px 60px -30px rgba(45,36,48,.6);color:var(--nh-ink)}
+.cust-dialog h2{font-size:18px;font-weight:600;margin:0 0 14px}
+.cust-dialog-select{width:100%;padding:9px 10px;margin-bottom:14px;border:1px solid #EEDFE5;border-radius:8px;
+  background:#FCFAFB;font:inherit;font-size:14px;color:var(--nh-ink)}
+.cust-dialog-select:focus-visible{outline:2px solid var(--nh-primary);outline-offset:1px;background:#fff}
+.cust-dialog .button:disabled{opacity:.6;cursor:wait}
+
+/* ---- Drawer: giờ luôn có class is-open, bỏ phụ thuộc thuộc tính hidden ---- */
+.cust-drawer[hidden]{display:none}
+.cust-drawer-panel:focus{outline:none}
+
+/* ---- Lớp cũ không còn dùng sau khi chuyển sang phân trang dùng chung ---- */
+.cust-list-foot,.cust-pager,#page-actions{display:none}
+
+/* ---- Ô ghi chú trong thẻ chi tiết lịch hẹn ---- */
+.booking-note-text{margin:0;font-size:14px;line-height:1.6;color:var(--nh-muted);white-space:pre-line;overflow-wrap:anywhere}
+
+/* ---- Icon trong thẻ thống kê: cần co lại cho khớp ô tròn ---- */
+.stat-icon svg{width:20px;height:20px}
+.stat-icon{display:grid;place-items:center}
+
+/* ---- Ô tìm kiếm: bản React dùng label.search chứ không có span bắt buộc ---- */
+.search span{font-size:20px;line-height:1;flex-shrink:0;color:var(--nh-muted)}
+
+/* ---- Nút chọn ngày: input[type=date] cần rộng hơn chút ---- */
+.schedule-date input{cursor:pointer}
+
+/* ---- Thẻ số liệu trang chủ: khi số liệu dài hơn số chữ, tránh tràn ---- */
+.home-metric .metric-copy>strong{white-space:nowrap}

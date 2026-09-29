@@ -7,7 +7,8 @@
 #nailhouse .brand,#nailhouse h1,#nailhouse h2,#nailhouse h3,#nailhouse .section-heading h2{color:var(--nh-ink)}
 #nailhouse .brand .rose,#nailhouse .brand-mark,#nailhouse .heading-icon{color:var(--nh-primary)}
 #nailhouse .brand-mark{border-color:var(--nh-primary)}
-#nailhouse nav button,#nailhouse nav button span{color:#806F78}
+/* #806F78 chỉ đạt 4.28:1 trên nền #FFF1F2 — dùng #6B5A62 (5.4:1) cho menu. */
+#nailhouse nav button,#nailhouse nav button span{color:#6B5A62}
 #nailhouse nav button.active{background:#FBE7EC;color:var(--nh-primary-dark)}
 #nailhouse nav button.active span{color:var(--nh-primary)}
 #nailhouse nav button:hover{background:#FCE9EF}
@@ -15,7 +16,8 @@
 #nailhouse .sidebar-note p{color:#493B40}
 #nailhouse .global-search,#nailhouse .search{background:#FCF8FA;border-color:#EEDFE5}
 #nailhouse input,#nailhouse select{color:var(--nh-ink)}
-#nailhouse .subtitle,#nailhouse .section-heading p,#nailhouse .brand small,#nailhouse .sidebar-footer,#nailhouse footer{color:#8A7B80}
+/* #8A7B80 chỉ đạt 3.9:1 trên nền #FFFCF9 — dùng #6E5F66 (5.2:1) cho chữ chú thích. */
+#nailhouse .subtitle,#nailhouse .section-heading p,#nailhouse .brand small,#nailhouse .sidebar-footer,#nailhouse footer{color:#6E5F66}
 #nailhouse .panel{background:#FFF;border-color:#F0E5E8}
 #nailhouse .button,#nailhouse .today-button,#nailhouse .home-agenda .section-heading>.home-link,#nailhouse .call-button{background:var(--nh-primary);color:#FFF;border-color:var(--nh-primary)}
 #nailhouse .button:hover,#nailhouse .today-button:hover,#nailhouse .home-agenda .section-heading>.home-link:hover,#nailhouse .call-button:hover{background:var(--nh-primary-dark);color:#FFF}

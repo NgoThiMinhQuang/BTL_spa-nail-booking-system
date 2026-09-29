@@ -1,0 +1,25 @@
+/* NailHouse — không gian nhân viên.
+   Thứ tự import quyết định độ ưu tiên: theme.css phải để CUỐI vì nó là lớp màu
+   dùng chung cho mọi màn hình. */
+
+/* 1. Nền tảng: biến, layout chung, sidebar, topbar, panel, bảng, avatar, badge */
+@import './base.css';
+/* 2. Lớp bố cục tham chiếu (sidebar hồng, banner, dashboard gọn) */
+@import './reference.css';
+/* 3. Thang chữ và thẻ gọn, độc lập với bảng màu */
+@import './density.css';
+/* 4. Lịch làm việc */
+@import './schedule.css';
+@import './schedule-layout.css';
+/* 5. Trang chủ */
+@import './home.css';
+@import './home-layout.css';
+@import './home-fixes.css';
+/* 6. Chi tiết lịch hẹn + bảng .admin-table dùng chung */
+@import './booking.css';
+/* 7. Khách hàng: thẻ số liệu, bảng, drawer, hộp thoại, thanh phân trang */
+@import './customers.css';
+/* 8. Bổ sung cho bản React */
+@import './react-fixes.css';
+/* 9. Màu chung — phải cuối cùng */
+@import './theme.css';
