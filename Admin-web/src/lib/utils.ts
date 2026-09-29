@@ -24,6 +24,8 @@ export function money(value: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
 }
 
+export const formatVND = money;
+
 export function fmtNum(value: unknown): string {
   const n = Number(value);
   return Number.isFinite(n) ? new Intl.NumberFormat('vi-VN').format(n) : '—';
