@@ -5,3 +5,4 @@ legacy/
 *.tsbuildinfo
 *.local
 .DS_Store
+vite-restart.log
