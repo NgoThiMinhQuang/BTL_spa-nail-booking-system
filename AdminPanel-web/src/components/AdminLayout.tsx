@@ -1,6 +1,6 @@
 /* ===== Khung ứng dụng đồng bộ 100% với ảnh thiết kế NAIL STUDIO ===== */
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useApp, type ViewName } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
@@ -39,45 +39,16 @@ const ADMIN_GROUPS: NavGroup[] = [
   },
 ];
 
-const STAFF_GROUPS: NavGroup[] = [
-  {
-    title: 'KHÔNG GIAN NHÂN VIÊN',
-    items: [
-      { view: 'home', label: 'Trang chủ', icon: 'home' },
-      { view: 'schedule', label: 'Lịch làm việc', icon: 'schedule' },
-      { view: 'customers', label: 'Khách hàng của tôi', icon: 'customers' },
-      { view: 'services', label: 'Dịch vụ', icon: 'services' },
-      { view: 'profile', label: 'Cá nhân', icon: 'profile' },
-    ],
-  },
-];
-
 export function AdminLayout({ children }: { children: ReactNode; actions?: ReactNode }) {
   const { state, dispatch, activeNav } = useApp();
   const { goView } = useNavigation();
   const globalSearch = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    history.replaceState(null, '', state.view === 'schedule' || state.view === 'booking' ? '#schedule' : location.pathname);
-  }, [state.view]);
-
-  useEffect(() => {
-    document.body.classList.toggle('staff-home', state.view === 'home');
-    return () => document.body.classList.remove('staff-home');
-  }, [state.view]);
-
-  const userRole = state.user?.role || state.role;
-  const navGroups = userRole === 'admin' ? ADMIN_GROUPS : STAFF_GROUPS;
+  const navGroups = ADMIN_GROUPS;
 
   const onGlobalSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!state.data) return;
-    dispatch({ type: 'query', query: globalSearch.current?.value.trim() ?? '' });
-    if (userRole === 'admin') {
-      goView('admin-bookings');
-    } else {
-      goView('home');
-    }
+    goView('admin-bookings');
   };
 
   return (
@@ -245,7 +216,7 @@ export function AdminLayout({ children }: { children: ReactNode; actions?: React
                   {state.user?.name || 'Quản lý Admin'}
                 </span>
                 <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  {userRole === 'admin' ? 'Quản lý Cửa hàng' : 'Nhân viên'}
+                  Quản lý Cửa hàng
                 </span>
               </div>
               <button

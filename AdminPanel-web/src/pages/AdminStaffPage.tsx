@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useApp } from '../../store';
-import { Icon } from '../../components/Icon';
+import { useApp } from '../store';
+import { Icon } from '../components/Icon';
 
 const MOCK_STAFF = [
   {

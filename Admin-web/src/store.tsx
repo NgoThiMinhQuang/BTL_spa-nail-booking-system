@@ -10,17 +10,16 @@ import type { Dashboard, ServiceItem, StaffOption, Role, AuthUser } from './type
 import { localDate } from './lib/utils';
 import { resetPages } from './hooks/usePager';
 
-export type ViewName =
-  | 'home' | 'schedule' | 'customers' | 'services' | 'profile' | 'booking'
-  | 'admin-dashboard' | 'admin-staff' | 'admin-services' | 'admin-bookings' | 'admin-customers' | 'admin-work-schedule'
-  /* Ba mục trong menu Admin chưa có trang riêng — khai báo tên để menu dựng được,
-     bấm vào sẽ rơi về Bảng điều khiển cho tới khi bổ sung trang. */
-  | 'admin-payments' | 'admin-reviews' | 'admin-settings';
+export type ViewName = 'home' | 'schedule' | 'customers' | 'services' | 'profile' | 'booking';
 export type CalendarMode = 'day' | 'week' | 'month';
+
+/* Khoá riêng của app nhân viên, KHÔNG dùng chung với khu vực quản trị —
+   đây là nguyên nhân khiến hai app nhảy sang trang của nhau khi tải lại. */
+const STORAGE_KEY = 'nailhouse_staff_user';
 
 function getInitialUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem('nailhouse_user');
+    const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -57,12 +56,13 @@ export interface AppState {
 
 export const initialState: AppState = {
   user: initialUser,
-  role: initialUser?.role || 'staff',
-  view: initialUser?.role === 'admin' ? 'admin-dashboard' : (location.hash === '#schedule' ? 'schedule' : 'home'),
+  /* App này chỉ dành cho nhân viên; vai trò quản trị thuộc project khác. */
+  role: 'staff',
+  view: location.hash === '#schedule' ? 'schedule' : 'home',
   calendarMode: 'week',
   rangeBookings: [],
   date: localDate(),
-  staffId: initialUser?.role === 'staff' ? initialUser.id : '',
+  staffId: initialUser?.id ?? '',
   data: null,
   staffList: [],
   selected: null,
@@ -82,7 +82,6 @@ export const initialState: AppState = {
 export type Action =
   | { type: 'login'; user: AuthUser }
   | { type: 'logout' }
-  | { type: 'role'; role: Role }
   | { type: 'staffLoaded'; staff: StaffOption[]; staffId: string }
   | { type: 'staffChanged'; staffId: string }
   | { type: 'loadStart' }
@@ -114,15 +113,6 @@ export type Action =
 const ACTIVE_NAV: Record<ViewName, ViewName> = {
   booking: 'schedule', home: 'home', schedule: 'schedule',
   customers: 'customers', services: 'services', profile: 'profile',
-  'admin-dashboard': 'admin-dashboard',
-  'admin-staff': 'admin-staff',
-  'admin-services': 'admin-services',
-  'admin-bookings': 'admin-bookings',
-  'admin-customers': 'admin-customers',
-  'admin-work-schedule': 'admin-work-schedule',
-  'admin-payments': 'admin-payments',
-  'admin-reviews': 'admin-reviews',
-  'admin-settings': 'admin-settings',
 };
 
 /** Chọn lịch hẹn hợp lệ đầu tiên (ưu tiên lịch đang thực hiện). */
@@ -138,37 +128,26 @@ export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'login':
       try {
-        localStorage.setItem('nailhouse_user', JSON.stringify(action.user));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(action.user));
       } catch {}
       resetPages();
       return {
         ...state,
         user: action.user,
-        role: action.user.role,
-        view: action.user.role === 'admin' ? 'admin-dashboard' : 'home',
-        staffId: action.user.role === 'staff' ? action.user.id : (state.staffId || (state.staffList[0] ? String(state.staffList[0].id) : '1')),
+        role: 'staff',
+        view: 'home',
+        staffId: action.user.id,
       };
 
     case 'logout':
       try {
-        localStorage.removeItem('nailhouse_user');
+        localStorage.removeItem(STORAGE_KEY);
       } catch {}
       resetPages();
       return {
         ...state,
         user: null,
-        role: 'staff',
         view: 'home',
-      };
-
-    case 'role':
-      resetPages();
-      return {
-        ...state,
-        role: action.role,
-        view: action.role === 'admin' ? 'admin-dashboard' : 'home',
-        query: '',
-        status: '',
       };
 
     case 'staffLoaded':

@@ -1,4 +1,4 @@
-import { Icon } from '../../components/Icon';
+import { Icon } from '../components/Icon';
 
 type CellType = 'SHIFT' | 'TIME_OFF' | 'DAY_OFF';
 

@@ -22,11 +22,20 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(currentDirectory, '../public/uploads')));
 
-/* Giao diện nhân viên (Admin-web, bản build Vite): phục vụ file tĩnh trong
-   dist/ và trả index.html cho mọi đường dẫn con. */
-const adminWebBuild = path.resolve(currentDirectory, '../../Admin-web/dist');
-app.use('/staff', express.static(adminWebBuild, { index: false, maxAge: '1h' }));
-app.get(/^\/staff(\/.*)?$/, (_req, res) => res.sendFile(path.join(adminWebBuild, 'index.html')));
+/* Hai giao diện tách riêng, mỗi bên một bản build Vite:
+     /staff -> Admin-web      (không gian nhân viên)
+     /admin -> AdminPanel-web (khu vực quản trị)
+   Mỗi bên có khoá đăng nhập riêng trong localStorage nên tải lại trang không
+   nhảy sang bên kia. */
+const staffWebBuild = path.resolve(currentDirectory, '../../Admin-web/dist');
+const adminWebBuild = path.resolve(currentDirectory, '../../AdminPanel-web/dist');
+
+app.use('/staff', express.static(staffWebBuild, { index: false, maxAge: '1h' }));
+app.get(/^\/staff(\/.*)?$/, (_req, res) => res.sendFile(path.join(staffWebBuild, 'index.html')));
+
+app.use('/admin', express.static(adminWebBuild, { index: false, maxAge: '1h' }));
+app.get(/^\/admin(\/.*)?$/, (_req, res) => res.sendFile(path.join(adminWebBuild, 'index.html')));
+
 app.get('/api/staff-dashboard/:id', staffDashboard);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhouse-api' }));

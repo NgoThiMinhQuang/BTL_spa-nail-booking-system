@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useApp } from '../../store';
-import { Icon } from '../../components/Icon';
-import { formatVND } from '../../lib/utils';
+import { useApp } from '../store';
+import { Icon } from '../components/Icon';
+import { formatVND } from '../lib/utils';
 
 export function AdminDashboardPage() {
   const { state, dispatch } = useApp();

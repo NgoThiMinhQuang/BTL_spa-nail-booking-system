@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { formatVND } from '../../lib/utils';
-import { Icon } from '../../components/Icon';
+import { formatVND } from '../lib/utils';
+import { Icon } from '../components/Icon';
 
 const MOCK_CUSTOMERS = [
   { id: 1, name: 'Sarah Johnson', initials: 'SJ', avatarBg: '#FDF2F8', avatarColor: '#EC4899', phone: '+1 (555) 214-7788', bookings: 18, noShows: 0, spent: 8420000 },
