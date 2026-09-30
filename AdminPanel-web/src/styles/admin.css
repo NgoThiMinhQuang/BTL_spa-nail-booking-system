@@ -571,9 +571,10 @@
   }
 }
 
-/* Dưới 960px sidebar thu gọn thành biểu tượng (base.css đã lo) nên khoảng
-   trống trái phải khớp với 76px đó, nếu không nội dung sẽ lệch. */
-@media(max-width:960px){
+/* Ngưỡng phải khớp đúng với lúc reference.css thu sidebar thành biểu tượng
+   (max-width:900px). Nếu đặt cao hơn thì ở khoảng 901–960px sidebar bị ép còn
+   76px trong khi tên mục vẫn hiện, chữ tràn ra ngoài hộp. */
+@media(max-width:900px){
   #nailhouse{--adm-sidebar:76px}
 }
 

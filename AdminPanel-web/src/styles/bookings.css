@@ -1,0 +1,228 @@
+/* ==========================================================================
+   TRANG QUẢN LÝ LỊCH HẸN
+   Bảng lịch, bộ lọc, chế độ xem lịch theo cột nhân viên, và các hộp thoại
+   xử lý. Dùng chung bảng màu trạng thái với phần còn lại của khu quản trị.
+   ========================================================================== */
+
+/* ---- Thanh chọn nhanh + chế độ xem, ngay dưới tiêu đề trang ---- */
+.adm-bk-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.adm-bk-scope{font-size:12px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-bk-scope em{font-style:normal}
+/* Nút tạo lịch đẩy sang mép phải; khi hàng này xuống dòng thì nó vẫn bám
+   mép phải thay vì bị bỏ trống bên trái. */
+.adm-bk-bar .adm-primary{margin-left:auto}
+.adm-bk-views svg{width:14px;height:14px;vertical-align:-2px;margin-right:4px}
+
+/* ---- Thông báo ngắn sau khi hành động ---- */
+.adm-flash{display:flex;align-items:center;gap:7px;margin:0 0 12px;padding:9px 12px;
+  border-radius:10px;font-size:12px;border:1px solid}
+.adm-flash svg{width:15px;height:15px;flex:0 0 15px}
+.adm-flash.is-ok{background:var(--nh-sage-soft);border-color:#DDECE7;color:#3D6656}
+.adm-flash.is-warn{background:#FBE8ED;border-color:#F1C9D4;color:var(--nh-primary-dark)}
+
+/* ---- Tab đếm nhanh theo trạng thái ---- */
+.adm-bk-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.adm-bk-tabs button{display:flex;align-items:center;gap:7px;background:#F6F5F8;color:#777182;
+  border:1px solid transparent;border-radius:7px;padding:9px 14px;font-size:12px}
+.adm-bk-tabs button span{font-size:10.5px;color:#9A8B93;font-variant-numeric:tabular-nums}
+.adm-bk-tabs button:hover{background:#F7E9EF}
+.adm-bk-tabs button.active{background:#FBE7EC;color:var(--nh-primary-dark);
+  border-color:#F1C9D4;font-weight:600}
+.adm-bk-tabs button.active span{color:var(--nh-primary-dark)}
+
+/* ---- Khung bộ lọc ---- */
+.adm-bk-filters{margin-bottom:14px}
+.adm-bk-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
+  padding:14px 16px 16px}
+.adm-bk-reset{align-self:end;white-space:nowrap}
+
+/* ---- Ô nhập trong bộ lọc và hộp thoại ---- */
+.adm-field{display:grid;gap:5px;min-width:0}
+.adm-field>span{font-size:11.5px;color:var(--nh-muted)}
+.adm-field input,.adm-field select,.adm-field textarea{width:100%;padding:9px 11px;font:inherit;
+  font-size:12.5px;color:var(--nh-ink);background:#FCF8FA;border:1px solid var(--nh-line);
+  border-radius:8px}
+.adm-field textarea{resize:vertical;line-height:1.6}
+.adm-field input:focus-visible,.adm-field select:focus-visible,.adm-field textarea:focus-visible{
+  outline:2px solid var(--nh-primary);outline-offset:1px;background:#fff}
+.adm-field-note{margin:2px 0 0;font-size:11.5px;color:var(--nh-muted)}
+.adm-field-note.is-warn{color:var(--nh-gold)}
+
+/* ---- Bảng lịch: 10 cột nên cần rộng hơn ---- */
+.adm-table-booking{min-width:1180px}
+.adm-table-booking td{padding:11px 12px;vertical-align:middle}
+/* Lịch đã xong/hủy làm mờ để lịch đang chạy nổi bật hơn */
+.adm-table-booking tr.is-done td{opacity:.62}
+.adm-table-booking tr.is-done:hover td{opacity:1}
+
+.adm-link{font-size:11.5px;font-weight:600;color:var(--nh-primary-dark);cursor:pointer;
+  background:transparent;white-space:nowrap}
+.adm-link:hover{text-decoration:underline}
+.adm-addon{display:block;font-size:10px;color:var(--nh-primary-dark);margin-top:2px}
+.adm-warn-inline{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--nh-gold);
+  margin-top:3px;white-space:nowrap}
+.adm-warn-inline svg{width:11px;height:11px;flex:0 0 11px}
+.adm-none{color:#B6AFB2}
+
+/* Nút hành động trong trạng rỗng: không có dữ liệu vẫn phải chỉ ra cách thoát */
+.empty-actions{display:flex;gap:9px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+
+/* ---- Menu thao tác dạng popover ---- */
+.adm-row-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:30;min-width:186px;padding:5px;
+  background:#fff;border:1px solid var(--nh-line);border-radius:11px;
+  box-shadow:0 14px 30px -18px rgba(45,36,48,.5);display:grid;gap:1px;white-space:nowrap}
+.adm-row-actions{position:relative}
+.adm-row-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;
+  border-radius:7px;font-size:12px;color:var(--nh-ink);text-align:left}
+.adm-row-menu button:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-row-menu button svg{width:14px;height:14px;color:var(--nh-muted)}
+.adm-row-menu button.is-danger{color:#B4455E}
+.adm-row-menu button.is-danger:hover{background:#FBE8ED;color:#B93E62}
+.adm-row-menu button.is-danger svg{color:#B4455E}
+.adm-row-menu-empty{display:block;padding:8px 10px;font-size:11.5px;color:var(--nh-muted);
+  line-height:1.6;white-space:normal}
+
+/* ---- Phân trang ---- */
+.adm-pager{display:flex;align-items:center;gap:5px;padding:12px 16px;border-top:1px solid var(--nh-line)}
+.adm-pager>button:not(.adm-icon-btn){min-width:28px;height:28px;border-radius:7px;background:#F6F5F8;
+  color:var(--nh-ink);font-size:12px;font-variant-numeric:tabular-nums}
+.adm-pager>button:not(.adm-icon-btn).is-on{background:var(--nh-primary);color:#fff;font-weight:600}
+.adm-pager span{margin-left:auto;font-size:11px;color:var(--nh-muted)}
+
+.adm-bk-skeleton{display:grid;gap:8px;padding:14px 16px}
+.adm-skel-row{height:38px}
+
+/* ==========================================================================
+   CHẾ ĐỘ XEM LỊCH — cột là nhân viên, trục ngang là giờ
+   ========================================================================== */
+.adm-cal{background:#fff;border:1px solid var(--nh-line);border-radius:13px;overflow:hidden}
+.adm-cal-head{display:flex;position:sticky;top:0;z-index:3;background:#FAF7FA;
+  border-bottom:1px solid var(--nh-line)}
+.adm-cal-corner{flex:0 0 56px;border-right:1px solid var(--nh-line)}
+.adm-cal-name{flex:1;min-width:170px;padding:10px 12px;border-right:1px solid var(--nh-line);
+  display:grid;gap:2px}
+.adm-cal-name strong{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.adm-cal-name small{font-size:10.5px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-cal-name.is-unassigned strong{color:var(--nh-gold)}
+
+.adm-cal-scroll{overflow:auto;max-height:560px}
+.adm-cal-body{display:grid;position:relative}
+
+.adm-cal-hours{position:relative;border-right:1px solid var(--nh-line);background:#FCFAFB}
+.adm-cal-hours span{position:absolute;right:8px;transform:translateY(-50%);
+  font-size:10px;color:#A9A2A8;font-variant-numeric:tabular-nums}
+/* Nhãn giờ đầu tiên nằm sát mép trên nên không dịch nửa chừng, kẻo bị cắt. */
+.adm-cal-hours span:first-child{transform:translateY(2px)}
+
+.adm-cal-col{position:relative;border-right:1px solid var(--nh-line)}
+.adm-cal-col:last-child{border-right:0}
+.adm-cal-col.is-unassigned{background:#FFFCF7}
+
+/* Vùng ca làm — nền xám nhạt, tách bạch với khối lịch */
+.adm-cal-shift{position:absolute;left:5px;right:5px;background:#F4F1F5;border-radius:8px;
+  padding:5px 7px;overflow:hidden}
+.adm-cal-shift span{font-size:10px;color:#8A7B90;font-variant-numeric:tabular-nums;white-space:nowrap}
+.adm-cal-off{position:absolute;inset:0;display:grid;place-items:center;font-size:11.5px;color:#B6A3AB}
+
+.adm-cal-block{position:absolute;left:7px;right:7px;border-radius:8px;padding:5px 8px;overflow:hidden;
+  border-left:3px solid;cursor:default}
+.adm-cal-block strong{display:block;font-size:11px;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-cal-block span{display:flex;align-items:center;gap:4px;font-size:10px;margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-cal-block span svg{width:10px;height:10px;flex:0 0 10px}
+.adm-cal-block.is-pending{background:var(--nh-gold-soft);border-color:var(--nh-gold)}
+.adm-cal-block.is-pending span{color:#8A6A24}
+.adm-cal-block.is-confirmed{background:var(--nh-lavender-soft);border-color:var(--nh-lavender)}
+.adm-cal-block.is-confirmed span{color:#5D4770}
+.adm-cal-block.is-processing{background:#FBE8ED;border-color:var(--nh-primary)}
+.adm-cal-block.is-processing span{color:#8A4E60}
+.adm-cal-block.is-completed{background:var(--nh-sage-soft);border-color:var(--nh-sage)}
+.adm-cal-block.is-completed span{color:#3D6656}
+.adm-cal-block.is-cancelled{background:#F2EEEF;border-color:#B6A3AB;opacity:.7}
+.adm-cal-block.is-cancelled span{color:#8A7B80}
+
+/* ==========================================================================
+   HỘP THOẠI XỬ LÝ LỊCH HẸN
+   ========================================================================== */
+.adm-modal-booking h3{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.adm-modal-booking h3 svg{width:17px;height:17px;color:var(--nh-primary)}
+.adm-modal-detail{width:min(640px,100%);max-height:92vh;overflow-y:auto}
+.adm-bk-lead{margin:0 0 14px;font-size:12.5px;color:var(--nh-muted);line-height:1.6}
+.adm-bk-lead strong{color:var(--nh-ink)}
+
+.adm-bk-list{margin:14px 0 0;display:grid;gap:8px}
+.adm-bk-list-inline{grid-template-columns:repeat(2,minmax(0,1fr))}
+.adm-bk-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:baseline}
+.adm-bk-row dt{font-size:11.5px;color:var(--nh-muted)}
+.adm-bk-row dd{margin:0;font-size:12.5px;color:var(--nh-ink);min-width:0;word-break:break-word}
+/* base.css căn phải mọi dd trong dl; trong hộp thoại hẹp, căn phải kéo giá trị
+   dạt hẳn sang mép phải nên đọc rời rạc khỏi nhãn. */
+.adm-modal-booking .adm-bk-row dd{text-align:left}
+
+/* Cảnh báo trong hộp thoại */
+.adm-warn{display:flex;gap:9px;margin-top:14px;padding:11px 12px;border-radius:10px;
+  background:var(--nh-gold-soft);border:1px solid #F0DFB8}
+.adm-warn svg{width:16px;height:16px;flex:0 0 16px;color:var(--nh-gold);margin-top:1px}
+.adm-warn span{font-size:11.5px;line-height:1.6;color:#6B5518;min-width:0}
+.adm-warn span strong{display:block;font-size:12.5px;font-weight:600;margin-bottom:2px}
+
+/* Chọn nhân viên */
+.adm-pick-list{display:grid;gap:7px;margin:12px 0 0;max-height:260px;overflow-y:auto}
+.adm-pick{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:11px;
+  border:1px solid var(--nh-line);cursor:pointer}
+.adm-pick:hover{background:var(--nh-blush)}
+.adm-pick.is-on{background:#FBE7EC;border-color:var(--nh-primary)}
+.adm-pick input{accent-color:var(--nh-primary);margin:0}
+.adm-pick-body{min-width:0;flex:1}
+.adm-pick-body strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.adm-pick-body small{display:block;font-size:10.5px;color:var(--nh-muted);margin-top:1px}
+.adm-pick.is-off{opacity:.72;cursor:not-allowed;background:#FAF8F9}
+.adm-pick.is-off .adm-pick-body small{color:#A9715C}
+
+/* Chọn khung giờ trống */
+.adm-slots{display:flex;flex-wrap:wrap;gap:6px}
+.adm-slots button{padding:7px 12px;border-radius:7px;background:#F6F5F8;color:var(--nh-ink);
+  font-size:12px;font-variant-numeric:tabular-nums}
+.adm-slots button:hover{background:#F7E9EF}
+.adm-slots button.is-on{background:var(--nh-primary);color:#fff;font-weight:600}
+
+/* Nút phụ nguy hiểm */
+.button.is-danger{background:#B4455E}
+.button.is-danger:hover{background:#9E3249}
+
+/* Chi tiết: hai cột + tổng tiền + dịch vụ phát sinh */
+.adm-bk-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.adm-bk-detail-head h3{font-size:20px;margin:4px 0 0}
+.adm-modal-booking h4{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--nh-muted);
+  text-transform:uppercase;margin:20px 0 8px}
+.adm-bk-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.adm-bk-columns .adm-bk-list{margin-top:0}
+
+.adm-bk-addons{display:grid;gap:6px}
+.adm-bk-addon{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 11px;border:1px solid var(--nh-line);border-radius:10px}
+.adm-bk-addon strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.adm-bk-addon small{display:block;font-size:10.5px;color:var(--nh-muted)}
+.adm-bk-addon-btn{margin-top:8px;width:100%}
+.adm-bk-addon-btn svg{width:14px;height:14px}
+
+.adm-bk-total{margin-top:16px;padding:12px 13px;background:#FCF8FA;
+  border:1px solid var(--nh-line);border-radius:12px;display:grid;gap:7px}
+.adm-bk-total .adm-bk-row:last-child{border-top:1px solid var(--nh-line);padding-top:7px}
+.adm-bk-total .adm-bk-row:last-child dd{font-size:15px;color:var(--nh-primary-dark)}
+
+.adm-bk-review{padding:11px 12px;border:1px solid var(--nh-line);border-radius:10px}
+.adm-bk-review strong{font-size:12px;margin-left:8px;color:var(--nh-ink)}
+.adm-bk-review p{margin:7px 0 0;font-size:12px;line-height:1.65;color:var(--nh-muted)}
+
+/* ---- Màn hình hẹp ---- */
+@media(max-width:1250px){
+  .adm-bk-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:1000px){
+  .adm-bk-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .adm-bk-views{margin-left:0}
+  .adm-bk-columns{grid-template-columns:minmax(0,1fr)}
+  .adm-bk-list-inline{grid-template-columns:minmax(0,1fr)}
+}

@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import {
-  createBooking,
   getOverview,
   getReports,
-  listBookings,
   listCustomers,
   listLeaveRequests,
   listPayments,
@@ -11,16 +9,24 @@ import {
   listSchedule,
   listServices,
   listStaff,
-  updateBookingStatus,
 } from '../controllers/admin.controller.js';
+import {
+  addAddon,
+  bookingCounts,
+  createBooking,
+  getAvailableStaff,
+  getBooking,
+  getFreeSlots,
+  listBookings,
+  patchBooking,
+  postAvailability,
+  removeAddon,
+} from '../controllers/booking-admin.controller.js';
 
 const router = Router();
 
 router.get('/overview', getOverview);
 router.get('/services', listServices);
-router.get('/bookings', listBookings);
-router.post('/bookings', createBooking);
-router.patch('/bookings/:id', updateBookingStatus);
 router.get('/staff', listStaff);
 router.get('/customers', listCustomers);
 router.get('/schedule', listSchedule);
@@ -28,5 +34,18 @@ router.get('/leave', listLeaveRequests);
 router.get('/reviews', listReviews);
 router.get('/payments', listPayments);
 router.get('/reports', getReports);
+
+/* ---- Lịch hẹn: đặt trước /:id để không bị "id" nuốt các đường con ---- */
+router.get('/bookings', listBookings);
+router.get('/bookings/counts', bookingCounts);
+router.get('/bookings/availability', getAvailableStaff);
+router.get('/bookings/free-slots', getFreeSlots);
+router.post('/bookings/availability', postAvailability);
+router.post('/bookings', createBooking);
+
+router.get('/bookings/:id', getBooking);
+router.patch('/bookings/:id', patchBooking);
+router.post('/bookings/:id/addons', addAddon);
+router.delete('/bookings/:id/addons/:addonId', removeAddon);
 
 export default router;

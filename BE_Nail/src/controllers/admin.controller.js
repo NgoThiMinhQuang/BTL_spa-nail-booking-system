@@ -5,6 +5,9 @@
    bảng booking/payment/services rồi nối thêm nhân viên và khách hàng. */
 
 import { pool } from '../config/database.js';
+import {
+  METHOD_TEXT, PAYMENT_TEXT, SOURCE_TEXT, STATUS_TEXT, bookingCode,
+} from '../lib/booking-labels.js';
 
 /** Đường dẫn ảnh trong DB là dạng tương đối (/uploads/...), cần ghép thành URL. */
 function imageUrl(req, value) {
@@ -12,29 +15,27 @@ function imageUrl(req, value) {
   return `${req.protocol}://${req.get('host')}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
-const PAYMENT_TEXT = {
-  UNPAID: 'Chưa thanh toán',
-  DEPOSITED: 'Đã đặt cọc',
-  PAID: 'Đã thanh toán',
-};
-
-const METHOD_TEXT = {
-  CASH: 'Tiền mặt',
-  BANK_TRANSFER: 'Chuyển khoản',
-  ONLINE: 'Thanh toán online',
-};
-
-/** Ánh xạ một dòng booking sang đúng hình dạng frontend dùng. */
+/** Ánh xạ một dòng booking sang đúng hình dạng frontend dùng.
+    Giữ nguyên tên trường với booking-admin.controller.js để một kiểu Booking
+    duy nhất dùng được cả ở Tổng quan lẫn trang Lịch hẹn. */
 function mapBooking(row) {
+  const addonTotal = Number(row.addonTotal ?? 0);
   return {
     ...row,
     id: String(row.id),
+    code: bookingCode(row.id),
     serviceId: String(row.serviceId),
     customerId: String(row.customerId),
     staffId: row.staffId == null ? null : String(row.staffId),
     duration: Number(row.duration),
     price: Number(row.price),
+    addonTotal,
+    addonCount: Number(row.addonCount ?? 0),
+    /* Tổng tiền = giá dịch vụ chính + các dịch vụ phát sinh. */
+    total: Number(row.price) + addonTotal,
     paidAmount: row.paidAmount == null ? null : Number(row.paidAmount),
+    statusText: STATUS_TEXT[row.status] ?? row.status,
+    sourceText: SOURCE_TEXT[row.source] ?? row.source ?? null,
     paymentText: row.paymentStatus ? PAYMENT_TEXT[row.paymentStatus] : null,
     methodText: row.paymentMethod ? METHOD_TEXT[row.paymentMethod] : null,
   };
@@ -42,12 +43,16 @@ function mapBooking(row) {
 
 /** Cột chọn chung cho mọi truy vấn lịch hẹn. */
 const BOOKING_COLUMNS = `b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-        b.status, b.note,
+        b.status, b.note, b.source,
+        b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
         s.service_id AS serviceId, s.service_name AS serviceName, s.duration, s.price,
         c.customer_id AS customerId, u.full_name AS customerName, u.phone AS customerPhone,
-        st.staff_id AS staffId, su.full_name AS staffName,
+        u.avatar AS customerAvatarUrl,
+        st.staff_id AS staffId, su.full_name AS staffName, su.avatar AS staffAvatarUrl,
         pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
-        pay.amount AS paidAmount`;
+        pay.amount AS paidAmount,
+        COALESCE(addon.total, 0) AS addonTotal,
+        COALESCE(addon.count, 0) AS addonCount`;
 
 const BOOKING_JOINS = `FROM booking b
       JOIN services s ON s.service_id = b.service_id
@@ -55,7 +60,11 @@ const BOOKING_JOINS = `FROM booking b
       JOIN users u ON u.user_id = c.user_id
       LEFT JOIN staff st ON st.staff_id = b.staff_id
       LEFT JOIN users su ON su.user_id = st.user_id
-      LEFT JOIN payment pay ON pay.booking_id = b.booking_id`;
+      LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+      LEFT JOIN (
+        SELECT booking_id, SUM(price) AS total, COUNT(*) AS count
+        FROM booking_addon GROUP BY booking_id
+      ) addon ON addon.booking_id = b.booking_id`;
 
 /* ================================================================
    Bảng điều khiển
@@ -321,117 +330,6 @@ export async function listServices(req, res, next) {
     });
   } catch (error) {
     next(error);
-  }
-}
-
-/* ================================================================
-   Lịch hẹn của cửa hàng
-   ================================================================ */
-export async function listBookings(req, res, next) {
-  try {
-    const status = String(req.query.status ?? '').trim().toUpperCase();
-    const staffId = String(req.query.staffId ?? '').trim();
-    const day = String(req.query.day ?? '').trim();
-    const scope = ['today', 'upcoming', 'all'].includes(String(req.query.scope))
-      ? String(req.query.scope) : 'all';
-
-    const where = [];
-    const params = [];
-    if (status) { where.push('b.status = ?'); params.push(status); }
-    if (staffId) { where.push('b.staff_id = ?'); params.push(Number(staffId)); }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(day)) { where.push('DATE(b.start_time) = ?'); params.push(day); }
-    if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
-    if (scope === 'upcoming') where.push('b.start_time >= NOW()');
-
-    const [rows] = await pool.query(`SELECT ${BOOKING_COLUMNS} ${BOOKING_JOINS}
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY b.start_time DESC
-      LIMIT 200`, params);
-
-    res.json({ data: rows.map(mapBooking) });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/** Đổi trạng thái lịch hẹn — dùng cho nút duyệt/hủy ở Dashboard và trang Lịch hẹn. */
-export async function updateBookingStatus(req, res, next) {
-  try {
-    const id = Number(req.params.id);
-    const status = String(req.body.status ?? '').trim().toUpperCase();
-    const allowed = ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
-    if (!Number.isInteger(id) || !allowed.includes(status)) {
-      return res.status(400).json({ message: 'Trạng thái lịch hẹn không hợp lệ.' });
-    }
-
-    const [result] = await pool.query('UPDATE booking SET status = ? WHERE booking_id = ?', [status, id]);
-    if (!result.affectedRows) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
-
-    res.json({ data: { id: String(id), status } });
-  } catch (error) {
-    next(error);
-  }
-}
-
-/** Tạo lịch hẹn tại quầy cho khách walk-in. */
-export async function createBooking(req, res, next) {
-  const connection = await pool.getConnection();
-  try {
-    const customerId = Number(req.body.customerId);
-    const serviceId = Number(req.body.serviceId);
-    const staffId = req.body.staffId === null || req.body.staffId === ''
-      ? null : Number(req.body.staffId);
-    const day = String(req.body.day ?? '').trim();
-    const time = String(req.body.time ?? '').trim();
-    const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
-
-    if (!Number.isInteger(customerId) || !Number.isInteger(serviceId)
-      || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) {
-      return res.status(400).json({ message: 'Thiếu thông tin lịch hẹn: khách, dịch vụ, ngày hoặc giờ.' });
-    }
-
-    await connection.beginTransaction();
-
-    const [[serviceRow]] = await connection.query(
-      `SELECT service_name, price, duration, buffer_time AS bufferTime
-       FROM services WHERE service_id = ? LIMIT 1`, [serviceId]);
-    if (!serviceRow) {
-      await connection.rollback();
-      return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
-    }
-
-    const startsAt = new Date(`${day}T${time}:00`);
-    const endAt = new Date(
-      startsAt.getTime() + (Number(serviceRow.duration) + Number(serviceRow.bufferTime ?? 0)) * 60000);
-
-    /* Chỉ kiểm tra trùng lịch khi đã chọn nhân viên; lịch chưa phân công
-       thì để Admin xử lý ở mục "Việc cần xử lý". */
-    if (staffId !== null) {
-      const [conflicts] = await connection.query(
-        `SELECT b.booking_id FROM booking b
-         WHERE b.staff_id = ? AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
-           AND b.start_time < ? AND b.end_time > ?
-         LIMIT 1 FOR UPDATE`, [staffId, endAt, startsAt]);
-      if (conflicts[0]) {
-        await connection.rollback();
-        return res.status(409).json({
-          message: 'Khung giờ này nhân viên đã nhận lịch khác. Vui lòng chọn giờ khác.',
-        });
-      }
-    }
-
-    const [result] = await connection.query(
-      `INSERT INTO booking (customer_id, staff_id, service_id, start_time, end_time, status, note)
-       VALUES (?,?,?,?,?,'PENDING',?)`,
-      [customerId, staffId, serviceId, startsAt, endAt, note]);
-    await connection.commit();
-
-    res.status(201).json({ data: { id: String(result.insertId) } });
-  } catch (error) {
-    await connection.rollback();
-    next(error);
-  } finally {
-    connection.release();
   }
 }
 

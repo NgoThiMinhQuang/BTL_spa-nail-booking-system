@@ -72,6 +72,15 @@ export function fmtDate(iso: string | null): string {
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
 }
 
+/** Số phút kể từ 00:00 của một mốc ISO, theo giờ địa phương.
+    Dùng cho lưới lịch: cắt chuỗi ISO sẽ ra giờ UTC nên khối lịch sẽ lệch
+    so với cột giờ vẽ bên cạnh. */
+export function minutesOfDay(iso: string): number {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 0;
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 /** Số phút kể từ 00:00 của chuỗi "HH:mm" hoặc "HH:mm:ss". */
 export function timeToMinutes(value: string): number {
   const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number);

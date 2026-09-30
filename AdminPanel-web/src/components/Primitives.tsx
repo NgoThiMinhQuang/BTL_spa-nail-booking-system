@@ -27,12 +27,18 @@ export function SectionHeading({
   );
 }
 
-export function EmptyState({ title, detail }: { title: string; detail: string }) {
+/** Trạng rỗng. `children` là nút hành động, ví dụ "Đặt lại bộ lọc" hay
+    "Tạo lịch khách trực tiếp" — trạng không có dữ liệu thì vẫn phải chỉ ra
+    được cách thoát ra khỏi nó. */
+export function EmptyState({
+  title, detail, children,
+}: { title: string; detail: string; children?: ReactNode }) {
   return (
     <div className="empty">
       <span className="empty-icon"><Icon name="flower" /></span>
       <h3>{title}</h3>
       <p>{detail}</p>
+      {children && <div className="empty-actions">{children}</div>}
     </div>
   );
 }

@@ -59,13 +59,43 @@ async function getJson<T>(path: string): Promise<T> {
    Kiểu dữ liệu
    ================================================================ */
 export interface Booking {
-  id: string; startsAt: string; endsAt: string; status: string; note: string | null;
+  id: string;
+  /** Mã hiển thị dựng từ id, ví dụ #BK00125. */
+  code: string;
+  startsAt: string; endsAt: string;
+  status: string; statusText: string;
+  note: string | null;
+  source: string; sourceText: string;
+  cancelReason: string | null; cancelledAt: string | null;
   serviceId: string; serviceName: string; duration: number; price: number;
   customerId: string; customerName: string; customerPhone: string;
-  staffId: string | null; staffName: string | null;
+  customerAvatarUrl?: string | null;
+  staffId: string | null; staffName: string | null; staffAvatarUrl?: string | null;
   paymentStatus: string | null; paymentMethod: string | null;
   paidAmount: number | null; paymentText: string | null; methodText: string | null;
+  /** Tổng tiền các dịch vụ phát sinh, chưa tính vào price. */
+  addonCount: number; addonTotal: number;
+  /** price + addonTotal. */
+  total: number;
 }
+
+/** Khoảng thời gian của bộ chọn nhanh đầu trang Lịch hẹn. */
+export type BookingScope = 'today' | 'tomorrow' | 'week' | 'all';
+
+export interface BookingQuery {
+  scope: BookingScope;
+  /** YYYY-MM-DD; chỉ dùng khi chọn một ngày cụ thể trong ô lọc Ngày. */
+  day: string;
+  status: string;
+  payment: string;
+  source: string;
+  staffId: string;
+  serviceId: string;
+  q: string;
+}
+
+/** Đếm nhanh theo trạng thái, phục vụ tab lọc. */
+export type BookingCounts = Record<string, number>;
 
 export interface Overview {
   range: string;
@@ -161,6 +191,8 @@ export interface AdminState {
   services: ServiceItem[];
   categories: CategoryItem[];
   bookings: Booking[];
+  bookingCounts: BookingCounts;
+  bookingQuery: BookingQuery;
   staff: StaffItem[];
   customers: CustomerItem[];
   shifts: ShiftItem[];
@@ -195,6 +227,11 @@ export const initialState: AdminState = {
   services: [],
   categories: [],
   bookings: [],
+  bookingCounts: { ALL: 0 },
+  bookingQuery: {
+    scope: 'today', day: '', status: '', payment: '', source: '',
+    staffId: '', serviceId: '', q: '',
+  },
   staff: [],
   customers: [],
   shifts: [],
@@ -215,6 +252,7 @@ export type Action =
   | { type: 'loadStart' }
   | { type: 'loadError'; message: string }
   | { type: 'loaded'; payload: Partial<AdminState> }
+  | { type: 'bookingQuery'; patch: Partial<BookingQuery> }
   | { type: 'refresh' };
 
 export function reducer(state: AdminState, action: Action): AdminState {
@@ -233,6 +271,9 @@ export function reducer(state: AdminState, action: Action): AdminState {
 
     case 'view':
       return { ...state, view: action.view };
+
+    case 'bookingQuery':
+      return { ...state, bookingQuery: { ...state.bookingQuery, ...action.patch } };
 
     case 'loadStart':
       return { ...state, loading: true, feedback: '' };
@@ -261,6 +302,8 @@ interface AppContextValue {
   setAnchorDate: (value: string) => void;
   chartRange: ChartRange;
   setChartRange: (value: ChartRange) => void;
+  /** Đổi bộ lọc lịch hẹn; chỉ tải lại danh sách lịch và số đếm. */
+  setBookingQuery: (patch: Partial<BookingQuery>) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -285,10 +328,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [services, bookings, staff, customers, shifts, leave, reviews, payments, reports] =
+        const [services, staff, customers, shifts, leave, reviews, payments, reports] =
           await Promise.all([
             getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/services'),
-            getJson<{ data: Booking[] }>('/bookings'),
             getJson<{ data: StaffItem[] }>('/staff'),
             getJson<{ data: CustomerItem[] }>('/customers'),
             getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
@@ -307,7 +349,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           payload: {
             services: services.data,
             categories: services.meta.categories,
-            bookings: bookings.data,
             staff: staff.data,
             customers: customers.data,
             shifts: shifts.data,
@@ -347,7 +388,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [reloadToken, user, chartRange]);
 
+  /* Danh sách lịch hẹn tải riêng khỏi phần còn lại: đổi bộ lọc chỉ gọi
+     lại đúng hai endpoint này, các trang khác không phải chờ. */
+  const { bookingQuery } = state;
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const params = new URLSearchParams();
+    if (bookingQuery.scope !== 'all') params.set('scope', bookingQuery.scope);
+    if (bookingQuery.day) { params.set('scope', 'all'); params.set('day', bookingQuery.day); }
+    for (const [key, value] of Object.entries({
+      status: bookingQuery.status,
+      payment: bookingQuery.payment,
+      source: bookingQuery.source,
+      staffId: bookingQuery.staffId,
+      serviceId: bookingQuery.serviceId,
+      q: bookingQuery.q,
+    })) {
+      if (value) params.set(key, value);
+    }
+    const query = params.toString();
+
+    /* Số đếm chỉ đổi theo khoảng thời gian, không đổi theo các bộ lọc còn lại —
+       nhờ đó con số trên tab luôn là tổng của khoảng đang xem. */
+    Promise.all([
+      getJson<{ data: Booking[] }>(`/bookings${query ? `?${query}` : ''}`),
+      getJson<{ data: BookingCounts }>(
+        `/bookings/counts?scope=${bookingQuery.day || bookingQuery.scope}`),
+    ]).then(([list, counts]) => {
+      if (cancelled) return;
+      dispatch({ type: 'loaded', payload: { bookings: list.data, bookingCounts: counts.data } });
+    }).catch(() => { /* giữ danh sách cũ, lần làm mới sẽ báo nếu cả API hỏng */ });
+
+    return () => { cancelled = true; };
+  }, [reloadToken, user, bookingQuery]);
+
   const reload = useCallback(() => dispatch({ type: 'refresh' }), []);
+
+  const setBookingQuery = useCallback((patch: Partial<BookingQuery>) => {
+    dispatch({ type: 'bookingQuery', patch });
+  }, []);
 
   const value = useMemo<AppContextValue>(() => ({
     state,
@@ -358,7 +439,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAnchorDate,
     chartRange,
     setChartRange,
-  }), [state, reload, anchorDate, chartRange]);
+    setBookingQuery,
+  }), [state, reload, anchorDate, chartRange, setBookingQuery]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
