@@ -411,11 +411,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const query = params.toString();
 
     /* Số đếm chỉ đổi theo khoảng thời gian, không đổi theo các bộ lọc còn lại —
-       nhờ đó con số trên tab luôn là tổng của khoảng đang xem. */
+       nhờ đó con số trên tab luôn là tổng của khoảng đang xem. Khi chọn một
+       ngày cụ thể thì ngày đó thay cho khoảng, nếu không tab sẽ hiện số của
+       toàn hệ thống trong khi bảng chỉ có lịch của một ngày. */
+    const countParams = new URLSearchParams();
+    if (bookingQuery.day) countParams.set('day', bookingQuery.day);
+    else countParams.set('scope', bookingQuery.scope);
+
     Promise.all([
       getJson<{ data: Booking[] }>(`/bookings${query ? `?${query}` : ''}`),
-      getJson<{ data: BookingCounts }>(
-        `/bookings/counts?scope=${bookingQuery.day || bookingQuery.scope}`),
+      getJson<{ data: BookingCounts }>(`/bookings/counts?${countParams}`),
     ]).then(([list, counts]) => {
       if (cancelled) return;
       dispatch({ type: 'loaded', payload: { bookings: list.data, bookingCounts: counts.data } });

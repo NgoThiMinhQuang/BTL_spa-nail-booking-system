@@ -120,21 +120,27 @@ export async function listBookings(req, res, next) {
   }
 }
 
-/** Số đếm theo trạng thái để dựng tab lọc nhanh. */
+/** Số đếm theo trạng thái để dựng tab lọc nhanh.
+    Phải bám đúng khoảng đang xem như danh sách, nếu không tab sẽ hiện số
+    toàn hệ thống trong khi bảng bên dưới chỉ có vài dòng của một ngày. */
 export async function bookingCounts(req, res, next) {
   try {
     const scope = ['today', 'tomorrow', 'week', 'upcoming', 'all'].includes(String(req.query.scope))
       ? String(req.query.scope) : 'all';
+    const day = String(req.query.day ?? '').trim();
 
     const where = [];
-    if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
-    if (scope === 'tomorrow') where.push('DATE(b.start_time) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)');
-    if (scope === 'week') where.push('DATE(b.start_time) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)');
-    if (scope === 'upcoming') where.push('b.start_time >= NOW()');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(day)) where.push('DATE(b.start_time) = ?');
+    else if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
+    else if (scope === 'tomorrow') where.push('DATE(b.start_time) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)');
+    else if (scope === 'week') where.push('DATE(b.start_time) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)');
+    else if (scope === 'upcoming') where.push('b.start_time >= NOW()');
+
+    const params = /^\d{4}-\d{2}-\d{2}$/.test(day) ? [day] : [];
 
     const [rows] = await pool.query(`SELECT b.status, COUNT(*) AS n
       FROM booking b ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      GROUP BY b.status`, []);
+      GROUP BY b.status`, params);
 
     const counts = { PENDING: 0, CONFIRMED: 0, PROCESSING: 0, COMPLETED: 0, CANCELLED: 0, NO_SHOW: 0 };
     for (const row of rows) counts[row.status] = Number(row.n);
