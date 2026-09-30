@@ -73,7 +73,11 @@
   background:transparent;color:#9A8B93;cursor:pointer}
 .adm-icon-btn:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
 .adm-icon-btn svg{width:15px;height:15px}
-.adm-row-actions{display:flex;gap:4px;justify-content:flex-end}
+.adm-row-actions{display:flex;gap:4px;justify-content:flex-end;align-items:center}
+.adm-text-btn{font-size:11px;font-weight:600;color:var(--nh-primary-dark);background:var(--nh-blush);
+  border-radius:7px;padding:6px 10px;white-space:nowrap}
+.adm-text-btn:hover{background:#F5D8E1}
+.adm-text-btn:disabled{opacity:.55}
 
 /* ---- Bảng: dùng chung .schedule-table của app nhân viên, chỉ chỉnh chiều rộng ---- */
 .adm-table{min-width:720px}
@@ -83,6 +87,15 @@
 .adm-table th{font-size:10px;padding:11px 14px}
 .adm-cell-name{display:flex;align-items:center;gap:10px;min-width:0}
 .adm-thumb{width:38px;height:38px;flex:0 0 38px;border-radius:10px;object-fit:cover;background:var(--nh-blush)}
+.adm-thumb-blank{display:grid;place-items:center;color:#E0B6C3}
+.adm-thumb-blank svg{width:17px;height:17px}
+/* Bảng dịch vụ có 8 cột nên cần rộng hơn và cuộn ngang khi màn hình hẹp. */
+.adm-table-wide{min-width:940px}
+.adm-rating{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.adm-rating svg{width:13px;height:13px;color:var(--nh-gold)}
+.adm-rating small{font-size:10px;color:var(--nh-muted);margin:0}
+.adm-none{color:#B6AFB2}
 .adm-cell-name strong{font-size:12.5px;font-weight:600;color:var(--nh-ink);display:block}
 .adm-cell-name small{font-size:10.5px;color:var(--nh-muted);display:block;margin-top:2px}
 .adm-tag{display:inline-block;font-size:10px;background:var(--nh-blush);color:var(--nh-primary-dark);
@@ -144,6 +157,7 @@
 .adm-week thead th:first-child{width:186px;text-align:left;padding-left:16px;border-left:0}
 .adm-week thead th small{display:block;font-size:14px;font-weight:600;letter-spacing:0;color:var(--nh-ink);margin-top:3px}
 .adm-week tbody th{text-align:left;padding:12px 16px;border-left:0;font-weight:400}
+.adm-week thead th.is-today{background:var(--nh-blush);color:var(--nh-primary-dark)}
 .adm-week tbody td{padding:7px;height:96px}
 .adm-week tbody tr+tr th,.adm-week tbody tr+tr td{border-top:1px solid var(--nh-line)}
 
@@ -191,11 +205,79 @@
 .adm-person-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--nh-muted)}
 .adm-person-meta>span{display:flex;align-items:center;gap:4px}
 .adm-person-meta svg{width:13px;height:13px;color:var(--nh-gold)}
+.adm-person-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 0;
+  padding:9px 0;border-top:1px solid var(--nh-line);border-bottom:1px solid var(--nh-line)}
+.adm-person-nums div{display:grid;gap:2px;min-width:0;text-align:center}
+.adm-person-nums dt{font-size:10px;color:var(--nh-muted)}
+.adm-person-nums dd{margin:0;font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.adm-person-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:auto;padding-top:11px}
+.adm-person-phone{font-size:10.5px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+
+/* ---- Hàng xếp hạng (dịch vụ bán chạy) ---- */
+.adm-bar-row{display:grid;grid-template-columns:minmax(96px,1.1fr) minmax(60px,2fr) auto;
+  align-items:center;gap:12px;padding:6px 0}
+.adm-bar-name{font-size:12.5px;color:var(--nh-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-bar-track{height:9px;border-radius:5px;background:#F5EFF2;overflow:hidden}
+.adm-bar-fill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#F3AEC2,#D56B81)}
+.adm-bar-value{font-size:11px;color:var(--nh-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.adm-review-list{display:grid;gap:9px;padding:0 16px 16px;max-height:520px;overflow-y:auto}
+.adm-review{display:flex;gap:10px;padding:12px;border:1px solid var(--nh-line);border-radius:12px}
+.adm-review-body{min-width:0;flex:1}
+.adm-review-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.adm-review-head strong{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.adm-review-body p{margin:5px 0 4px;font-size:12px;line-height:1.65;color:var(--nh-muted)}
+.adm-review-body small{font-size:10.5px;color:#9A8B93}
+.adm-stars{display:inline-flex;gap:1px}
+.adm-stars svg{width:12px;height:12px;color:#E3D5D9}
+.adm-stars svg.is-on{color:var(--nh-gold);fill:var(--nh-gold)}
+
+.adm-check-list{display:grid;gap:8px;padding:0 16px 16px}
+.adm-check-list>div{display:flex;gap:10px;padding:11px 13px;border-radius:12px;
+  border:1px solid var(--nh-line)}
+.adm-check-list svg{width:16px;height:16px;flex:0 0 16px;margin-top:1px}
+.adm-check-list .is-ok{background:#F6FBF9;border-color:#DDECE7}
+.adm-check-list .is-ok svg{color:var(--nh-sage)}
+.adm-check-list .is-warn{background:var(--nh-gold-soft);border-color:#F0DFB8}
+.adm-check-list .is-warn svg{color:var(--nh-gold)}
+.adm-check-list span{min-width:0}
+.adm-check-list strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);line-height:1.5}
+.adm-check-list small{display:block;font-size:11px;color:var(--nh-muted);margin-top:2px;line-height:1.55}
+
+.app-note{margin:14px 0 0;font-size:11.5px;color:var(--nh-muted);text-align:center}
 
 /* ---- Hộp thoại xác nhận ---- */
 .adm-modal-backdrop{position:fixed;inset:0;background:rgba(45,36,48,.42);display:grid;place-items:center;z-index:60;padding:20px}
 .adm-modal{width:min(400px,100%);background:#fff;border:1px solid var(--nh-line);border-radius:14px;padding:22px}
 .adm-modal h3{font-size:16px;font-weight:600;color:var(--nh-ink)}
+.adm-modal-wide{width:min(520px,100%)}
+.adm-detail-head{display:flex;gap:14px;align-items:flex-start}
+.adm-detail-image{width:64px;height:64px;flex:0 0 64px;border-radius:12px;object-fit:cover;
+  background:var(--nh-blush);display:grid;place-items:center;color:#E0B6C3}
+.adm-detail-image svg{width:26px;height:26px}
+.adm-detail-head h3{margin:5px 0 3px}
+.adm-detail-price{font-size:12px;color:var(--nh-primary-dark);font-weight:600}
+.adm-detail-text{margin-top:14px;font-size:12.5px;line-height:1.7;color:var(--nh-muted)}
+.adm-detail-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
+  margin:16px 0 0;padding:14px;background:#FCF8FA;border:1px solid var(--nh-line);border-radius:12px}
+.adm-detail-list div{display:grid;gap:3px;min-width:0}
+.adm-detail-list dt{font-size:10.5px;color:var(--nh-muted)}
+.adm-detail-list dd{margin:0;font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.adm-detail-staff{margin-top:14px}
+.adm-detail-staff h4{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--nh-muted);
+  margin:0 0 5px;text-transform:uppercase}
+.adm-detail-staff p{font-size:12px;line-height:1.7;color:var(--nh-ink);margin:0}
+.adm-detail-title{font-size:11px;font-weight:600;letter-spacing:1px;color:var(--nh-muted);
+  margin:18px 0 8px;text-transform:uppercase}
+.adm-history{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:236px;overflow-y:auto}
+.adm-history li{display:flex;align-items:center;gap:10px;padding:8px 11px;
+  border:1px solid var(--nh-line);border-radius:10px}
+.adm-history-when{flex:0 0 74px;font-size:11px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-history-what{flex:1;min-width:0;font-size:12px;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-modal p{margin:7px 0 0;font-size:12.5px;color:var(--nh-muted);line-height:1.6}
 .adm-modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
 

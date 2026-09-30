@@ -1,135 +1,158 @@
 /* ===== Trang Dịch vụ của quản trị =====
-   Cùng bộ thẻ số liệu (.svc-stat) và bảng của app nhân viên. */
+
+   Mỗi dòng là một dịch vụ thật trong bảng services, kèm số liệu bật ra từ
+   database: số nhân viên thực hiện được, số lịch hẹn đã nhận, doanh thu từ
+   các lịch hoàn thành và điểm đánh giá trung bình. Bấm vào thẻ để xem chi tiết
+   mô tả, thời gian nghỉ sau dịch vụ và danh sách nhân viên. */
 
 import { useState } from 'react';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { Icon } from '../components/Icon';
-import { formatVND } from '../lib/utils';
+import { useApp } from '../store';
+import { fmtNum, fmtRating, formatVND, moneyShort, safeImage } from '../lib/utils';
 
-interface Service {
-  id: number; name: string; category: string; price: number;
-  duration: number; requireDeposit: boolean; status: string; image: string;
-}
+type SortKey = 'popular' | 'revenue' | 'price' | 'name';
 
-const SERVICES: Service[] = [
-  { id: 1, name: 'Sơn Gel', category: 'Làm móng tay', price: 150000, duration: 60, requireDeposit: true, status: 'Hoạt động', image: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&q=80&w=100&h=100' },
-  { id: 2, name: 'Sơn Móng Cổ Điển', category: 'Làm móng tay', price: 100000, duration: 45, requireDeposit: false, status: 'Hoạt động', image: 'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=100&h=100' },
-  { id: 3, name: 'Spa Chăm Sóc Chân', category: 'Làm móng chân', price: 200000, duration: 75, requireDeposit: true, status: 'Hoạt động', image: 'https://images.unsplash.com/photo-1519014816548-bf5fe059e98b?auto=format&fit=crop&q=80&w=100&h=100' },
-  { id: 4, name: 'Đắp Bột Móng', category: 'Đắp móng', price: 350000, duration: 120, requireDeposit: true, status: 'Hoạt động', image: 'https://images.unsplash.com/photo-1595868832863-71a7d6051786?auto=format&fit=crop&q=80&w=100&h=100' },
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: 'popular', label: 'Bán chạy nhất' },
+  { key: 'revenue', label: 'Doanh thu cao' },
+  { key: 'price', label: 'Giá cao nhất' },
+  { key: 'name', label: 'Tên A → Z' },
 ];
 
-const CATEGORIES = ['Tất cả', 'Làm móng tay', 'Làm móng chân', 'Đắp móng'];
-
 export function AdminServicesPage() {
+  const { state } = useApp();
+  const { services, categories } = state;
+
   const [term, setTerm] = useState('');
-  const [category, setCategory] = useState('Tất cả');
-  const [deposit, setDeposit] = useState<Record<number, boolean>>(
-    Object.fromEntries(SERVICES.map((s) => [s.id, s.requireDeposit])),
-  );
+  const [category, setCategory] = useState('all');
+  const [onlyActive, setOnlyActive] = useState(false);
+  const [sort, setSort] = useState<SortKey>('popular');
+  const [detailId, setDetailId] = useState<string | null>(null);
 
-  const rows = SERVICES.filter((s) =>
-    (category === 'Tất cả' || s.category === category)
-    && s.name.toLowerCase().includes(term.toLowerCase()));
+  const rows = services
+    .filter((service) =>
+      (category === 'all' || service.categoryId === category)
+      && (!onlyActive || service.status === 'ACTIVE')
+      && (service.name.toLowerCase().includes(term.toLowerCase())
+        || (service.description ?? '').toLowerCase().includes(term.toLowerCase())))
+    .sort((a, b) => {
+      if (sort === 'revenue') return b.revenue - a.revenue;
+      if (sort === 'price') return b.price - a.price;
+      if (sort === 'name') return a.name.localeCompare(b.name, 'vi');
+      return b.bookingCount - a.bookingCount;
+    });
 
-  const depositCount = Object.values(deposit).filter(Boolean).length;
-  const avgPrice = Math.round(SERVICES.reduce((s, x) => s + x.price, 0) / SERVICES.length);
-  const avgDuration = Math.round(SERVICES.reduce((s, x) => s + x.duration, 0) / SERVICES.length);
+  const active = services.filter((service) => service.status === 'ACTIVE');
+  const avgPrice = active.length
+    ? Math.round(active.reduce((sum, s) => sum + s.price, 0) / active.length) : 0;
+  const totalRevenue = services.reduce((sum, s) => sum + s.revenue, 0);
+  const rated = services.filter((s) => s.reviewCount > 0);
+  const avgRating = rated.length
+    ? rated.reduce((sum, s) => sum + (s.rating ?? 0), 0) / rated.length : null;
+
+  const detail = services.find((service) => service.id === detailId);
 
   return (
     <>
-      {/* Thẻ số liệu — chỉ đọc */}
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="services" label="Tổng dịch vụ" value={SERVICES.length} note="đang mở" />
-        <StatTile tone="sage" icon="dollar" label="Giá trung bình" value={formatVND(avgPrice)} note="mỗi buổi" />
-        <StatTile tone="gold" icon="clock" label="Thời lượng TB" value={`${avgDuration}′`} note="mỗi buổi" />
-        <StatTile tone="lavender" icon="card" label="Yêu cầu đặt cọc" value={`${depositCount}/${SERVICES.length}`} note="dịch vụ" />
+        <StatTile tone="rose" icon="services" label="Dịch vụ đang mở"
+          value={`${active.length}/${services.length}`} note={`${categories.length} danh mục`} />
+        <StatTile tone="sage" icon="dollar" label="Doanh thu dịch vụ" value={moneyShort(totalRevenue)} note="từ lịch hoàn thành" />
+        <StatTile tone="gold" icon="card" label="Giá trung bình" value={formatVND(avgPrice)} note="mỗi buổi" />
+        <StatTile tone="lavender" icon="star" label="Điểm đánh giá" value={fmtRating(avgRating)}
+          note={`${rated.length} dịch vụ có phản hồi`} />
       </div>
 
       <Panel>
         <SectionHeading
           icon={<Icon name="services" />}
           title="Danh mục dịch vụ"
-          subtitle={`${rows.length} trong ${SERVICES.length} dịch vụ`}
+          subtitle={`${rows.length} trong ${services.length} dịch vụ`}
         />
+
+        {/* Danh mục: dùng đúng bộ tab của app nhân viên */}
+        <div className="svc-tabs" style={{ padding: '0 16px' }}>
+          <button className={category === 'all' ? 'is-active' : ''} onClick={() => setCategory('all')}>
+            Tất cả<span>{services.length}</span>
+          </button>
+          {categories.map((item) => (
+            <button key={item.id}
+              className={category === item.id ? 'is-active' : ''}
+              onClick={() => setCategory(item.id)}>
+              {item.name}<span>{item.serviceCount}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="adm-tools">
           <div className="search">
             <span aria-hidden="true">⌕</span>
             <input
               aria-label="Tìm dịch vụ"
-              placeholder="Tìm dịch vụ…"
+              placeholder="Tìm theo tên hoặc mô tả…"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
             />
           </div>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            aria-label="Lọc theo danh mục"
-          >
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          <select aria-label="Sắp xếp" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            {SORTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
-          <button className="button secondary">
-            <Icon name="sparkles" /> <span>Trạng thái</span>
+          <button
+            className={`button secondary${onlyActive ? ' is-on' : ''}`}
+            onClick={() => setOnlyActive((prev) => !prev)}
+            aria-pressed={onlyActive}
+          >
+            <Icon name="check" /> <span>Chỉ dịch vụ đang mở</span>
           </button>
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState title="Không tìm thấy dịch vụ" detail="Thử đổi danh mục hoặc xoá từ khoá tìm kiếm." />
+          <EmptyState title="Không tìm thấy dịch vụ" detail="Thử đổi danh mục hoặc bỏ từ khoá tìm kiếm." />
         ) : (
           <div className="table-scroll">
-            <table className="adm-table">
+            <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
                   <th>Dịch vụ</th>
-                  <th>Giá tiền</th>
+                  <th>Giá</th>
                   <th>Thời lượng</th>
-                  <th>Yêu cầu đặt cọc</th>
+                  <th>Nhân viên</th>
+                  <th>Lịch hẹn</th>
+                  <th>Doanh thu</th>
+                  <th>Đánh giá</th>
                   <th>Trạng thái</th>
-                  <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((s) => (
-                  <tr key={s.id}>
+                {rows.map((service) => (
+                  <tr key={service.id} onClick={() => setDetailId(service.id)}
+                    style={{ cursor: 'pointer' }}>
                     <td>
                       <span className="adm-cell-name">
-                        <img className="adm-thumb" src={s.image} alt="" loading="lazy" />
+                        {safeImage(service.imageUrl)
+                          ? <img className="adm-thumb" src={safeImage(service.imageUrl)} alt="" loading="lazy" />
+                          : <span className="adm-thumb adm-thumb-blank"><Icon name="services" /></span>}
                         <span style={{ minWidth: 0 }}>
-                          <strong>{s.name}</strong>
-                          <span className="adm-tag">{s.category}</span>
+                          <strong>{service.name}</strong>
+                          {service.category && <span className="adm-tag">{service.category}</span>}
                         </span>
                       </span>
                     </td>
-                    <td><strong>{formatVND(s.price)}</strong></td>
-                    <td>{s.duration} phút</td>
+                    <td><strong>{formatVND(service.price)}</strong></td>
+                    <td>{service.duration}′{service.bufferTime > 0 ? <small>+{service.bufferTime}′ nghỉ</small> : null}</td>
+                    <td>{service.staffCount} người</td>
+                    <td>{fmtNum(service.bookingCount)}</td>
+                    <td><strong>{formatVND(service.revenue)}</strong></td>
                     <td>
-                      <div
-                        role="switch"
-                        aria-checked={deposit[s.id]}
-                        aria-label={`Yêu cầu đặt cọc cho ${s.name}`}
-                        tabIndex={0}
-                        className={`adm-toggle${deposit[s.id] ? ' is-on' : ''}`}
-                        onClick={() => setDeposit((prev) => ({ ...prev, [s.id]: !prev[s.id] }))}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setDeposit((prev) => ({ ...prev, [s.id]: !prev[s.id] }));
-                          }
-                        }}
-                      />
+                      {service.reviewCount > 0
+                        ? <span className="adm-rating"><Icon name="star" /> {fmtRating(service.rating)}
+                          <small>{service.reviewCount}</small></span>
+                        : <span className="adm-none">—</span>}
                     </td>
                     <td>
-                      <span className="badge completed"><i />{s.status}</span>
-                    </td>
-                    <td>
-                      <span className="adm-row-actions">
-                        <button className="adm-icon-btn" aria-label={`Sửa ${s.name}`}>
-                          <Icon name="edit" />
-                        </button>
-                        <button className="adm-icon-btn" aria-label={`Xoá ${s.name}`}>
-                          <Icon name="trash" />
-                        </button>
+                      <span className={`badge ${service.status === 'ACTIVE' ? 'completed' : 'cancelled'}`}>
+                        <i />{service.status === 'ACTIVE' ? 'Đang mở' : 'Tạm ẩn'}
                       </span>
                     </td>
                   </tr>
@@ -139,6 +162,48 @@ export function AdminServicesPage() {
           </div>
         )}
       </Panel>
+
+      {/* Thẻ chi tiết của một dịch vụ */}
+      {detail && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
+          onClick={() => setDetailId(null)}>
+          <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="adm-detail-head">
+              {safeImage(detail.imageUrl)
+                ? <img className="adm-detail-image" src={safeImage(detail.imageUrl)} alt="" />
+                : <span className="adm-detail-image adm-thumb-blank"><Icon name="services" /></span>}
+              <div style={{ minWidth: 0 }}>
+                <span className="adm-tag">{detail.category ?? 'Chưa phân loại'}</span>
+                <h3>{detail.name}</h3>
+                <p className="adm-detail-price">{formatVND(detail.price)} · {detail.duration} phút</p>
+              </div>
+            </div>
+
+            {detail.description && <p className="adm-detail-text">{detail.description}</p>}
+
+            <dl className="adm-detail-list">
+              <div><dt>Số nhân viên thực hiện</dt><dd>{detail.staffCount}</dd></div>
+              <div><dt>Lịch hẹn đã nhận</dt><dd>{fmtNum(detail.bookingCount)}</dd></div>
+              <div><dt>Doanh thu</dt><dd>{formatVND(detail.revenue)}</dd></div>
+              <div><dt>Thời gian nghỉ sau dịch vụ</dt><dd>{detail.bufferTime} phút</dd></div>
+              <div><dt>Điểm đánh giá</dt>
+                <dd>{detail.reviewCount > 0 ? `${fmtRating(detail.rating)} / 5 (${detail.reviewCount})` : 'Chưa có'}</dd>
+              </div>
+            </dl>
+
+            {detail.staffNames.length > 0 && (
+              <div className="adm-detail-staff">
+                <h4>Nhân viên thực hiện</h4>
+                <p>{detail.staffNames.join(', ')}</p>
+              </div>
+            )}
+
+            <div className="adm-modal-foot">
+              <button className="button secondary" onClick={() => setDetailId(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,87 +1,68 @@
 /* ===== Bảng điều khiển quản trị =====
-   Bố cục hai cột: bên trái biểu đồ doanh thu, bên phải lịch hẹn sắp tới.
-   Thẻ số liệu dùng chung bộ .svc-stat với trang Dịch vụ của app nhân viên. */
+   Toàn bộ số liệu lấy từ GET /api/admin/overview: thống kê hôm nay, doanh
+   thu 7 ngày, lịch hẹn sắp tới và dịch vụ bán chạy. Không có số giả. */
 
-import { useState } from 'react';
-import { useApp } from '../store';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
-import { formatVND } from '../lib/utils';
-
-interface FeedItem {
-  time: string;
-  part: string;
-  customer: string;
-  service: string;
-  status: string;
-}
-
-/* Lịch hẹn sắp tới. Khi nối API, thay mảng này bằng dữ liệu thật. */
-const FEED: FeedItem[] = [
-  { time: '09:00', part: 'Sáng', customer: 'Nguyễn Phương Thảo', service: 'Sơn Gel Móng · KTV Linh', status: 'Đang làm' },
-  { time: '10:30', part: 'Sáng', customer: 'Trần Thu Trang', service: 'Đắp Gel Trọn Bộ · KTV Mai', status: 'Đã xác nhận' },
-  { time: '11:15', part: 'Sáng', customer: 'Lê Ngọc Anh', service: 'Spa Pedicure Chăm Sóc Chân · KTV Anna', status: 'Chờ xác nhận' },
-  { time: '13:00', part: 'Chiều', customer: 'Phạm Quỳnh Chi', service: 'Vẽ Móng Nghệ Thuật · KTV Linh', status: 'Đã xác nhận' },
-];
-
-/* Doanh thu 7 ngày, đơn vị nghìn đồng. Khi nối API sẽ lấy từ database. */
-const CHART = [
-  { day: 'T2', amount: 350 },
-  { day: 'T3', amount: 320 },
-  { day: 'T4', amount: 550 },
-  { day: 'T5', amount: 480 },
-  { day: 'T6', amount: 720 },
-  { day: 'T7', amount: 880 },
-  { day: 'CN', amount: 620, active: true },
-];
-
-const WEEK_TOTAL = CHART.reduce((sum, day) => sum + day.amount, 0);
+import { useApp } from '../store';
+import { fmtTime, formatVND, moneyShort, weekdayShort } from '../lib/utils';
 
 export function AdminDashboardPage() {
   const { state, dispatch } = useApp();
-  const [openNew, setOpenNew] = useState(false);
-  const bookings = state.rangeBookings ?? [];
-  const revenue = bookings.reduce((sum, b) => sum + (b.price ?? 0), 0);
-  const peak = Math.max(...CHART.map((d) => d.amount));
+  const { overview, loading } = state;
+
+  if (!overview) {
+    return <EmptyState title="Đang tải số liệu" detail="Số liệu cửa hàng sẽ hiện ngay khi tải xong." />;
+  }
+
+  const { today, staff, revenue, chart, upcoming, topServices } = overview;
+  const peak = Math.max(...chart.map((day) => day.revenue), 1);
+  const weekRevenue = chart.reduce((sum, day) => sum + day.revenue, 0);
+  const maxBookings = Math.max(...topServices.map((service) => service.bookings), 1);
 
   return (
     <>
       {/* Bốn thẻ số liệu — chỉ đọc, không bấm được */}
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="schedule" label="Lịch hẹn hôm nay"
-          value={bookings.length || 24} note="+4 so với hôm qua" />
-        <StatTile tone="gold" icon="clock" label="Chờ xác nhận" value={5} note="Cần duyệt" />
-        <StatTile tone="lavender" icon="adminStaff" label="Nhân viên đang làm"
-          value={3} note="trên 6 người đang ca" />
-        <StatTile tone="sage" icon="dollar" label="Doanh thu hôm nay"
-          value={revenue > 0 ? formatVND(revenue) : '5.200.000 đ'} note="+12% so với hôm qua" />
+        <StatTile
+          tone="rose" icon="schedule" label="Lịch hẹn hôm nay" value={today.total}
+          note={`${today.confirmed} đã xác nhận · ${today.pending} chờ`}
+        />
+        <StatTile
+          tone="gold" icon="clock" label="Đang thực hiện" value={today.processing}
+          note={today.processing > 0 ? 'nhân viên đang phục vụ' : 'chưa có ca đang chạy'}
+        />
+        <StatTile
+          tone="lavender" icon="adminStaff" label="Nhân viên trong ca" value={`${staff.onShift}/${staff.total}`}
+          note="nhân sự hôm nay"
+        />
+        <StatTile
+          tone="sage" icon="dollar" label="Doanh thu hôm nay" value={moneyShort(revenue.paidAmount)}
+          note={`${revenue.paidCount} lịch đã thu · cọc ${moneyShort(revenue.depositAmount)}`}
+        />
       </div>
 
       <div className="adm-split">
-        {/* Biểu đồ doanh thu */}
+        {/* Doanh thu 7 ngày */}
         <Panel>
-          <SectionHeading
-            icon={<Icon name="dollar" />}
-            title="Tổng quan doanh thu"
-            subtitle="7 ngày gần đây"
-          >
+          <SectionHeading icon={<Icon name="dollar" />} title="Doanh thu 7 ngày" subtitle="Lịch đã hoàn thành">
             <div style={{ textAlign: 'right' }}>
               <strong style={{ display: 'block', fontSize: 17, fontWeight: 600 }}>
-                {formatVND(WEEK_TOTAL * 1000)}
+                {formatVND(weekRevenue)}
               </strong>
-              <span style={{ fontSize: 11, color: 'var(--nh-sage)' }}>+8,4% so với tuần trước</span>
+              <span style={{ fontSize: 11, color: 'var(--nh-sage)' }}>cả tuần</span>
             </div>
           </SectionHeading>
           <div style={{ padding: '0 16px 16px' }}>
             <div className="adm-chart">
-              {CHART.map((day) => (
-                <div key={day.day} className={`adm-chart-col${day.active ? ' is-active' : ''}`}>
-                  <div
-                    className="adm-chart-bar"
-                    style={{ height: `${Math.max(8, (day.amount / peak) * 150)}px` }}
-                    title={`${day.day}: ${formatVND(day.amount * 1000)}`}
-                  />
-                  <small>{day.day}</small>
+              {chart.map((day, index) => (
+                <div
+                  key={day.day}
+                  className={`adm-chart-col${index === chart.length - 1 ? ' is-active' : ''}`}
+                  title={`${day.day}: ${day.bookings} lịch · ${formatVND(day.revenue)}`}
+                >
+                  <div className="adm-chart-bar" style={{ height: `${Math.max(6, (day.revenue / peak) * 150)}px` }} />
+                  <small>{weekdayShort(day.day)}</small>
                 </div>
               ))}
             </div>
@@ -90,45 +71,67 @@ export function AdminDashboardPage() {
 
         {/* Lịch hẹn sắp tới */}
         <Panel>
-          <SectionHeading
-            icon={<Icon name="clock" />}
-            title="Lịch hẹn sắp tới"
-          >
+          <SectionHeading icon={<Icon name="clock" />} title="Lịch hẹn sắp tới">
             <button className="text-button" onClick={() => dispatch({ type: 'view', view: 'admin-bookings' })}>
               Xem tất cả
             </button>
           </SectionHeading>
           <div className="adm-feed" style={{ padding: '0 16px 16px' }}>
-            {FEED.length === 0
-              ? <EmptyState title="Chưa có lịch hẹn" detail="Các lịch hẹn sắp tới sẽ hiện ở đây." />
-              : FEED.map((item) => (
-                <article key={item.time} className="adm-feed-row">
-                  <span className="adm-feed-time">{item.time}<small>{item.part}</small></span>
-                  <span className="adm-feed-body">
-                    <strong>{item.customer}</strong>
-                    <span>{item.service}</span>
-                  </span>
-                  <span className={`badge ${item.status === 'Chờ xác nhận' ? 'pending'
-                    : item.status === 'Đang làm' ? 'processing' : 'confirmed'}`}>
-                    <i />{item.status}
-                  </span>
-                </article>
-              ))}
+            {upcoming.length === 0 ? (
+              <EmptyState title="Chưa có lịch hẹn sắp tới" detail="Các lịch mới sẽ hiện ở đây." />
+            ) : upcoming.map((item) => (
+              <article key={item.id} className="adm-feed-row">
+                <span className="adm-feed-time">
+                  {fmtTime(item.startsAt)}
+                  <small>{item.duration}′</small>
+                </span>
+                <span className="adm-feed-body">
+                  <strong>{item.customerName}</strong>
+                  <span>{item.serviceName}{item.staffName ? ` · ${item.staffName}` : ''}</span>
+                </span>
+                <span className={`badge ${item.status === 'PENDING' ? 'pending'
+                  : item.status === 'PROCESSING' ? 'processing' : 'confirmed'}`}>
+                  <i />{item.status === 'PROCESSING' ? 'Đang làm'
+                    : item.status === 'PENDING' ? 'Chờ' : 'Đã nhận'}
+                </span>
+              </article>
+            ))}
           </div>
         </Panel>
       </div>
 
-      {openNew && (
-        <div className="adm-modal-backdrop" role="dialog" aria-modal="true">
-          <div className="adm-modal">
-            <h3>Tạo lịch hẹn mới</h3>
-            <p>Thêm lịch hẹn tại quầy cho khách hàng. Trang này chưa nối API nên chưa lưu được.</p>
-            <div className="adm-modal-foot">
-              <button className="button secondary" onClick={() => setOpenNew(false)}>Đóng</button>
+      {/* Dịch vụ bán chạy */}
+      <Panel style={{ marginTop: 18 }}>
+        <SectionHeading
+          icon={<Icon name="services" />}
+          title="Dịch vụ bán chạy"
+          subtitle="Xếp theo số lịch hẹn đã nhận"
+        >
+          <button className="text-button" onClick={() => dispatch({ type: 'view', view: 'admin-services' })}>
+            Quản lý dịch vụ
+          </button>
+        </SectionHeading>
+        <div className="adm-tools">
+          {topServices.length === 0 ? (
+            <EmptyState title="Chưa có lịch hẹn" detail="Thống kê sẽ hiện khi có đơn đầu tiên." />
+          ) : topServices.map((service) => (
+            <div key={service.id} className="adm-bar-row">
+              <span className="adm-bar-name" title={service.name}>{service.name}</span>
+              <span className="adm-bar-track">
+                <span
+                  className="adm-bar-fill"
+                  style={{ width: `${(service.bookings / maxBookings) * 100}%` }}
+                />
+              </span>
+              <span className="adm-bar-value">
+                {service.bookings} lịch · {moneyShort(service.revenue)}
+              </span>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+      </Panel>
+
+      {loading && <p className="app-note">Đang cập nhật số liệu…</p>}
     </>
   );
 }

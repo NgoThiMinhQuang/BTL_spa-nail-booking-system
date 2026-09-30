@@ -1,46 +1,56 @@
 /* ===== Trang Nhân viên của quản trị =====
-   Lưới thẻ hồ sơ nhân viên, dùng lại bộ bo góc 12–13px và thang chữ 11–13px
-   của app nhân viên. */
+   Mỗi thẻ là một nhân viên thật, kèm số liệu từ booking/review của riêng nhân
+   viên đó: số ca đã nhận, doanh thu, điểm đánh giá và danh sách chuyên môn. */
 
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
+import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
-
-interface StaffItem {
-  id: string; name: string; role: string; rating: number;
-  initials: string; tags: string[]; status: string; worksToday: boolean;
-}
-
-const STAFF: StaffItem[] = [
-  { id: 'NV001', name: 'Emma Wilson', role: 'Kỹ thuật viên', rating: 4.9, initials: 'EW', tags: ['Gel', 'Acrylic', 'Nail Art'], status: 'Hoạt động', worksToday: true },
-  { id: 'NV002', name: 'Olivia Chen', role: 'KTV cao cấp', rating: 4.8, initials: 'OC', tags: ['Chrome', 'Bột nhúng', 'Pedicure'], status: 'Hoạt động', worksToday: true },
-  { id: 'NV003', name: 'Mia Rodriguez', role: 'Kỹ thuật viên', rating: 4.7, initials: 'MR', tags: ['Sơn Pháp', 'Gel', 'Nail Art'], status: 'Hoạt động', worksToday: false },
-  { id: 'NV004', name: 'Ava Thompson', role: 'KTV mới', rating: 4.6, initials: 'AT', tags: ['Manicure', 'Pedicure'], status: 'Hoạt động', worksToday: true },
-  { id: 'NV005', name: 'Isabella Lee', role: 'KTV cao cấp', rating: 4.9, initials: 'IL', tags: ['Acrylic', 'Đắp Sculpting', 'Gel'], status: 'Hoạt động', worksToday: true },
-  { id: 'NV006', name: 'Sophia Park', role: 'Kỹ thuật viên', rating: 4.8, initials: 'SP', tags: ['Gel', 'Chrome', 'Nail Art'], status: 'Hoạt động', worksToday: false },
-];
+import { useApp } from '../store';
+import { fmtNum, fmtRating, moneyShort } from '../lib/utils';
 
 export function AdminStaffPage() {
-  const [term, setTerm] = useState('');
+  const { state } = useApp();
+  const { staff, services } = state;
 
-  const rows = STAFF.filter((s) => s.name.toLowerCase().includes(term.toLowerCase()));
-  const onShift = STAFF.filter((s) => s.worksToday).length;
-  const avgRating = (STAFF.reduce((sum, s) => sum + s.rating, 0) / STAFF.length).toFixed(1);
+  const [term, setTerm] = useState('');
+  const [specialty, setSpecialty] = useState('all');
+
+  const specialties = Array.from(new Set(
+    staff.map((item) => item.specialty).filter((value): value is string => Boolean(value)),
+  ));
+
+  const rows = staff
+    .filter((item) =>
+      (specialty === 'all' || item.specialty === specialty)
+      && (item.name.toLowerCase().includes(term.toLowerCase())
+        || (item.specialty ?? '').toLowerCase().includes(term.toLowerCase())));
+
+  const onShift = staff.filter((item) => item.worksToday).length;
+  const totalRevenue = staff.reduce((sum, item) => sum + item.revenue, 0);
+  const rated = staff.filter((item) => item.reviewCount > 0);
+  const avgRating = rated.length
+    ? rated.reduce((sum, item) => sum + (item.rating ?? 0), 0) / rated.length : null;
+
+  /** Đếm nhân viên thực hiện được từng danh mục, để đổ danh mục ở bộ lọc. */
+  const categoryOf = (serviceId: string) =>
+    services.find((service) => service.id === serviceId)?.category;
 
   return (
     <>
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="adminStaff" label="Nhân viên" value={STAFF.length} note="đang hoạt động" />
-        <StatTile tone="sage" icon="clock" label="Đang trong ca" value={`${onShift}/${STAFF.length}`} note="hôm nay" />
-        <StatTile tone="gold" icon="star" label="Điểm đánh giá" value={avgRating} note="trung bình cửa hàng" />
-        <StatTile tone="lavender" icon="services" label="Chuyên môn" value={new Set(STAFF.flatMap((s) => s.tags)).size} note="mã chuyên môn" />
+        <StatTile tone="rose" icon="adminStaff" label="Nhân viên" value={staff.length} note="đang hoạt động" />
+        <StatTile tone="sage" icon="clock" label="Đang trong ca" value={`${onShift}/${staff.length}`} note="hôm nay" />
+        <StatTile tone="gold" icon="dollar" label="Doanh thu nhân sự" value={moneyShort(totalRevenue)} note="lịch hoàn thành" />
+        <StatTile tone="lavender" icon="star" label="Điểm đánh giá" value={fmtRating(avgRating)}
+          note={`${rated.length} người có phản hồi`} />
       </div>
 
       <Panel>
         <SectionHeading
           icon={<Icon name="adminStaff" />}
           title="Danh sách nhân viên"
-          subtitle={`${rows.length} trong ${STAFF.length} nhân viên`}
+          subtitle={`${rows.length} trong ${staff.length} nhân viên`}
         />
 
         <div className="adm-tools">
@@ -48,16 +58,15 @@ export function AdminStaffPage() {
             <span aria-hidden="true">⌕</span>
             <input
               aria-label="Tìm nhân viên"
-              placeholder="Tìm nhân viên…"
+              placeholder="Tìm theo tên hoặc chuyên môn…"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
             />
           </div>
-          <select aria-label="Lọc theo chuyên môn" defaultValue="all">
+          <select aria-label="Lọc theo chuyên môn" value={specialty}
+            onChange={(e) => setSpecialty(e.target.value)}>
             <option value="all">Tất cả chuyên môn</option>
-            {Array.from(new Set(STAFF.flatMap((s) => s.tags))).map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
+            {specialties.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </div>
 
@@ -65,35 +74,44 @@ export function AdminStaffPage() {
           <EmptyState title="Không tìm thấy nhân viên" detail="Thử một từ khoá khác." />
         ) : (
           <div className="adm-people">
-            {rows.map((s) => (
-              <article key={s.id} className="adm-person">
+            {rows.map((item) => (
+              <article key={item.id} className="adm-person">
                 <div className="adm-person-head">
-                  <span className="avatar">{s.initials}</span>
+                  <Avatar name={item.name} url={item.avatarUrl} size={44} />
                   <span style={{ minWidth: 0 }}>
-                    <h3>{s.name}</h3>
-                    <small>{s.role} · {s.id}</small>
+                    <h3>{item.name}</h3>
+                    <small>{item.specialty ?? 'Chưa cập nhật chuyên môn'}</small>
                   </span>
                 </div>
 
                 <div className="adm-person-meta">
-                  <span><Icon name="star" /> {s.rating.toFixed(1)}</span>
-                  <span><Icon name="clock" /> {s.worksToday ? 'Đang trong ca' : 'Ngoài ca'}</span>
+                  <span><Icon name="star" /> {fmtRating(item.rating)}
+                    {item.reviewCount > 0 ? ` (${item.reviewCount})` : ''}</span>
+                  <span><Icon name="schedule" /> {fmtNum(item.bookingCount)} lịch</span>
+                  <span><Icon name="dollar" /> {moneyShort(item.revenue)}</span>
                 </div>
+
+                <dl className="adm-person-nums">
+                  <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
+                  <div><dt>Hoàn thành</dt><dd>{fmtNum(item.completedCount)}</dd></div>
+                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}</dd></div>
+                </dl>
 
                 <div className="adm-cell-meta">
-                  {s.tags.map((t) => <span key={t} className="adm-tag">{t}</span>)}
+                  {item.serviceNames.slice(0, 3).map((name) => {
+                    const match = services.find((service) => service.name === name);
+                    return <span key={name} className="adm-tag">{categoryOf(match?.id ?? '') ?? name}</span>;
+                  })}
+                  {item.serviceNames.length > 3 && (
+                    <span className="adm-tag">+{item.serviceNames.length - 3}</span>
+                  )}
                 </div>
 
-                <div className="adm-row-actions" style={{ marginTop: 'auto', paddingTop: 10 }}>
-                  <button className="adm-icon-btn" aria-label={`Sửa hồ sơ ${s.name}`}>
-                    <Icon name="edit" />
-                  </button>
-                  <button className="adm-icon-btn" aria-label={`Xem lịch của ${s.name}`}>
-                    <Icon name="schedule" />
-                  </button>
-                  <button className="adm-icon-btn" aria-label={`Nhắn tin ${s.name}`}>
-                    <Icon name="email" />
-                  </button>
+                <div className="adm-person-foot">
+                  <span className={`badge ${item.worksToday ? 'completed' : 'pending'}`}>
+                    <i />{item.worksToday ? 'Đang trong ca' : 'Ngoài ca'}
+                  </span>
+                  <span className="adm-person-phone">{item.phone}</span>
                 </div>
               </article>
             ))}

@@ -1,171 +1,196 @@
 /* ===== Trang Lịch hẹn của quản trị =====
-   Lưới thời gian theo cột nhân viên. Khung, bo góc và thang chữ lấy từ
-   admin.css; màu trạng thái lấy từ theme.css để khớp app nhân viên. */
+   Đọc từ GET /api/admin/bookings. Mặc định chỉ hiện lịch sắp tới và trong ngày
+   hôm nay; nút Duyệt/Hoàn thành/Hủy gọi PATCH /api/admin/bookings/:id nên số
+   liệu trên trang khác cũng được làm mới theo. */
 
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { Panel } from '../components/Primitives';
+import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
+import { useApp, today, type AdminBooking } from '../store';
+import { fmtDate, fmtTime, formatVND, moneyShort } from '../lib/utils';
 
-/** Chiều cao một ô 30 phút, tính theo px. */
-const SLOT = 56;
-const START_H = 8;
-const END_H = 19;
+type Scope = 'today' | 'upcoming' | 'all';
 
-type Status = 'CONFIRMED' | 'PENDING' | 'COMPLETED';
-
-const STAFF = [
-  {
-    id: 1, name: 'Emma', role: 'Chuyên gia làm móng',
-    bookings: [
-      { customer: 'Sarah Johnson', service: 'Sơn Gel Móng', startH: 8, startM: 30, duration: 60, status: 'CONFIRMED' as Status },
-      { customer: 'Chloe Martin', service: 'Vẽ Móng Nghệ Thuật', startH: 10, startM: 30, duration: 90, status: 'PENDING' as Status },
-      { customer: 'Ava Thompson', service: 'Sơn Móng Cổ Điến', startH: 14, startM: 0, duration: 45, status: 'CONFIRMED' as Status },
-    ],
-  },
-  {
-    id: 2, name: 'Olivia', role: 'KTV làm móng',
-    bookings: [
-      { customer: 'Isabella Lee', service: 'Đắp Bột Móng', startH: 9, startM: 0, duration: 120, status: 'CONFIRMED' as Status },
-      { customer: 'Grace Kim', service: 'Sơn Gel Móng', startH: 13, startM: 0, duration: 60, status: 'COMPLETED' as Status },
-      { customer: 'Lily Walker', service: 'Ngâm Chân Paraffin', startH: 15, startM: 30, duration: 45, status: 'PENDING' as Status },
-    ],
-  },
-  {
-    id: 3, name: 'Mia', role: 'Chuyên viên Spa Chân',
-    bookings: [
-      { customer: 'Zoe Harris', service: 'Spa Chăm Sóc Chân', startH: 8, startM: 0, duration: 75, status: 'COMPLETED' as Status },
-      { customer: 'Emily Davis', service: 'Spa Chăm Sóc Chân', startH: 11, startM: 0, duration: 75, status: 'CONFIRMED' as Status },
-      { customer: 'Hannah White', service: 'Sơn Móng Cổ Điến', startH: 15, startM: 0, duration: 45, status: 'PENDING' as Status },
-    ],
-  },
-  {
-    id: 4, name: 'Sophia', role: 'Thợ làm móng',
-    bookings: [
-      { customer: 'Mila Clark', service: 'Vẽ Móng Nghệ Thuật', startH: 9, startM: 30, duration: 90, status: 'CONFIRMED' as Status },
-      { customer: 'Ella Robinson', service: 'Sơn Gel Móng', startH: 12, startM: 30, duration: 60, status: 'CONFIRMED' as Status },
-      { customer: 'Nora Lewis', service: 'Đắp Bột Móng', startH: 15, startM: 0, duration: 120, status: 'PENDING' as Status },
-    ],
-  },
+const SCOPES: { key: Scope; label: string }[] = [
+  { key: 'today', label: 'Hôm nay' },
+  { key: 'upcoming', label: 'Sắp tới' },
+  { key: 'all', label: 'Tất cả' },
 ];
 
-const STATUS_TEXT: Record<Status, string> = {
-  CONFIRMED: 'Đã xác nhận',
-  PENDING: 'Chờ xác nhận',
-  COMPLETED: 'Hoàn thành',
-};
+const STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
-function clock(h: number): string {
-  const suffix = h < 12 ? 'SA' : 'CH';
-  const h12 = h > 12 ? h - 12 : h === 12 ? 12 : h;
-  return `${String(h12).padStart(2, '0')}:00 ${suffix}`;
+/** Bước trạng thái tiếp theo của một lịch, theo luồng nghiệp vụ của tiệm. */
+function nextAction(status: string): { to: string; label: string } | null {
+  if (status === 'PENDING') return { to: 'CONFIRMED', label: 'Duyệt' };
+  if (status === 'CONFIRMED') return { to: 'PROCESSING', label: 'Bắt đầu' };
+  if (status === 'PROCESSING') return { to: 'COMPLETED', label: 'Xong' };
+  return null;
 }
 
 export function AdminBookingsPage() {
-  const [filter, setFilter] = useState<'ALL' | Status>('ALL');
+  const { state, reload } = useApp();
+  const { bookings } = state;
 
-  const hours = Array.from({ length: END_H - START_H }, (_, i) => START_H + i);
-  const gridHeight = (END_H - START_H) * 60;
+  const [scope, setScope] = useState<Scope>('today');
+  const [status, setStatus] = useState('');
+  const [term, setTerm] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const visible = STAFF.map((staff) => ({
-    ...staff,
-    bookings: staff.bookings.filter((b) => filter === 'ALL' || b.status === filter),
-  }));
-  const total = visible.reduce((sum, s) => sum + s.bookings.length, 0);
+  const day = today();
+  const now = Date.now();
+
+  const rows = bookings
+    .filter((booking) => {
+      const time = new Date(booking.startsAt).getTime();
+      if (scope === 'today') return booking.startsAt.slice(0, 10) === day;
+      if (scope === 'upcoming') return time >= now && booking.status !== 'CANCELLED';
+      return true;
+    })
+    .filter((booking) => !status || booking.status === status)
+    .filter((booking) => {
+      if (!term) return true;
+      const key = term.toLowerCase();
+      return booking.customerName.toLowerCase().includes(key)
+        || booking.serviceName.toLowerCase().includes(key)
+        || (booking.staffName ?? '').toLowerCase().includes(key)
+        || booking.customerPhone.includes(key);
+    });
+
+  const revenue = rows.reduce((sum, booking) => sum + booking.price, 0);
+  const pendingCount = bookings.filter((booking) => booking.status === 'PENDING').length;
+  const todayCount = bookings.filter((booking) => booking.startsAt.slice(0, 10) === day).length;
+
+  async function changeStatus(booking: AdminBooking, to: string) {
+    setBusy(booking.id);
+    try {
+      await fetch(`/api/admin/bookings/${booking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: to }),
+      });
+      reload();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <>
-      {/* Thanh chọn trạng thái — cùng kiểu với .mode-tabs của app nhân viên */}
-      <div className="mode-tabs" style={{ marginBottom: 14 }}>
-        {(['ALL', 'CONFIRMED', 'PENDING', 'COMPLETED'] as const).map((key) => (
-          <button
-            key={key}
-            className={filter === key ? 'active' : ''}
-            onClick={() => setFilter(key)}
-          >
-            {key === 'ALL' ? 'Tất cả' : STATUS_TEXT[key]}
-          </button>
-        ))}
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as 'ALL' | Status)}
-          aria-label="Lọc theo trạng thái"
-          style={{
-            marginLeft: 'auto', background: '#fff', border: '1px solid var(--nh-line)',
-            borderRadius: 7, padding: '9px 11px', fontSize: 12, color: 'var(--nh-ink)',
-          }}
-        >
-          <option value="ALL">Tất cả trạng thái</option>
-          <option value="CONFIRMED">Đã xác nhận</option>
-          <option value="PENDING">Chờ xác nhận</option>
-          <option value="COMPLETED">Hoàn thành</option>
-        </select>
+      <div className="adm-tiles adm-tiles-4">
+        <StatTile tone="rose" icon="schedule" label="Lịch hẹn hôm nay" value={todayCount} note="theo giờ bắt đầu" />
+        <StatTile tone="gold" icon="clock" label="Chờ xác nhận" value={pendingCount} note="cần duyệt" />
+        <StatTile tone="sage" icon="done" label="Tổng số lịch" value={bookings.length} note="toàn bộ lịch sử" />
+        <StatTile tone="lavender" icon="dollar" label="Giá trị danh sách" value={moneyShort(revenue)}
+          note={`${rows.length} lịch đang xem`} />
       </div>
 
-      <div className="adm-legend">
-        <span><i />Đã xác nhận</span>
-        <span><i className="is-pending" />Chờ xác nhận</span>
-        <span><i className="is-completed" />Hoàn thành</span>
-        <span><i className="is-buffer" />15p dọn dẹp / nghỉ</span>
-      </div>
+      <Panel>
+        <SectionHeading
+          icon={<Icon name="schedule" />}
+          title="Lịch hẹn cửa hàng"
+          subtitle={`${rows.length} lịch · ${formatVND(revenue)}`}
+        />
 
-      <Panel style={{ padding: 0 }}>
-        <div className="adm-book" style={{ ['--adm-slot' as string]: `${SLOT}px` }}>
-          {/* Cột giờ */}
-          <div className="adm-book-hours">
-            <div className="adm-book-hours-head" />
-            <div className="adm-book-hours-body" style={{ height: gridHeight }}>
-              {hours.map((h) => (
-                <span key={h} style={{ top: (h - START_H) * SLOT }}>{clock(h)}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Cột từng nhân viên */}
-          <div className="adm-book-cols">
-            {visible.map((staff) => (
-              <div key={staff.id} className="adm-book-col">
-                <div className="adm-book-head">
-                  <span className="avatar">{staff.name[0]}</span>
-                  <span style={{ minWidth: 0 }}>
-                    <strong>{staff.name}</strong>
-                    <small>{staff.role}</small>
-                  </span>
-                </div>
-
-                <div className="adm-book-body" style={{ height: gridHeight }}>
-                  {staff.bookings.map((b, i) => {
-                    const top = (b.startH - START_H) * 60 + b.startM * 2;
-                    const height = b.duration * 2;
-                    return (
-                      <div
-                        key={`${b.customer}-${i}`}
-                        className={`adm-book-block is-${b.status.toLowerCase()}`}
-                        style={{ top, height }}
-                      >
-                        <div className="adm-book-main">
-                          <strong>{b.customer}</strong>
-                          <span>{b.service}</span>
-                          <small>
-                            {String(b.startH).padStart(2, '0')}:{String(b.startM).padStart(2, '0')}
-                            {' – '}
-                            {String(Math.floor((top + height) / 60) + START_H).padStart(2, '0')}
-                            {':00'} · {b.duration}′
-                          </small>
-                        </div>
-                        <div className="adm-book-buffer">15p dọn dẹp</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+        <div className="adm-tools">
+          <div className="mode-tabs">
+            {SCOPES.map((item) => (
+              <button key={item.key} className={scope === item.key ? 'active' : ''}
+                onClick={() => setScope(item.key)}>{item.label}</button>
             ))}
           </div>
+          <select aria-label="Lọc theo trạng thái" value={status}
+            onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            {STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
         </div>
-      </Panel>
 
-      <p style={{ marginTop: 12, fontSize: 11, color: 'var(--nh-muted)' }}>
-        <Icon name="info" /> Hiện {total} lịch hẹn trên {STAFF.length} nhân viên. Số liệu tĩnh, chưa nối API.
-      </p>
+        <div className="adm-tools" style={{ paddingTop: 0 }}>
+          <div className="search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              aria-label="Tìm lịch hẹn"
+              placeholder="Tìm khách hàng, dịch vụ, nhân viên…"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <EmptyState
+            title="Không có lịch hẹn phù hợp"
+            detail="Đổi khoảng thời gian, trạng thái hoặc từ khoá tìm kiếm."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="adm-table adm-table-wide">
+              <thead>
+                <tr>
+                  <th>Giờ</th>
+                  <th>Khách hàng</th>
+                  <th>Dịch vụ</th>
+                  <th>Nhân viên</th>
+                  <th>Giá</th>
+                  <th>Thanh toán</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((booking) => {
+                  const action = nextAction(booking.status);
+                  return (
+                    <tr key={booking.id}>
+                      <td>
+                        <strong>{fmtTime(booking.startsAt)}</strong>
+                        <small>{fmtDate(booking.startsAt)}</small>
+                      </td>
+                      <td>
+                        <strong>{booking.customerName}</strong>
+                        <small>{booking.customerPhone}</small>
+                      </td>
+                      <td>
+                        <strong>{booking.serviceName}</strong>
+                        <small>{booking.duration} phút</small>
+                      </td>
+                      <td>{booking.staffName ?? <span className="adm-none">Chưa phân công</span>}</td>
+                      <td><strong>{formatVND(booking.price)}</strong></td>
+                      <td>
+                        {booking.paymentText
+                          ? <span className={`badge ${booking.paymentStatus === 'PAID' ? 'completed'
+                            : booking.paymentStatus === 'DEPOSITED' ? 'pending' : 'cancelled'}`}>
+                            <i />{booking.paymentText}
+                          </span>
+                          : <span className="adm-none">Chưa ghi nhận</span>}
+                        {booking.methodText && <small>{booking.methodText}</small>}
+                      </td>
+                      <td><StatusBadge status={booking.status} /></td>
+                      <td>
+                        <span className="adm-row-actions">
+                          {action && (
+                            <button className="adm-text-btn" disabled={busy === booking.id}
+                              onClick={() => changeStatus(booking, action.to)}>
+                              {busy === booking.id ? '…' : action.label}
+                            </button>
+                          )}
+                          {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
+                            <button className="adm-icon-btn" aria-label="Hủy lịch hẹn"
+                              disabled={busy === booking.id}
+                              onClick={() => changeStatus(booking, 'CANCELLED')}>
+                              <Icon name="ban" />
+                            </button>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </>
   );
 }

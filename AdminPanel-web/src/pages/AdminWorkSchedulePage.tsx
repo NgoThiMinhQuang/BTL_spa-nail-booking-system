@@ -1,156 +1,133 @@
 /* ===== Trang Lịch làm việc của quản trị =====
-   Ma trận tuần: mỗi dòng một nhân viên, mỗi cột một ngày. Màu ô lấy từ bảng màu
-   sage / hồng của theme.css nên khớp phần lịch cá nhân trong app nhân viên. */
+   Ma trận tuần dựng từ bảng staff_schedule: mỗi dòng một nhân viên, mỗi cột một
+   ngày. Ô trống là ngày không có ca; ô có ca ghi rõ giờ và số lịch hẹn đã nhận. */
 
 import { Icon } from '../components/Icon';
-import { Panel, SectionHeading } from '../components/Primitives';
-
-type CellType = 'SHIFT' | 'TIME_OFF' | 'DAY_OFF';
-
-interface ScheduleCell {
-  type: CellType;
-  shift?: string;
-  lunch?: string;
-  reason?: string;
-}
-
-const WEEK = [
-  {
-    name: 'Emma Wilson', code: 'NV-001',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100&h=100',
-    schedule: [
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'TIME_OFF', reason: 'Nghỉ ốm' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '09:00 – 14:00' },
-      { type: 'DAY_OFF' },
-    ] as ScheduleCell[],
-  },
-  {
-    name: 'Olivia Chen', code: 'NV-002',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100&h=100',
-    schedule: [
-      { type: 'SHIFT', shift: '11:00 – 20:00', lunch: '15:00 – 16:00' },
-      { type: 'SHIFT', shift: '11:00 – 20:00', lunch: '15:00 – 16:00' },
-      { type: 'DAY_OFF' },
-      { type: 'SHIFT', shift: '11:00 – 20:00', lunch: '15:00 – 16:00' },
-      { type: 'SHIFT', shift: '11:00 – 20:00', lunch: '15:00 – 16:00' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '09:00 – 14:00' },
-    ] as ScheduleCell[],
-  },
-  {
-    name: 'Mia Brooks', code: 'NV-003',
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&q=80&w=100&h=100',
-    schedule: [
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'DAY_OFF' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '08:00 – 17:00', lunch: '12:00 – 13:00' },
-      { type: 'SHIFT', shift: '11:00 – 20:00', lunch: '15:00 – 16:00' },
-      { type: 'DAY_OFF' },
-    ] as ScheduleCell[],
-  },
-];
-
-const DAYS = [
-  { day: 'T2', date: '28' }, { day: 'T3', date: '29' }, { day: 'T4', date: '30' },
-  { day: 'T5', date: '01' }, { day: 'T6', date: '02' }, { day: 'T7', date: '03' },
-  { day: 'CN', date: '04' },
-];
-
-function Cell({ cell }: { cell: ScheduleCell }) {
-  if (cell.type === 'DAY_OFF') return <div className="adm-cell is-off">Nghỉ</div>;
-
-  if (cell.type === 'TIME_OFF') {
-    return (
-      <div className="adm-cell is-leave">
-        <strong>Xin nghỉ</strong>
-        <small>{cell.reason}</small>
-      </div>
-    );
-  }
-
-  return (
-    <div className="adm-cell is-shift">
-      <div>
-        <strong>Ca làm</strong>
-        <small>{cell.shift}</small>
-      </div>
-      {cell.lunch && (
-        <div>
-          <strong style={{ fontWeight: 400 }}>Nghỉ trưa</strong>
-          <small>{cell.lunch}</small>
-        </div>
-      )}
-    </div>
-  );
-}
+import { Avatar } from '../components/Avatar';
+import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
+import { useApp, today, weekAround } from '../store';
+import { fmtDayShort, timeToMinutes, weekdayShort } from '../lib/utils';
 
 export function AdminWorkSchedulePage() {
-  const shifts = WEEK.reduce(
-    (sum, w) => sum + w.schedule.filter((c) => c.type === 'SHIFT').length, 0);
-  const leaves = WEEK.reduce(
-    (sum, w) => sum + w.schedule.filter((c) => c.type === 'TIME_OFF').length, 0);
+  const { state, anchorDate, setAnchorDate } = useApp();
+  const { shifts, staff } = state;
+
+  const week = weekAround(anchorDate);
+  const isThisWeek = week[0] <= today() && today() <= week[6];
+
+  /* Gom ca theo (nhân viên, ngày): một ngày có thể có nhiều ca. */
+  const byStaffDay = new Map<string, typeof shifts>();
+  for (const shift of shifts) {
+    const key = `${shift.staffId}|${shift.workDate}`;
+    const list = byStaffDay.get(key);
+    if (list) list.push(shift);
+    else byStaffDay.set(key, [shift]);
+  }
+
+  const totalShifts = shifts.length;
+  const totalBookings = shifts.reduce((sum, shift) => sum + shift.bookingCount, 0);
+  const busiest = staff.reduce((best, item) => {
+    const count = shifts
+      .filter((shift) => shift.staffId === item.id)
+      .reduce((sum, shift) => sum + shift.bookingCount, 0);
+    return count > best.count ? { name: item.name, count } : best;
+  }, { name: '—', count: 0 });
+
+  const move = (delta: number) => {
+    const base = new Date(`${anchorDate}T00:00:00`);
+    base.setDate(base.getDate() + delta * 7);
+    const month = String(base.getMonth() + 1).padStart(2, '0');
+    const day = String(base.getDate()).padStart(2, '0');
+    setAnchorDate(`${base.getFullYear()}-${month}-${day}`);
+  };
 
   return (
     <>
+      <div className="adm-tiles adm-tiles-4">
+        <StatTile tone="rose" icon="calendar" label="Ca trong tuần" value={totalShifts} note="tổng số ca đã xếp" />
+        <StatTile tone="sage" icon="schedule" label="Lịch hẹn trong ca" value={totalBookings} note="chờ xác nhận và đã nhận" />
+        <StatTile tone="gold" icon="adminStaff" label="Nhân viên có ca" value={new Set(shifts.map((s) => s.staffId)).size}
+          note={`trên ${staff.length} người`} />
+        <StatTile tone="lavender" icon="clock" label="Nhân viên bận nhất" value={busiest.name} note={`${busiest.count} lịch`} />
+      </div>
+
       <Panel>
         <SectionHeading
           icon={<Icon name="clock" />}
           title="Lịch làm việc trong tuần"
-          subtitle="28 thg 9 – 4 thg 10, 2026"
+          subtitle={`${fmtDayShort(week[0])} – ${fmtDayShort(week[6])}`}
         >
-          <div className="adm-legend" style={{ margin: 0 }}>
-            <span><i style={{ background: 'var(--nh-sage)' }} />Ca làm</span>
-            <span><i style={{ background: '#D9CFD6' }} />Nghỉ trưa</span>
-            <span><i style={{ background: 'var(--nh-primary-dark)' }} />Xin nghỉ</span>
+          <div className="mode-tabs">
+            <button onClick={() => move(-1)} aria-label="Tuần trước">‹</button>
+            <button className={isThisWeek ? 'active' : ''}
+              onClick={() => setAnchorDate(today())}>Tuần này</button>
+            <button onClick={() => move(1)} aria-label="Tuần sau">›</button>
           </div>
         </SectionHeading>
 
-        <div className="adm-tools">
-          <button className="button secondary">
-            <Icon name="chevronDown" /> <span>Tất cả nhân viên</span>
-          </button>
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--nh-muted)' }}>
-            {shifts} ca làm · {leaves} ngày xin nghỉ
-          </span>
-        </div>
-
-        <div className="table-scroll">
-          <table className="adm-week">
-            <thead>
-              <tr>
-                <th>Nhân viên</th>
-                {DAYS.map((d) => (
-                  <th key={d.day}>{d.day}<small>{d.date}</small></th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {WEEK.map((row) => (
-                <tr key={row.code}>
-                  <th scope="row">
-                    <span className="adm-cell-name">
-                      <img className="adm-thumb" src={row.avatar} alt="" loading="lazy"
-                        style={{ borderRadius: '50%' }} />
-                      <span style={{ minWidth: 0 }}>
-                        <strong>{row.name}</strong>
-                        <small>{row.code}</small>
-                      </span>
-                    </span>
-                  </th>
-                  {row.schedule.map((cell, i) => (
-                    <td key={i}><Cell cell={cell} /></td>
+        {shifts.length === 0 ? (
+          <EmptyState
+            title="Chưa có ca làm việc trong tuần này"
+            detail="Xem tuần khác bằng hai nút mũi tên ở trên."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="adm-week">
+              <thead>
+                <tr>
+                  <th>Nhân viên</th>
+                  {week.map((day) => (
+                    <th key={day} className={day === today() ? 'is-today' : undefined}>
+                      {weekdayShort(day)}<small>{fmtDayShort(day)}</small>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {staff.map((person) => (
+                  <tr key={person.id}>
+                    <th scope="row">
+                      <span className="adm-cell-name">
+                        <Avatar name={person.name} url={person.avatarUrl} size={32} />
+                        <span style={{ minWidth: 0 }}>
+                          <strong>{person.name}</strong>
+                          <small>{person.specialty ?? '—'}</small>
+                        </span>
+                      </span>
+                    </th>
+                    {week.map((day) => {
+                      const dayShifts = byStaffDay.get(`${person.id}|${day}`) ?? [];
+                      if (dayShifts.length === 0) {
+                        return <td key={day}><div className="adm-cell is-off">Nghỉ</div></td>;
+                      }
+                      /* Gộp các ca trong ngày thành một khối cho gọn. */
+                      const start = Math.min(...dayShifts.map((s) => timeToMinutes(s.startTime)));
+                      const end = Math.max(...dayShifts.map((s) => timeToMinutes(s.endTime)));
+                      const booked = dayShifts.reduce((sum, s) => sum + s.bookingCount, 0);
+                      const off = dayShifts.every((s) => s.status === 'OFF');
+
+                      return (
+                        <td key={day}>
+                          <div className={`adm-cell ${off ? 'is-off' : 'is-shift'}`}>
+                            {off ? 'Nghỉ' : (
+                              <>
+                                <strong>{`${dayShifts[0].startTime.slice(0, 5)} – ${dayShifts[0].endTime.slice(0, 5)}`}</strong>
+                                <small>
+                                  {dayShifts.length > 1 ? `${dayShifts.length} ca · ` : ''}
+                                  {Math.round((end - start) / 60 * 10) / 10}h · {booked} lịch
+                                </small>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
     </>
   );

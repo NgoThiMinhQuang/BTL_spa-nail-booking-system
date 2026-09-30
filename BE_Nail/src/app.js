@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import adminRoutes from './routes/admin.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import customerRoutes from './routes/customer.routes.js';
 import homeRoutes from './routes/home.routes.js';
@@ -41,6 +42,9 @@ app.get('/api/staff-dashboard/:id', staffDashboard);
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhouse-api' }));
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
+/* Khu vực quản trị: số liệu toàn cửa hàng, đăng trước /api/staff vì các
+   controller của admin không nhận tham số staffId như /api/staff/:id. */
+app.use('/api/admin', adminRoutes);
 app.use('/api/staff/customers', customerRoutes);
 /* Đăng ký trước `/api/staff` để không bị router('/:id') của staff bắt mất. */
 app.use('/api/staff/services', staffServiceRoutes);

@@ -17,6 +17,9 @@ import { AdminStaffPage } from './pages/AdminStaffPage';
 import { AdminServicesPage } from './pages/AdminServicesPage';
 import { AdminBookingsPage } from './pages/AdminBookingsPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
+import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
+import { AdminReviewsPage } from './pages/AdminReviewsPage';
+import { AdminSettingsPage } from './pages/AdminSettingsPage';
 import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
 
 function Routes() {
@@ -32,6 +35,9 @@ function Routes() {
   else if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-work-schedule') page = <AdminWorkSchedulePage />;
+  else if (view === 'admin-payments') page = <AdminPaymentsPage />;
+  else if (view === 'admin-reviews') page = <AdminReviewsPage />;
+  else if (view === 'admin-settings') page = <AdminSettingsPage />;
   else page = <AdminDashboardPage />;
 
   return <div id="nailhouse"><AdminLayout>{page}</AdminLayout></div>;
