@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
-import { useApp, today, type AdminBooking } from '../store';
+import { useApp, today, type Booking } from '../store';
 import { fmtDate, fmtTime, formatVND, moneyShort } from '../lib/utils';
 
 type Scope = 'today' | 'upcoming' | 'all';
@@ -60,7 +60,7 @@ export function AdminBookingsPage() {
   const pendingCount = bookings.filter((booking) => booking.status === 'PENDING').length;
   const todayCount = bookings.filter((booking) => booking.startsAt.slice(0, 10) === day).length;
 
-  async function changeStatus(booking: AdminBooking, to: string) {
+  async function changeStatus(booking: Booking, to: string) {
     setBusy(booking.id);
     try {
       await fetch(`/api/admin/bookings/${booking.id}`, {

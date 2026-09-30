@@ -5,7 +5,8 @@
    hưởng bên kia.
 
    Với khu quản trị, dữ liệu được nạp một lần rồi chia sẻ cho mọi trang —
-   cùng cách AppProvider của app nhân viên gom tải về một chỗ. */
+   cùng cách AppProvider của app nhân viên gom tải về một chỗ. Riêng biểu đồ
+   doanh thu có nhiều khoảng thời gian nên tách thêm một vòng tải nhỏ. */
 
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState,
@@ -14,11 +15,15 @@ import {
 import type { Role, AuthUser } from './types';
 
 export type ViewName =
-  | 'admin-dashboard' | 'admin-staff' | 'admin-services' | 'admin-bookings'
-  | 'admin-customers' | 'admin-work-schedule'
-  | 'admin-payments' | 'admin-reviews' | 'admin-settings';
+  | 'admin-dashboard' | 'admin-bookings' | 'admin-customers'
+  | 'admin-services' | 'admin-categories'
+  | 'admin-staff' | 'admin-work-schedule' | 'admin-leave'
+  | 'admin-payments' | 'admin-reports'
+  | 'admin-reviews' | 'admin-settings';
 
-/* Khoá riêng của khu vực quản trị, KHÔNG dùng chung với app nhân viên. */
+export type ChartRange = '7' | '30' | 'month';
+
+/** Khoá riêng của khu vực quản trị, KHÔNG dùng chung với app nhân viên. */
 const STORAGE_KEY = 'nailhouse_admin_user';
 
 /** Hôm nay theo định dạng YYYY-MM-DD, tính theo giờ máy người dùng. */
@@ -53,19 +58,38 @@ async function getJson<T>(path: string): Promise<T> {
 /* ================================================================
    Kiểu dữ liệu
    ================================================================ */
-export interface Overview {
-  today: { total: number; pending: number; confirmed: number; processing: number; completed: number };
-  staff: { total: number; onShift: number };
-  revenue: { paidAmount: number; depositAmount: number; paidCount: number };
-  chart: { day: string; bookings: number; revenue: number }[];
-  upcoming: {
-    id: string; startsAt: string; status: string; serviceName: string;
-    customerName: string; staffName: string | null; duration: number; price: number;
-  }[];
-  topServices: { id: string; name: string; category: string; bookings: number; revenue: number }[];
+export interface Booking {
+  id: string; startsAt: string; endsAt: string; status: string; note: string | null;
+  serviceId: string; serviceName: string; duration: number; price: number;
+  customerId: string; customerName: string; customerPhone: string;
+  staffId: string | null; staffName: string | null;
+  paymentStatus: string | null; paymentMethod: string | null;
+  paidAmount: number | null; paymentText: string | null; methodText: string | null;
 }
 
-export interface AdminService {
+export interface Overview {
+  range: string;
+  today: {
+    total: number; pending: number; confirmed: number;
+    processing: number; completed: number; cancelled: number; noShow: number;
+  };
+  /** Số lịch chờ xác nhận trên toàn bộ hệ thống — việc Admin phải xử lý. */
+  pendingAll: number;
+  staff: { total: number };
+  revenue: { paidAmount: number; depositAmount: number; paidCount: number };
+  todayBookings: Booking[];
+  staffToday: {
+    id: string; name: string; avatarUrl: string | null;
+    shiftStart: string | null; shiftEnd: string | null;
+    bookingCount: number; servingNow: string | null; nextStart: string | null;
+    status: 'FREE' | 'BUSY' | 'UPCOMING' | 'DONE' | 'OFF';
+  }[];
+  chart: { day: string; bookings: number; revenue: number }[];
+  topServices: { id: string; name: string; category: string; bookings: number; revenue: number }[];
+  todos: { pending: number; leave: number; unpaid: number; unassigned: number };
+}
+
+export interface ServiceItem {
   id: string; name: string; description: string | null;
   price: number; duration: number; bufferTime: number;
   status: 'ACTIVE' | 'HIDDEN'; imageUrl: string | null;
@@ -75,16 +99,12 @@ export interface AdminService {
   rating: number | null; reviewCount: number;
 }
 
-export interface AdminBooking {
-  id: string; startsAt: string; endsAt: string; status: string; note: string | null;
-  serviceId: string; serviceName: string; duration: number; price: number;
-  customerId: string; customerName: string; customerPhone: string;
-  staffId: string | null; staffName: string | null;
-  paymentStatus: string | null; paymentMethod: string | null;
-  paidAmount: number | null; paymentText: string | null; methodText: string | null;
+export interface CategoryItem {
+  id: string; name: string; description: string | null;
+  serviceCount: number; totalPrice: number;
 }
 
-export interface AdminStaff {
+export interface StaffItem {
   id: string; name: string; email: string | null; phone: string;
   avatarUrl: string | null; specialty: string | null;
   experienceYears: number; worksToday: boolean;
@@ -93,30 +113,42 @@ export interface AdminStaff {
   rating: number | null; reviewCount: number;
 }
 
-export interface AdminCustomer {
+export interface CustomerItem {
   id: string; name: string; phone: string; email: string | null;
   avatarUrl: string | null; address: string | null;
   totalSpending: number; noShowCount: number; bookingCount: number;
   lastVisit: string | null; rating: number | null; reviewCount: number;
 }
 
-export interface AdminShift {
+export interface ShiftItem {
   staffId: string; staffName: string; avatarUrl: string | null;
   workDate: string; startTime: string; endTime: string;
   status: 'AVAILABLE' | 'OFF'; bookingCount: number;
 }
 
-export interface AdminReview {
+export interface LeaveItem {
+  id: string; workDate: string; startTime: string; endTime: string;
+  staffName: string; specialty: string | null; affectedBookings: number;
+}
+
+export interface ReviewItem {
   id: string; rating: number; comment: string | null; createdAt: string;
   customerName: string; customerAvatarUrl: string | null;
   staffName: string | null; serviceName: string;
 }
 
-export interface AdminPayment {
+export interface PaymentItem {
   id: string; amount: number; paymentMethod: string; paymentStatus: string;
   paymentDate: string | null; bookingId: string; startsAt: string;
   serviceName: string; customerName: string; staffName: string | null;
   methodText: string; statusText: string;
+}
+
+export interface Reports {
+  byService: { name: string; category: string; bookings: number; revenue: number }[];
+  byStaff: { name: string; specialty: string | null; bookings: number; revenue: number }[];
+  byCustomer: { name: string; phone: string; bookings: number; spending: number }[];
+  totals: { bookings: number; completed: number; cancelled: number; noShow: number; avgMinutes: number };
 }
 
 export interface AdminState {
@@ -126,18 +158,19 @@ export interface AdminState {
   loading: boolean;
   feedback: string;
   overview: Overview | null;
-  services: AdminService[];
-  categories: { id: string; name: string; serviceCount: number }[];
-  bookings: AdminBooking[];
-  staff: AdminStaff[];
-  customers: AdminCustomer[];
-  shifts: AdminShift[];
-  reviews: AdminReview[];
+  services: ServiceItem[];
+  categories: CategoryItem[];
+  bookings: Booking[];
+  staff: StaffItem[];
+  customers: CustomerItem[];
+  shifts: ShiftItem[];
+  leave: LeaveItem[];
+  reviews: ReviewItem[];
   reviewStats: { total: number; average: number | null; five: number; four: number; low: number };
-  payments: AdminPayment[];
+  payments: PaymentItem[];
   paymentMonths: { month: string; paidCount: number; paidAmount: number; totalAmount: number }[];
   paymentTotals: { all: number; paid: number; deposit: number; unpaid: number };
-  /** Tăng mỗi lần làm mới để kích hoạt lại vòng tải. */
+  reports: Reports | null;
   reloadToken: number;
 }
 
@@ -165,11 +198,13 @@ export const initialState: AdminState = {
   staff: [],
   customers: [],
   shifts: [],
+  leave: [],
   reviews: [],
   reviewStats: { total: 0, average: null, five: 0, four: 0, low: 0 },
   payments: [],
   paymentMonths: [],
   paymentTotals: { all: 0, paid: 0, deposit: 0, unpaid: 0 },
+  reports: null,
   reloadToken: 0,
 };
 
@@ -222,9 +257,10 @@ interface AppContextValue {
   activeNav: ViewName;
   /** Làm mới dữ liệu — nút ở đầu trang và sau khi đổi trạng thái lịch hẹn. */
   reload: () => void;
-  /** Ngày neo của màn lịch làm việc, luôn khớp với tuần đang xem. */
   anchorDate: string;
   setAnchorDate: (value: string) => void;
+  chartRange: ChartRange;
+  setChartRange: (value: ChartRange) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -232,54 +268,56 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [anchorDate, setAnchorDate] = useState(today);
+  const [chartRange, setChartRange] = useState<ChartRange>('7');
 
   useEffect(() => {
     document.title = 'NailHouse · Quản trị';
   }, []);
 
-  /* Vòng tải duy nhất: gọi song song mọi nhóm dữ liệu của khu quản trị rồi
-     đổ vào store. Nhờ vậy các trang chỉ việc đọc, không tự fetch lại. */
   const { reloadToken, user } = state;
+
+  /* Vòng tải chính: mọi nhóm dữ liệu dùng chung cho các trang. */
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-
     const week = weekAround(anchorDate);
     dispatch({ type: 'loadStart' });
 
     (async () => {
       try {
-        const [overview, services, bookings, staff, customers, shifts, reviews, payments] =
+        const [services, bookings, staff, customers, shifts, leave, reviews, payments, reports] =
           await Promise.all([
-            getJson<{ data: Overview }>('/overview'),
-            getJson<{ data: AdminService[]; meta: { categories: AdminState['categories'] } }>('/services'),
-            getJson<{ data: AdminBooking[] }>('/bookings'),
-            getJson<{ data: AdminStaff[] }>('/staff'),
-            getJson<{ data: AdminCustomer[] }>('/customers'),
-            getJson<{ data: AdminShift[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
-            getJson<{ data: AdminReview[]; meta: AdminState['reviewStats'] }>('/reviews'),
+            getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/services'),
+            getJson<{ data: Booking[] }>('/bookings'),
+            getJson<{ data: StaffItem[] }>('/staff'),
+            getJson<{ data: CustomerItem[] }>('/customers'),
+            getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
+            getJson<{ data: LeaveItem[] }>('/leave'),
+            getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
             getJson<{
-              data: AdminPayment[];
+              data: PaymentItem[];
               meta: { months: AdminState['paymentMonths']; totals: AdminState['paymentTotals'] };
             }>('/payments'),
+            getJson<{ data: Reports }>('/reports'),
           ]);
 
         if (cancelled) return;
         dispatch({
           type: 'loaded',
           payload: {
-            overview: overview.data,
             services: services.data,
             categories: services.meta.categories,
             bookings: bookings.data,
             staff: staff.data,
             customers: customers.data,
             shifts: shifts.data,
+            leave: leave.data,
             reviews: reviews.data,
             reviewStats: reviews.meta,
             payments: payments.data,
             paymentMonths: payments.meta.months,
             paymentTotals: payments.meta.totals,
+            reports: reports.data,
           },
         });
       } catch (error) {
@@ -294,6 +332,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [reloadToken, user, anchorDate]);
 
+  /* Biểu đồ doanh thu tải riêng vì đổi khoảng thời gian không cần tải lại
+     cả cửa hàng. */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    getJson<{ data: Overview }>(`/overview?range=${chartRange}`)
+      .then((result) => {
+        if (!cancelled) dispatch({ type: 'loaded', payload: { overview: result.data } });
+      })
+      .catch(() => { /* lần tải chính sẽ báo lỗi nếu cả API hỏng */ });
+
+    return () => { cancelled = true; };
+  }, [reloadToken, user, chartRange]);
+
   const reload = useCallback(() => dispatch({ type: 'refresh' }), []);
 
   const value = useMemo<AppContextValue>(() => ({
@@ -303,7 +356,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     reload,
     anchorDate,
     setAnchorDate,
-  }), [state, reload, anchorDate]);
+    chartRange,
+    setChartRange,
+  }), [state, reload, anchorDate, chartRange]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

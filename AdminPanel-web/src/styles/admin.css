@@ -248,6 +248,335 @@
 
 .app-note{margin:14px 0 0;font-size:11.5px;color:var(--nh-muted);text-align:center}
 
+/* ==========================================================================
+   KHUNG ỨNG DỤNG — menu nhóm, breadcrumb, tài khoản
+   ========================================================================== */
+
+/* Nhóm menu trong sidebar: tiêu đề nhỏ + các mục con */
+.nav-group{display:grid;gap:7px;margin-bottom:17px}
+.nav-group .nav-label{margin:0 12px 1px}
+
+/* Breadcrumb: dùng gap thay vì dấu phân cách thủ công */
+#nailhouse .breadcrumb{display:flex;align-items:center;gap:7px;font-size:11px}
+#nailhouse .breadcrumb span{color:#A9A2A8;margin:0;white-space:nowrap}
+#nailhouse .breadcrumb span+span::before{content:'/';margin-right:7px;color:#D8CFD4}
+#nailhouse .breadcrumb span.is-current{color:var(--nh-ink);font-weight:600}
+
+/* Nút chuông có chấm thông báo */
+.adm-bell{position:relative;display:grid;place-items:center;width:34px;height:34px;
+  border-radius:9px;color:var(--nh-muted);background:#FCF8FA;border:1px solid var(--nh-line)}
+.adm-bell:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-bell svg{width:18px;height:18px}
+.adm-bell i{position:absolute;top:7px;right:8px;width:6px;height:6px;border-radius:50%;
+  background:var(--nh-primary);border:1.5px solid #fff}
+
+/* Khối tài khoản + menu thả xuống */
+.adm-user{position:relative}
+.adm-user-btn{display:flex;align-items:center;gap:9px;padding:5px 8px 5px 5px;border-radius:10px}
+.adm-user-btn:hover{background:var(--nh-blush)}
+.adm-user-text{display:grid;text-align:left;line-height:1.3;min-width:0}
+.adm-user-text strong{font-size:12.5px;font-weight:600;color:var(--nh-ink);white-space:nowrap}
+.adm-user-text small{font-size:10.5px;color:var(--nh-muted)}
+.adm-user-caret{width:14px;height:14px;color:#A9A2A8;flex:0 0 14px}
+
+.adm-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:190px;padding:5px;
+  background:#fff;border:1px solid var(--nh-line);border-radius:12px;
+  box-shadow:0 14px 30px -18px rgba(45,36,48,.5)}
+.adm-menu button{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;
+  border-radius:8px;font-size:12px;color:var(--nh-ink);text-align:left}
+.adm-menu button:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-menu button svg{width:15px;height:15px;color:var(--nh-muted)}
+.adm-menu button:hover svg{color:var(--nh-primary)}
+.adm-menu button.is-danger{color:#B4455E}
+.adm-menu button.is-danger:hover{background:#FBE8ED;color:#B93E62}
+.adm-menu button.is-danger svg{color:#B4455E}
+
+/* ==========================================================================
+   DASHBOARD — bố cục hai cột, KPI, việc cần xử lý
+   ========================================================================== */
+
+/* Tiêu đề riêng của Dashboard: lời chào + ngày + nút tạo lịch */
+.adm-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;
+  flex-wrap:wrap;margin-bottom:16px}
+.adm-hero h2{font-size:21px;font-weight:700;letter-spacing:-.5px;color:var(--nh-ink);margin:0}
+.adm-hero p{margin:4px 0 0;font-size:12.5px;color:var(--nh-muted)}
+.adm-hero-side{display:flex;align-items:center;gap:12px}
+.adm-today{font-size:12px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-primary{white-space:nowrap}
+.adm-primary svg{width:15px;height:15px}
+
+/* Năm thẻ KPI trên một hàng */
+.adm-tiles-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.adm-kpi{text-align:left;width:100%;cursor:pointer;transition:border-color .16s,box-shadow .16s}
+.adm-kpi:hover{border-color:#E7C4CF;box-shadow:0 6px 16px -12px rgba(45,36,48,.4)}
+.adm-kpi.is-alert{border-color:#F0DFB8}
+.adm-kpi.is-alert small{color:var(--nh-gold)}
+.adm-kpi.is-alert .svc-stat-icon{background:var(--nh-gold-soft);color:var(--nh-gold)}
+
+/* Mỗi hộp Dashboard: cột rộng + cột hẹp */
+.adm-dash-row{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:16px;
+  margin-top:16px;align-items:start}
+
+/* Việc cần xử lý */
+.adm-todo{display:grid;padding:0 16px 16px}
+.adm-todo-row{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;
+  border:1px solid var(--nh-line);background:#fff;text-align:left;width:100%;font-size:12px;
+  color:var(--nh-muted);margin-bottom:7px}
+.adm-todo-row:last-child{margin-bottom:0}
+.adm-todo-row:hover{background:var(--nh-blush);border-color:#F0D3DB}
+.adm-todo-row svg{width:15px;height:15px;color:var(--nh-primary);flex:0 0 15px}
+.adm-todo-row span{flex:1;min-width:0}
+.adm-todo-row strong{font-size:15px;font-weight:600;color:var(--nh-ink);margin-right:3px;
+  font-variant-numeric:tabular-nums}
+.adm-todo-arrow{color:var(--nh-primary);flex:0 0 auto}
+.adm-todo-clear{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--nh-sage);
+  padding:12px;background:var(--nh-sage-soft);border-radius:11px;margin:0}
+.adm-todo-clear svg{width:15px;height:15px}
+
+/* Nhân viên hôm nay */
+.adm-staff-list{display:grid;padding:0 16px 16px}
+.adm-staff-row{display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid var(--nh-line)}
+.adm-staff-row:last-child{border-bottom:0}
+.adm-staff-who{flex:1;min-width:0}
+.adm-staff-who strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-staff-who small{display:block;font-size:10.5px;color:var(--nh-muted);
+  font-variant-numeric:tabular-nums}
+.adm-staff-count{font-size:11px;color:var(--nh-muted);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+
+/* Cơ cấu trạng thái: thanh theo màu trạng thái */
+.adm-bars{display:grid;gap:8px;padding:0 16px 16px}
+.adm-bar-fill.is-pending{background:linear-gradient(90deg,#F3DDA9,#C9922F)}
+.adm-bar-fill.is-confirmed{background:linear-gradient(90deg,#DCC9F0,#765E8B)}
+.adm-bar-fill.is-processing{background:linear-gradient(90deg,#F3AEC2,#D56B81)}
+.adm-bar-fill.is-completed{background:linear-gradient(90deg,#BEE0D6,#4E7D74)}
+.adm-bar-fill.is-cancelled{background:linear-gradient(90deg,#E7D7DC,#B6A3AB)}
+
+/* Biểu đồ doanh thu */
+.adm-chart-wrap{padding:0 16px 16px}
+.adm-chart-foot{margin:10px 0 0;font-size:11.5px;color:var(--nh-muted);text-align:right}
+
+/* Dịch vụ phổ biến */
+.adm-top-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 11px;border:1px solid var(--nh-line);border-radius:11px}
+.adm-top-name{font-size:12.5px;color:var(--nh-ink);min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-top-nums{flex:0 0 auto;text-align:right}
+.adm-top-nums strong{display:block;font-size:12px;font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.adm-top-nums small{display:block;font-size:10.5px;color:var(--nh-muted)}
+
+/* Khung xám lúc tải */
+.adm-skel{background:linear-gradient(100deg,#F6F1F3 30%,#FCF8FA 50%,#F6F1F3 70%);
+  background-size:220% 100%;animation:adm-shimmer 1.3s linear infinite;border-radius:13px}
+.adm-kpi-skel{height:82px}
+.adm-skel-panel{height:210px}
+@keyframes adm-shimmer{from{background-position:180% 0}to{background-position:-40% 0}}
+
+/* Biểu tượng sao dùng ký tự để tô màu được */
+.adm-stars span{font-size:11px;color:#E3D5D9;line-height:1}
+.adm-stars span.is-on{color:var(--nh-gold)}
+
+/* Hộp thoại nhập liệu */
+.adm-modal-form{width:min(560px,100%);max-height:92vh;overflow-y:auto}
+.adm-modal-form h3{display:flex;align-items:center;gap:8px}
+.adm-modal-form h3 svg{width:18px;height:18px;color:var(--nh-primary)}
+.adm-form{display:grid;gap:12px;margin-top:16px}
+.adm-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.adm-form-note{margin:0;font-size:11.5px;color:var(--nh-primary-dark);
+  background:var(--nh-blush);border-radius:9px;padding:9px 11px}
+
+/* Màn hình nhỏ: KPI xuống 3 rồi 2 cột, hộp Dashboard xuống 1 cột.
+   Ngưỡng chọn theo việc năm thẻ còn đủ chỗ cho nhãn không bị cắt:
+   cần khoảng 1250px chiều rộng (đã trừ sidebar 205px và lề). Ưu tiên desktop
+   1366×768 và 1920×1080 — hai kích thước này vẫn hiện đủ 5 thẻ. */
+@media(max-width:1250px){
+  .adm-tiles-5{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:1000px){
+  .adm-tiles-5{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .adm-dash-row{grid-template-columns:minmax(0,1fr)}
+  .adm-form-row{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ==========================================================================
+   THANG CHỮ CỦA KHU QUẢN TRỊ
+   --------------------------------------------------------------------------
+   Các file nền tảng dùng chung với app nhân viên nên đặt cỡ chữ theo bố cục
+   hẹp: tiêu đề 24px, chữ bảng 11–12px, nhãn nhỏ 8–9px. Trên màn rộng 1600px+
+   những con số đó nhỏ hơn nhiều so với chuẩn đọc thoải mái, nhất là nhãn
+   trạng thái 8px và chú thích 9px gần như không nhìn thấy.
+
+   Vì vậy khu quản trị đặt thang chữ riêng, chia ba bậc: hẹp (≤1250px), gốc
+   (≥1251px) và lớn (≥1600px — đúng kích thước mục tiêu 1920×1080). Biến đặt
+   trong #nailhouse nên sau này chỉnh một chỗ là xong.
+   ========================================================================== */
+#nailhouse{
+  /* Bậc gốc */
+  --adm-eyebrow:10px;
+  --adm-h1:27px;
+  --adm-subtitle:14.5px;
+  --adm-h2:18px;
+  --adm-h2-sub:13px;
+  --adm-hero-h2:23px;
+  --adm-kpi-label:13.5px;
+  --adm-kpi-value:25px;
+  --adm-kpi-note:12px;
+  --adm-nav:13.5px;
+  --adm-nav-group:10px;
+  --adm-crumb:12px;
+  --adm-user-name:13.5px;
+  --adm-user-role:11.5px;
+  --adm-th:11.5px;
+  --adm-td:13.5px;
+  --adm-td-sub:11px;
+  --adm-badge:10.5px;
+  --adm-btn:13px;
+  --adm-body:14.5px;
+  /* Sidebar rộng thêm chút cho chữ lớn lên mà không bị bó chữ */
+  --adm-sidebar:248px;
+}
+
+/* ---- Tiêu đề trang ---- */
+#nailhouse .eyebrow{font-size:var(--adm-eyebrow)}
+#nailhouse .page-heading h1{font-size:var(--adm-h1);letter-spacing:-.7px}
+#nailhouse .subtitle{font-size:var(--adm-subtitle);line-height:1.6}
+
+/* ---- Tiêu đề khối ---- */
+#nailhouse .section-heading{padding:16px 18px}
+#nailhouse .section-heading h2{font-size:var(--adm-h2)}
+#nailhouse .section-heading p{font-size:var(--adm-h2-sub);margin-top:4px}
+
+/* ---- Thẻ số liệu ---- */
+#nailhouse .svc-stat{padding:15px 17px}
+#nailhouse .svc-stat-label{font-size:var(--adm-kpi-label)}
+#nailhouse .svc-stat-copy strong{font-size:var(--adm-kpi-value)}
+#nailhouse .svc-stat-copy small{font-size:var(--adm-kpi-note)}
+#nailhouse .svc-stat-icon{width:44px;height:44px;flex-basis:44px}
+#nailhouse .svc-stat-icon svg{width:22px;height:22px}
+
+/* ---- Sidebar ---- */
+#nailhouse .sidebar{width:var(--adm-sidebar)}
+#nailhouse .workspace{margin-left:var(--adm-sidebar)}
+#nailhouse nav button{font-size:var(--adm-nav);padding:12px 15px}
+#nailhouse nav button span{width:24px;font-size:22px}
+#nailhouse .nav-label{font-size:var(--adm-nav-group);letter-spacing:1.4px}
+
+/* ---- Thanh trên cùng ---- */
+#nailhouse .breadcrumb{font-size:var(--adm-crumb)}
+#nailhouse .adm-user-text strong{font-size:var(--adm-user-name)}
+#nailhouse .adm-user-text small{font-size:var(--adm-user-role)}
+#nailhouse .adm-menu button{font-size:var(--adm-body);padding:10px 11px}
+
+/* ---- Bảng ---- */
+#nailhouse .adm-table th{font-size:var(--adm-th);padding:12px 14px}
+#nailhouse .adm-table td{font-size:var(--adm-td);padding:14px}
+#nailhouse .adm-table td strong{font-size:var(--adm-td)}
+#nailhouse .adm-table td small{font-size:var(--adm-td-sub);margin-top:3px}
+#nailhouse .adm-week thead th{font-size:var(--adm-th)}
+#nailhouse .adm-week thead th small{font-size:15px}
+
+/* ---- Nhãn trạng thái: 8px của base.css quá nhỏ, đưa lên 10.5px ---- */
+#nailhouse .badge{font-size:var(--adm-badge);padding:6px 9px;border-radius:12px}
+#nailhouse .badge i{width:5px;height:5px}
+
+/* ---- Nút ---- */
+#nailhouse .button{font-size:var(--adm-btn);padding:12px 18px}
+#nailhouse .text-button{font-size:12.5px}
+#nailhouse .adm-text-btn{font-size:12.5px}
+
+/* ---- Các khối riêng của Dashboard ---- */
+#nailhouse .adm-hero h2{font-size:var(--adm-hero-h2)}
+#nailhouse .adm-hero p{font-size:var(--adm-subtitle)}
+#nailhouse .adm-today{font-size:var(--adm-body)}
+#nailhouse .adm-todo-row{font-size:var(--adm-td)}
+#nailhouse .adm-todo-row strong{font-size:16px}
+#nailhouse .adm-bar-name{font-size:var(--adm-td)}
+#nailhouse .adm-bar-value{font-size:var(--adm-td-sub)}
+#nailhouse .adm-chart-col small{font-size:12px}
+#nailhouse .adm-staff-who strong{font-size:var(--adm-td)}
+#nailhouse .adm-staff-who small{font-size:var(--adm-td-sub)}
+#nailhouse .adm-staff-count{font-size:var(--adm-td-sub)}
+#nailhouse .adm-top-name{font-size:var(--adm-td)}
+#nailhouse .adm-top-nums strong{font-size:var(--adm-td)}
+#nailhouse .adm-top-nums small{font-size:var(--adm-td-sub)}
+#nailhouse .adm-person h3{font-size:var(--adm-td)}
+#nailhouse .adm-person small{font-size:var(--adm-td-sub)}
+#nailhouse .adm-cell-name strong{font-size:var(--adm-td)}
+#nailhouse .adm-cell-name small{font-size:var(--adm-td-sub)}
+#nailhouse .adm-tag{font-size:11px}
+#nailhouse .adm-detail-list dt{font-size:11.5px}
+#nailhouse .adm-detail-list dd{font-size:var(--adm-td)}
+#nailhouse .adm-modal h3{font-size:17px}
+#nailhouse .adm-modal p{font-size:var(--adm-body)}
+#nailhouse .empty h3{font-size:16px}
+#nailhouse .empty p{font-size:var(--adm-td)}
+#nailhouse .adm-tools select{font-size:var(--adm-td)}
+#nailhouse .search input{font-size:var(--adm-td)}
+#nailhouse .search>span{font-size:20px}
+
+/* ---- Bậc lớn: màn 1600px trở lên (1920×1080) ----
+   Cùng bộ biến, chỉ nới thêm vài nấc — không nhân đôi để tránh loãng. */
+@media(min-width:1600px){
+  #nailhouse{
+    --adm-h1:30px;
+    --adm-subtitle:15.5px;
+    --adm-h2:20px;
+    --adm-h2-sub:13.5px;
+    --adm-hero-h2:25px;
+    --adm-kpi-label:14.5px;
+    --adm-kpi-value:28px;
+    --adm-kpi-note:12.5px;
+    --adm-nav:14.5px;
+    --adm-nav-group:10.5px;
+    --adm-crumb:12.5px;
+    --adm-th:12px;
+    --adm-td:14.5px;
+    --adm-td-sub:11.5px;
+    --adm-badge:11px;
+    --adm-btn:13.5px;
+    --adm-body:15px;
+    --adm-sidebar:260px;
+  }
+  #nailhouse .adm-chart-col small{font-size:12.5px}
+  #nailhouse .adm-todo-row strong{font-size:17px}
+}
+
+/* ---- Bậc hẹp: thu nhỏ lại cho màn dưới 1251px ---- */
+@media(max-width:1250px){
+  #nailhouse{
+    --adm-eyebrow:9.5px;
+    --adm-h1:24px;
+    --adm-subtitle:13.5px;
+    --adm-h2:16.5px;
+    --adm-h2-sub:12.5px;
+    --adm-hero-h2:21px;
+    --adm-kpi-label:13px;
+    --adm-kpi-value:23px;
+    --adm-kpi-note:11.5px;
+    --adm-nav:13px;
+    --adm-nav-group:9.5px;
+    --adm-crumb:11.5px;
+    --adm-user-name:13px;
+    --adm-user-role:11px;
+    --adm-th:11px;
+    --adm-td:13px;
+    --adm-td-sub:10.5px;
+    --adm-badge:10px;
+    --adm-btn:12.5px;
+    --adm-body:14px;
+    --adm-sidebar:230px;
+  }
+}
+
+/* Dưới 960px sidebar thu gọn thành biểu tượng (base.css đã lo) nên khoảng
+   trống trái phải khớp với 76px đó, nếu không nội dung sẽ lệch. */
+@media(max-width:960px){
+  #nailhouse{--adm-sidebar:76px}
+}
+
 /* ---- Hộp thoại xác nhận ---- */
 .adm-modal-backdrop{position:fixed;inset:0;background:rgba(45,36,48,.42);display:grid;place-items:center;z-index:60;padding:20px}
 .adm-modal{width:min(400px,100%);background:#fff;border:1px solid var(--nh-line);border-radius:14px;padding:22px}

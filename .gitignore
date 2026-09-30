@@ -1,0 +1,7 @@
+# Ban sao luu tam cua dong nghiep khi ghep nhanh — khong dua vao ma nguon
+temp_backup/
+
+# File nhhat ky can bo qua
+*.log
+.DS_Store
+Thumbs.db

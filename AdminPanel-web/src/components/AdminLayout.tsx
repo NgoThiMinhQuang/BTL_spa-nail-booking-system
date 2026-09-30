@@ -1,9 +1,10 @@
 /* ===== Khung ứng dụng của KHU VỰC QUẢN TRỊ =====
-   Dùng đúng bộ class của app nhân viên (sidebar, topbar, page-heading, panel)
-   để hai bên nhìn như một sản phẩm: cùng nền kem, sidebar hồng, chữ 11–13px.
-   Khác app nhân viên ở chỗ có thêm nhóm menu và nhãn "Khu vực quản trị". */
 
-import { useEffect, useRef } from 'react';
+   Dùng đúng bộ class của app nhân viên (sidebar, topbar, page-heading, panel)
+   để hai bên nhìn như một sản phẩm. Menu chia 5 nhóm theo mục đích nghiệp vụ:
+   Quản lý, Dịch vụ, Nhân viên, Tài chính, Khác. */
+
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useApp, type ViewName } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
@@ -17,26 +18,39 @@ interface NavGroup {
 
 const ADMIN_GROUPS: NavGroup[] = [
   {
-    title: 'TỔNG QUAN',
+    title: 'QUẢN LÝ',
     items: [
-      { view: 'admin-dashboard', label: 'Bảng điều khiển', icon: 'adminDashboard' },
-    ],
-  },
-  {
-    title: 'QUẢN LÝ CỬA HÀNG',
-    items: [
+      { view: 'admin-dashboard', label: 'Tổng quan', icon: 'adminDashboard' },
       { view: 'admin-bookings', label: 'Lịch hẹn', icon: 'schedule' },
-      { view: 'admin-services', label: 'Dịch vụ', icon: 'services' },
-      { view: 'admin-staff', label: 'Nhân viên', icon: 'adminStaff' },
       { view: 'admin-customers', label: 'Khách hàng', icon: 'customers' },
-      { view: 'admin-work-schedule', label: 'Lịch làm việc', icon: 'clock' },
-      { view: 'admin-payments', label: 'Doanh thu', icon: 'dollar' },
-      { view: 'admin-reviews', label: 'Đánh giá', icon: 'star' },
     ],
   },
   {
-    title: 'HỆ THỐNG',
+    title: 'DỊCH VỤ',
     items: [
+      { view: 'admin-services', label: 'Dịch vụ', icon: 'services' },
+      { view: 'admin-categories', label: 'Danh mục', icon: 'tag' },
+    ],
+  },
+  {
+    title: 'NHÂN VIÊN',
+    items: [
+      { view: 'admin-staff', label: 'Nhân viên', icon: 'adminStaff' },
+      { view: 'admin-work-schedule', label: 'Lịch làm việc', icon: 'clock' },
+      { view: 'admin-leave', label: 'Yêu cầu nghỉ', icon: 'pause' },
+    ],
+  },
+  {
+    title: 'TÀI CHÍNH',
+    items: [
+      { view: 'admin-payments', label: 'Thanh toán', icon: 'card' },
+      { view: 'admin-reports', label: 'Báo cáo', icon: 'sparkles' },
+    ],
+  },
+  {
+    title: 'KHÁC',
+    items: [
+      { view: 'admin-reviews', label: 'Đánh giá', icon: 'star' },
       { view: 'admin-settings', label: 'Cài đặt', icon: 'settings' },
     ],
   },
@@ -45,55 +59,68 @@ const ADMIN_GROUPS: NavGroup[] = [
 /* Tiêu đề + phụ đề do khung đảm nhiệm, giống hệt app nhân viên — các trang
    không tự viết lại <h1> nữa. */
 const TITLES: Record<ViewName, [string, string]> = {
-  'admin-dashboard': ['Bảng điều khiển', 'Tổng quan hoạt động của cửa hàng hôm nay.'],
+  'admin-dashboard': ['Tổng quan', 'Tình hình hoạt động của cửa hàng hôm nay.'],
   'admin-bookings': ['Lịch hẹn', 'Toàn bộ lịch hẹn của cửa hàng, theo dõi và cập nhật trạng thái.'],
-  'admin-services': ['Dịch vụ', 'Danh mục dịch vụ, bảng giá và quy định đặt cọc.'],
-  'admin-staff': ['Nhân viên', 'Quản lý hồ sơ, chuyên môn và ca làm việc của nhân sự.'],
   'admin-customers': ['Khách hàng', 'Danh sách khách hàng đã và đang sử dụng dịch vụ.'],
+  'admin-services': ['Dịch vụ', 'Danh mục dịch vụ, bảng giá và quy định đặt cọc.'],
+  'admin-categories': ['Danh mục dịch vụ', 'Nhóm các dịch vụ cùng chủ đề để khách dễ tìm.'],
+  'admin-staff': ['Nhân viên', 'Hồ sơ, chuyên môn và khối lượng công việc của nhân sự.'],
   'admin-work-schedule': ['Lịch làm việc', 'Ca làm việc của toàn bộ nhân viên trong tuần.'],
-  'admin-payments': ['Thanh toán & Doanh thu', 'Theo dõi doanh thu và các giao dịch của cửa hàng.'],
+  'admin-leave': ['Yêu cầu nghỉ', 'Các ngày nhân viên đã xếp nghỉ và ảnh hưởng tới lịch hẹn.'],
+  'admin-payments': ['Thanh toán', 'Theo dõi doanh thu và từng giao dịch của cửa hàng.'],
+  'admin-reports': ['Báo cáo', 'Tổng hợp doanh thu theo dịch vụ, nhân viên và khách hàng.'],
   'admin-reviews': ['Đánh giá', 'Phản hồi của khách hàng sau mỗi buổi chăm sóc.'],
-  'admin-settings': ['Cài đặt', 'Thông tin cửa hàng và tùy chọn hệ thống.'],
+  'admin-settings': ['Cài đặt', 'Thông tin cửa hàng và kiểm tra tính đầy đủ của dữ liệu.'],
 };
 
 export function AdminLayout({
-  children, actions,
-}: { children: ReactNode; actions?: ReactNode }) {
+  children, actions, breadcrumb,
+}: {
+  children: ReactNode;
+  actions?: ReactNode;
+  /** Ghi đè breadcrumb khi trang con có đường dẫn riêng. */
+  breadcrumb?: string[];
+}) {
   const { state, dispatch, activeNav, reload } = useApp();
   const { goView } = useNavigation();
-  const globalSearch = useRef<HTMLInputElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  /* Đổi trang thì đưa con trỏ về đầu, nếu không trang mới mở ở giữa nội dung
-     nên nhìn như bị nhảy. */
-  const firstView = useRef(true);
+  /* Đóng menu tài khoản khi bấm ra ngoài hoặc nhấn Esc. */
   useEffect(() => {
-    if (firstView.current) { firstView.current = false; return; }
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
-  }, [state.view]);
+    if (!menuOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   const [title, subtitle] = TITLES[state.view] ?? TITLES['admin-dashboard'];
-
-  const onGlobalSearch = (event: React.FormEvent) => {
-    event.preventDefault();
-    goView('admin-bookings');
-  };
+  const trail = breadcrumb ?? ['Trang chủ', title];
 
   return (
     <>
       <aside className="sidebar">
-        <a className="brand" href="./" aria-label="NailHouse - về bảng điều khiển">
+        <a className="brand" href="./" aria-label="NailHouse - về tổng quan">
           <span className="brand-mark"><Icon name="flower" /></span>
           <span>Nail<span className="rose">House</span><small>BEAUTY NAILS · BETTER YOU</small></span>
         </a>
-        <div className="nav-label">KHU VỰC QUẢN TRỊ</div>
+
         <nav aria-label="Điều hướng quản trị">
           {ADMIN_GROUPS.map((group) => (
-            <div key={group.title} style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
-              <p className="nav-label" style={{ margin: '0 12px' }}>{group.title}</p>
+            <div key={group.title} className="nav-group">
+              <p className="nav-label">{group.title}</p>
               {group.items.map((item) => (
                 <button
                   key={item.view}
                   className={activeNav === item.view ? 'active' : ''}
+                  aria-current={activeNav === item.view ? 'page' : undefined}
                   onClick={() => goView(item.view)}
                 >
                   <span><Icon name={item.icon} /></span>{item.label}
@@ -102,6 +129,7 @@ export function AdminLayout({
             </div>
           ))}
         </nav>
+
         <div className="sidebar-note"><span>♥</span><p>Làm đẹp<br />Mỗi ngày<br />Là một niềm vui!</p></div>
         <div className="sidebar-footer">
           <p>“Những bàn tay xinh đẹp<br />Tạo nên những ngày hạnh phúc”</p>
@@ -111,29 +139,53 @@ export function AdminLayout({
 
       <div className="workspace">
         <header className="topbar">
-          <form className="global-search" onSubmit={onGlobalSearch}>
-            <span aria-hidden="true">⌕</span>
-            <input
-              ref={globalSearch}
-              aria-label="Tìm kiếm lịch hẹn, khách hàng"
-              placeholder="Tìm kiếm lịch hẹn, khách hàng…"
-            />
-            <button type="submit" aria-label="Tìm kiếm">↵</button>
-          </form>
-          {/* Khối tài khoản xếp theo thứ tự ngược: reference.css đặt
-              .account{flex-direction:row-reverse}, nên khai báo DOM ngược lại
-              để hiển thị ra là avatar — tên — đăng xuất. */}
+          <div className="breadcrumb">
+            {trail.map((item, index) => (
+              <span key={item} className={index === trail.length - 1 ? 'is-current' : undefined}>
+                {item}{index < trail.length - 1 ? '' : ''}
+              </span>
+            ))}
+          </div>
+
           <div className="account">
-            <button className="text-button" onClick={() => dispatch({ type: 'logout' })}>
-              Đăng xuất
+            {/* reference.css đặt .account là row-reverse nên thứ tự trong
+                DOM bị đảo: khai báo tài khoản trước, chuông sau thì hiển thị
+                ra là chuông rồi tới tài khoản. */}
+            <div className="adm-user" ref={menuRef}>
+              <button
+                className="adm-user-btn"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <Avatar name={state.user?.name ?? 'Quản lý'} url={state.user?.avatar ?? null} size={32} />
+                <span className="adm-user-text">
+                  <strong>{state.user?.name ?? 'Quản lý NailHouse'}</strong>
+                  <small>Quản trị viên</small>
+                </span>
+                <Icon name="chevronDown" className="adm-user-caret" />
+              </button>
+
+              {menuOpen && (
+                <div className="adm-menu" role="menu">
+                  <button role="menuitem" onClick={() => { setMenuOpen(false); goView('admin-settings'); }}>
+                    <Icon name="user" /> Hồ sơ cá nhân
+                  </button>
+                  <button role="menuitem" onClick={() => setMenuOpen(false)}>
+                    <Icon name="shield" /> Đổi mật khẩu
+                  </button>
+                  <button role="menuitem" className="is-danger"
+                    onClick={() => dispatch({ type: 'logout' })}>
+                    <Icon name="ban" /> Đăng xuất
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button className="adm-bell" aria-label="Thông báo">
+              <Icon name="bell" />
+              {state.reviewStats.total > 0 && <i />}
             </button>
-            <select id="admin-name" aria-label="Tài khoản đang đăng nhập" defaultValue="admin">
-              <option value="admin">{state.user?.name ?? 'Quản lý NailHouse'}</option>
-            </select>
-            <label htmlFor="admin-name">Quản trị viên</label>
-            <span className="account-avatar">
-              <Avatar name={state.user?.name ?? 'Quản lý'} url={state.user?.avatar ?? null} size={36} />
-            </span>
           </div>
         </header>
 
@@ -146,12 +198,8 @@ export function AdminLayout({
             </div>
             <div className="page-heading-actions">
               {actions}
-              <button
-                id="refresh"
-                aria-label="Làm mới dữ liệu"
-                className="button secondary"
-                onClick={reload}
-              >
+              <button id="refresh" aria-label="Làm mới dữ liệu"
+                className="button secondary" onClick={reload}>
                 ↻ <span>Làm mới dữ liệu</span>
               </button>
             </div>

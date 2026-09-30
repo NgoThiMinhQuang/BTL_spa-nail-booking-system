@@ -24,112 +24,213 @@ const METHOD_TEXT = {
   ONLINE: 'Thanh toán online',
 };
 
+/** Ánh xạ một dòng booking sang đúng hình dạng frontend dùng. */
+function mapBooking(row) {
+  return {
+    ...row,
+    id: String(row.id),
+    serviceId: String(row.serviceId),
+    customerId: String(row.customerId),
+    staffId: row.staffId == null ? null : String(row.staffId),
+    duration: Number(row.duration),
+    price: Number(row.price),
+    paidAmount: row.paidAmount == null ? null : Number(row.paidAmount),
+    paymentText: row.paymentStatus ? PAYMENT_TEXT[row.paymentStatus] : null,
+    methodText: row.paymentMethod ? METHOD_TEXT[row.paymentMethod] : null,
+  };
+}
+
+/** Cột chọn chung cho mọi truy vấn lịch hẹn. */
+const BOOKING_COLUMNS = `b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
+        b.status, b.note,
+        s.service_id AS serviceId, s.service_name AS serviceName, s.duration, s.price,
+        c.customer_id AS customerId, u.full_name AS customerName, u.phone AS customerPhone,
+        st.staff_id AS staffId, su.full_name AS staffName,
+        pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
+        pay.amount AS paidAmount`;
+
+const BOOKING_JOINS = `FROM booking b
+      JOIN services s ON s.service_id = b.service_id
+      JOIN customer c ON c.customer_id = b.customer_id
+      JOIN users u ON u.user_id = c.user_id
+      LEFT JOIN staff st ON st.staff_id = b.staff_id
+      LEFT JOIN users su ON su.user_id = st.user_id
+      LEFT JOIN payment pay ON pay.booking_id = b.booking_id`;
+
 /* ================================================================
    Bảng điều khiển
+   ---------------------------------------------------------------
+   Một lần gọi trả về mọi thứ Dashboard cần, đúng thứ tự ưu tiên khi
+   Admin vừa mở trang: việc cần xử lý → số lịch hôm nay → lịch kế tiếp →
+   ai đang làm → doanh thu → dịch vụ nổi bật.
    ================================================================ */
 export async function getOverview(req, res, next) {
   try {
-    const [todayRows, staffRows, chartRows, feedRows, topRows] = await Promise.all([
-      /* Số lịch hẹn hôm nay, tách theo trạng thái. */
-      pool.query(`SELECT
-          COUNT(*) AS total,
-          SUM(status = 'PENDING')    AS pending,
-          SUM(status = 'CONFIRMED')  AS confirmed,
-          SUM(status = 'PROCESSING') AS processing,
-          SUM(status = 'COMPLETED')  AS completed
-        FROM booking WHERE DATE(start_time) = CURDATE()`),
+    const range = ['7', '30', 'month'].includes(String(req.query.range)) ? String(req.query.range) : '7';
 
-      /* Nhân viên đang có ca hôm nay và tổng số nhân viên. */
-      pool.query(`SELECT
-          (SELECT COUNT(*) FROM staff st JOIN users u ON u.user_id = st.user_id
-            WHERE u.status = 'ACTIVE') AS totalStaff,
-          (SELECT COUNT(DISTINCT staff_id) FROM staff_schedule
-            WHERE work_date = CURDATE() AND status = 'AVAILABLE') AS onShiftToday`),
+    /* Khoảng ngày cho biểu đồ doanh thu. Dùng đúng các giá trị này ở mệnh đề
+       WHERE nên không có rủi ro chèn chuỗi từ người dùng. */
+    const span = range === 'month'
+      ? { from: 'DATE_FORMAT(DATE_FORMAT(CURDATE(), \'%Y-%m-01\'), \'%Y-%m-%d\')',
+          days: 'TIMESTAMPDIFF(DAY, DATE_FORMAT(CURDATE(), \'%Y-%m-01\'), CURDATE())' }
+      : range === '30'
+        ? { from: 'DATE_FORMAT(CURDATE() - INTERVAL 29 DAY, \'%Y-%m-%d\')', days: '29' }
+        : { from: 'DATE_FORMAT(CURDATE() - INTERVAL 6 DAY, \'%Y-%m-%d\')', days: '6' };
 
-      /* Doanh thu 7 ngày gần nhất, tính theo lịch đã hoàn thành. */
-      /* Doanh thu 7 ngày gần nhất, tính theo lịch đã hoàn thành. Cột status tồn tại
-  ở cả booking lẫn services nên phải ghi rõ tên bảng. Ngày trả về dạng
-  chuỗi YYYY-MM-DD để frontend không phụ thuộc múi giờ của máy. */
-      pool.query(`SELECT d.day,
-          COALESCE(SUM(b.bookings), 0) AS bookings,
-          COALESCE(SUM(b.revenue), 0) AS revenue
-        FROM (
-          SELECT DATE_FORMAT(CURDATE() - INTERVAL t.d DAY, '%Y-%m-%d') AS day
-          FROM (SELECT 6 AS d UNION ALL SELECT 5 UNION ALL SELECT 4 UNION ALL SELECT 3
-                UNION ALL SELECT 2 UNION ALL SELECT 1 UNION ALL SELECT 0) t
-        ) d
-        LEFT JOIN (
-          SELECT DATE_FORMAT(b.start_time, '%Y-%m-%d') AS day,
-                 COUNT(*) AS bookings, SUM(s.price) AS revenue
-          FROM booking b JOIN services s ON s.service_id = b.service_id
-          WHERE b.status = 'COMPLETED' AND DATE(b.start_time) >= CURDATE() - INTERVAL 6 DAY
-          GROUP BY DATE_FORMAT(b.start_time, '%Y-%m-%d')
-        ) b ON b.day = d.day
-        GROUP BY d.day ORDER BY d.day`),
+    const [todayRows, staffTotalRows, todayList, staffToday, chartRows, topRows, todoRows] =
+      await Promise.all([
+        /* Số lịch hẹn hôm nay, tách theo trạng thái. */
+        pool.query(`SELECT
+            COUNT(*) AS total,
+            SUM(b.status = 'PENDING')    AS pending,
+            SUM(b.status = 'CONFIRMED')  AS confirmed,
+            SUM(b.status = 'PROCESSING') AS processing,
+            SUM(b.status = 'COMPLETED')  AS completed,
+            SUM(b.status = 'CANCELLED')  AS cancelled,
+            SUM(b.status = 'NO_SHOW')    AS noShow
+          FROM booking b WHERE DATE(b.start_time) = CURDATE()`),
 
-      /* Bốn lịch hẹn sắp tới, kể từ giờ hiện tại. */
-      pool.query(`SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-          b.status, b.note, s.service_name AS serviceName, s.duration, s.price,
-          u.full_name AS customerName, su.full_name AS staffName
-        FROM booking b
-        JOIN services s ON s.service_id = b.service_id
-        JOIN customer c ON c.customer_id = b.customer_id
-        JOIN users u ON u.user_id = c.user_id
-        LEFT JOIN staff st ON st.staff_id = b.staff_id
-        LEFT JOIN users su ON su.user_id = st.user_id
-        WHERE b.start_time >= NOW() AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
-        ORDER BY b.start_time LIMIT 4`),
+        pool.query(`SELECT COUNT(*) AS n FROM staff st JOIN users u ON u.user_id = st.user_id
+          WHERE u.status = 'ACTIVE'`),
 
-      /* Năm dịch vụ bán chạy nhất. */
-      pool.query(`SELECT s.service_id AS id, s.service_name AS name, c.category_name AS category,
-          COUNT(b.booking_id) AS bookings, COALESCE(SUM(s.price), 0) AS revenue
-        FROM services s
-        JOIN service_category c ON c.category_id = s.category_id
-        LEFT JOIN booking b ON b.service_id = s.service_id
-        GROUP BY s.service_id, s.service_name, c.category_name
-        ORDER BY bookings DESC, revenue DESC LIMIT 5`),
-    ]);
+        /* Danh sách lịch hôm nay cho bảng ở Dashboard, 8 dòng gần nhất. */
+        pool.query(`SELECT ${BOOKING_COLUMNS} ${BOOKING_JOINS}
+          WHERE DATE(b.start_time) = CURDATE()
+          ORDER BY b.start_time LIMIT 8`),
+
+        /* Nhân viên hôm nay: ca làm, số lịch, và việc đang phục vụ ai. */
+        pool.query(`SELECT
+            st.staff_id AS id,
+            u.full_name AS name,
+            u.avatar AS avatarUrl,
+            MIN(sc.start_time) AS shiftStart,
+            MAX(sc.end_time) AS shiftEnd,
+            (SELECT COUNT(*) FROM booking b WHERE b.staff_id = st.staff_id
+              AND DATE(b.start_time) = CURDATE()
+              AND b.status IN ('PENDING','CONFIRMED','PROCESSING')) AS bookingCount,
+            (SELECT u2.full_name FROM booking b2
+              JOIN customer c2 ON c2.customer_id = b2.customer_id
+              JOIN users u2 ON u2.user_id = c2.user_id
+             WHERE b2.staff_id = st.staff_id AND b2.status = 'PROCESSING'
+             ORDER BY b2.start_time DESC LIMIT 1) AS servingNow,
+            (SELECT MIN(b3.start_time) FROM booking b3
+             WHERE b3.staff_id = st.staff_id AND b3.start_time > NOW()
+               AND b3.status IN ('PENDING','CONFIRMED','PROCESSING')) AS nextStart
+          FROM staff_schedule sc
+          JOIN staff st ON st.staff_id = sc.staff_id
+          JOIN users u ON u.user_id = st.user_id
+          WHERE sc.work_date = CURDATE() AND u.status = 'ACTIVE'
+          GROUP BY st.staff_id, u.full_name, u.avatar
+          ORDER BY u.full_name ASC`),
+
+        /* Biểu đồ doanh thu theo khoảng đã chọn. */
+        pool.query(`SELECT d.day,
+            COALESCE(SUM(b.bookings), 0) AS bookings,
+            COALESCE(SUM(b.revenue), 0) AS revenue
+          FROM (
+            SELECT DATE_FORMAT(DATE_ADD(${span.from}, INTERVAL t.d DAY), '%Y-%m-%d') AS day
+            FROM (
+              SELECT a.n - b.n AS d
+              FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+                    UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
+                    UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
+                    UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+                    UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19
+                    UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23
+                    UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27
+                    UNION ALL SELECT 28 UNION ALL SELECT 29) a
+              CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
+                    UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6) b
+             ) t
+            WHERE t.d BETWEEN 0 AND ${span.days}
+          ) d
+          LEFT JOIN (
+            SELECT DATE_FORMAT(b.start_time, '%Y-%m-%d') AS day,
+                   COUNT(*) AS bookings, SUM(s.price) AS revenue
+            FROM booking b JOIN services s ON s.service_id = b.service_id
+            WHERE b.status = 'COMPLETED'
+              AND DATE_FORMAT(b.start_time, '%Y-%m-%d') >= ${span.from}
+            GROUP BY DATE_FORMAT(b.start_time, '%Y-%m-%d')
+          ) b ON b.day = d.day
+          GROUP BY d.day ORDER BY d.day ASC`),
+
+        /* Dịch vụ phổ biến nhất. */
+        pool.query(`SELECT s.service_id AS id, s.service_name AS name, c.category_name AS category,
+            COUNT(b.booking_id) AS bookings, COALESCE(SUM(s.price), 0) AS revenue
+          FROM services s
+          JOIN service_category c ON c.category_id = s.category_id
+          LEFT JOIN booking b ON b.service_id = s.service_id
+          GROUP BY s.service_id, s.service_name, c.category_name
+          ORDER BY bookings DESC, revenue DESC LIMIT 5`),
+
+        /* Việc cần xử lý — bốn nhóm vấn đề Admin nên xem ngay.
+           LEAVE là từ khoá dành riêng của MySQL nên cột phải đặt tên khác. */
+        pool.query(`SELECT
+            (SELECT COUNT(*) FROM booking WHERE status = 'PENDING') AS pendingCount,
+            (SELECT COUNT(*) FROM staff_schedule
+              WHERE work_date = CURDATE() AND status = 'OFF') AS leaveCount,
+            (SELECT COUNT(*) FROM payment WHERE payment_status <> 'PAID') AS unpaidCount,
+            (SELECT COUNT(*) FROM booking
+              WHERE status IN ('PENDING','CONFIRMED') AND staff_id IS NULL) AS unassignedCount`),
+      ]);
 
     const today = todayRows[0][0];
-    const staff = staffRows[0][0];
 
-    /* Doanh thu hôm nay lấy từ thanh toán đã thu, không cộng cả tiền cọc. */
+    /* Doanh thu hôm nay chỉ tính payment PAID, không cộng tiền cọc. */
     const [moneyRows] = await pool.query(`SELECT
-        COALESCE(SUM(payment_status = 'PAID'), 0)     AS paidCount,
-        COALESCE(SUM(CASE WHEN payment_status = 'PAID' THEN amount END), 0)     AS paidAmount,
-        COALESCE(SUM(CASE WHEN payment_status = 'DEPOSITED' THEN amount END), 0) AS depositAmount
+        COALESCE(SUM(pay.payment_status = 'PAID'), 0) AS paidCount,
+        COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID' THEN pay.amount END), 0) AS paidAmount,
+        COALESCE(SUM(CASE WHEN pay.payment_status = 'DEPOSITED' THEN pay.amount END), 0) AS depositAmount
       FROM payment pay
       JOIN booking b ON b.booking_id = pay.booking_id
       WHERE DATE(b.start_time) = CURDATE()`);
 
+    const money = moneyRows[0];
+    /* todoRows có dạng [rows, fields] nên phải lấy [0][0] mới ra đối tượng. */
+const todo = todoRows[0][0];
+
+    /* Trạng thái hiện tại của nhân viên: rảnh, đang phục vụ, sắp có lịch, nghỉ. */
+    const staffStatus = (item) => {
+      if (!item.shiftStart) return 'OFF';
+      if (item.servingNow) return 'BUSY';
+      if (item.nextStart) return 'UPCOMING';
+      if (item.bookingCount > 0) return 'DONE';
+      return 'FREE';
+    };
+
     res.json({
       data: {
+        range,
         today: {
           total: Number(today.total ?? 0),
           pending: Number(today.pending ?? 0),
           confirmed: Number(today.confirmed ?? 0),
           processing: Number(today.processing ?? 0),
           completed: Number(today.completed ?? 0),
+          cancelled: Number(today.cancelled ?? 0),
+          noShow: Number(today.noShow ?? 0),
         },
-        staff: {
-          total: Number(staff.totalStaff ?? 0),
-          onShift: Number(staff.onShiftToday ?? 0),
-        },
+        /* Số chờ xác nhận tính trên toàn bộ lịch, không chỉ hôm nay —
+           đó mới là việc Admin phải xử lý. */
+        pendingAll: Number(todo.pendingCount ?? 0),
+        staff: { total: Number(staffTotalRows[0][0].n ?? 0) },
         revenue: {
-          paidAmount: Number(moneyRows[0].paidAmount ?? 0),
-          depositAmount: Number(moneyRows[0].depositAmount ?? 0),
-          paidCount: Number(moneyRows[0].paidCount ?? 0),
+          paidAmount: Number(money.paidAmount ?? 0),
+          depositAmount: Number(money.depositAmount ?? 0),
+          paidCount: Number(money.paidCount ?? 0),
         },
+        todayBookings: todayList[0].map(mapBooking),
+        staffToday: staffToday[0].map((item) => ({
+          ...item,
+          id: String(item.id),
+          avatarUrl: imageUrl(req, item.avatarUrl),
+          bookingCount: Number(item.bookingCount),
+          status: staffStatus(item),
+        })),
         chart: chartRows[0].map((row) => ({
           day: row.day,
           bookings: Number(row.bookings),
           revenue: Number(row.revenue),
-        })),
-        upcoming: feedRows[0].map((row) => ({
-          ...row,
-          id: String(row.id),
-          price: Number(row.price),
-          duration: Number(row.duration),
         })),
         topServices: topRows[0].map((row) => ({
           ...row,
@@ -137,6 +238,12 @@ export async function getOverview(req, res, next) {
           bookings: Number(row.bookings),
           revenue: Number(row.revenue),
         })),
+        todos: {
+          pending: Number(todo.pendingCount ?? 0),
+          leave: Number(todo.leaveCount ?? 0),
+          unpaid: Number(todo.unpaidCount ?? 0),
+          unassigned: Number(todo.unassignedCount ?? 0),
+        },
       },
     });
   } catch (error) {
@@ -181,10 +288,11 @@ export async function listServices(req, res, next) {
       ORDER BY c.category_name ASC, s.service_name ASC`);
 
     const [categories] = await pool.query(`SELECT c.category_id AS id, c.category_name AS name,
-        COUNT(s.service_id) AS serviceCount
+        c.description, COUNT(s.service_id) AS serviceCount,
+        COALESCE(SUM(s.price), 0) AS totalPrice
       FROM service_category c
       LEFT JOIN services s ON s.category_id = c.category_id
-      GROUP BY c.category_id, c.category_name ORDER BY c.category_name`);
+      GROUP BY c.category_id, c.category_name, c.description ORDER BY c.category_name`);
 
     res.json({
       data: rows.map((row) => ({
@@ -207,6 +315,7 @@ export async function listServices(req, res, next) {
           ...row,
           id: String(row.id),
           serviceCount: Number(row.serviceCount),
+          totalPrice: Number(row.totalPrice),
         })),
       },
     });
@@ -223,51 +332,29 @@ export async function listBookings(req, res, next) {
     const status = String(req.query.status ?? '').trim().toUpperCase();
     const staffId = String(req.query.staffId ?? '').trim();
     const day = String(req.query.day ?? '').trim();
+    const scope = ['today', 'upcoming', 'all'].includes(String(req.query.scope))
+      ? String(req.query.scope) : 'all';
 
-    const where = ['1 = 1'];
+    const where = [];
     const params = [];
     if (status) { where.push('b.status = ?'); params.push(status); }
     if (staffId) { where.push('b.staff_id = ?'); params.push(Number(staffId)); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) { where.push('DATE(b.start_time) = ?'); params.push(day); }
+    if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
+    if (scope === 'upcoming') where.push('b.start_time >= NOW()');
 
-    const [rows] = await pool.query(`SELECT
-        b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-        b.status, b.note, b.created_at AS createdAt,
-        s.service_id AS serviceId, s.service_name AS serviceName, s.duration, s.price,
-        c.customer_id AS customerId, u.full_name AS customerName, u.phone AS customerPhone,
-        st.staff_id AS staffId, su.full_name AS staffName,
-        pay.payment_status, pay.payment_method, pay.amount AS paidAmount
-      FROM booking b
-      JOIN services s ON s.service_id = b.service_id
-      JOIN customer c ON c.customer_id = b.customer_id
-      JOIN users u ON u.user_id = c.user_id
-      LEFT JOIN staff st ON st.staff_id = b.staff_id
-      LEFT JOIN users su ON su.user_id = st.user_id
-      LEFT JOIN payment pay ON pay.booking_id = b.booking_id
-      WHERE ${where.join(' AND ')}
+    const [rows] = await pool.query(`SELECT ${BOOKING_COLUMNS} ${BOOKING_JOINS}
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY b.start_time DESC
       LIMIT 200`, params);
 
-    res.json({
-      data: rows.map((row) => ({
-        ...row,
-        id: String(row.id),
-        serviceId: String(row.serviceId),
-        customerId: String(row.customerId),
-        staffId: row.staffId == null ? null : String(row.staffId),
-        duration: Number(row.duration),
-        price: Number(row.price),
-        paidAmount: row.paidAmount == null ? null : Number(row.paidAmount),
-        paymentText: row.payment_status ? PAYMENT_TEXT[row.payment_status] : null,
-        methodText: row.payment_method ? METHOD_TEXT[row.payment_method] : null,
-      })),
-    });
+    res.json({ data: rows.map(mapBooking) });
   } catch (error) {
     next(error);
   }
 }
 
-/** Đổi trạng thái lịch hẹn — dùng cho nút duyệt/hủy ở trang Lịch hẹn. */
+/** Đổi trạng thái lịch hẹn — dùng cho nút duyệt/hủy ở Dashboard và trang Lịch hẹn. */
 export async function updateBookingStatus(req, res, next) {
   try {
     const id = Number(req.params.id);
@@ -283,6 +370,68 @@ export async function updateBookingStatus(req, res, next) {
     res.json({ data: { id: String(id), status } });
   } catch (error) {
     next(error);
+  }
+}
+
+/** Tạo lịch hẹn tại quầy cho khách walk-in. */
+export async function createBooking(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const customerId = Number(req.body.customerId);
+    const serviceId = Number(req.body.serviceId);
+    const staffId = req.body.staffId === null || req.body.staffId === ''
+      ? null : Number(req.body.staffId);
+    const day = String(req.body.day ?? '').trim();
+    const time = String(req.body.time ?? '').trim();
+    const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
+
+    if (!Number.isInteger(customerId) || !Number.isInteger(serviceId)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({ message: 'Thiếu thông tin lịch hẹn: khách, dịch vụ, ngày hoặc giờ.' });
+    }
+
+    await connection.beginTransaction();
+
+    const [[serviceRow]] = await connection.query(
+      `SELECT service_name, price, duration, buffer_time AS bufferTime
+       FROM services WHERE service_id = ? LIMIT 1`, [serviceId]);
+    if (!serviceRow) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
+    }
+
+    const startsAt = new Date(`${day}T${time}:00`);
+    const endAt = new Date(
+      startsAt.getTime() + (Number(serviceRow.duration) + Number(serviceRow.bufferTime ?? 0)) * 60000);
+
+    /* Chỉ kiểm tra trùng lịch khi đã chọn nhân viên; lịch chưa phân công
+       thì để Admin xử lý ở mục "Việc cần xử lý". */
+    if (staffId !== null) {
+      const [conflicts] = await connection.query(
+        `SELECT b.booking_id FROM booking b
+         WHERE b.staff_id = ? AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+           AND b.start_time < ? AND b.end_time > ?
+         LIMIT 1 FOR UPDATE`, [staffId, endAt, startsAt]);
+      if (conflicts[0]) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Khung giờ này nhân viên đã nhận lịch khác. Vui lòng chọn giờ khác.',
+        });
+      }
+    }
+
+    const [result] = await connection.query(
+      `INSERT INTO booking (customer_id, staff_id, service_id, start_time, end_time, status, note)
+       VALUES (?,?,?,?,?,'PENDING',?)`,
+      [customerId, staffId, serviceId, startsAt, endAt, note]);
+    await connection.commit();
+
+    res.status(201).json({ data: { id: String(result.insertId) } });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
   }
 }
 
@@ -426,6 +575,54 @@ export async function listSchedule(req, res, next) {
 }
 
 /* ================================================================
+   Yêu cầu nghỉ
+   ---------------------------------------------------------------
+   Database chưa có bảng yêu cầu nghỉ riêng. Nhân viên nghỉ được ghi bằng
+   staff_schedule.status = 'OFF', nên trang này đọc đúng những dòng đó.
+   ================================================================ */
+export async function listLeaveRequests(req, res, next) {
+  try {
+    const [rows] = await pool.query(`SELECT
+        sc.schedule_id AS id,
+        sc.work_date AS workDate,
+        sc.start_time AS startTime,
+        sc.end_time AS endTime,
+        u.full_name AS staffName,
+        st.specialty,
+        (SELECT COUNT(*) FROM booking b WHERE b.staff_id = st.staff_id
+          AND DATE(b.start_time) = sc.work_date
+          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')) AS affectedBookings
+      FROM staff_schedule sc
+      JOIN staff st ON st.staff_id = sc.staff_id
+      JOIN users u ON u.user_id = st.user_id
+      WHERE sc.status = 'OFF'
+      ORDER BY sc.work_date DESC, u.full_name ASC
+      LIMIT 120`);
+
+    const [counts] = await pool.query(`SELECT
+        SUM(sc.work_date = CURDATE()) AS today,
+        SUM(sc.work_date > CURDATE()) AS upcoming,
+        SUM(sc.work_date < CURDATE()) AS past
+      FROM staff_schedule sc WHERE sc.status = 'OFF'`);
+
+    res.json({
+      data: rows.map((row) => ({
+        ...row,
+        id: String(row.id),
+        affectedBookings: Number(row.affectedBookings),
+      })),
+      meta: {
+        today: Number(counts[0].today ?? 0),
+        upcoming: Number(counts[0].upcoming ?? 0),
+        past: Number(counts[0].past ?? 0),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/* ================================================================
    Đánh giá
    ================================================================ */
 export async function listReviews(req, res, next) {
@@ -542,6 +739,82 @@ export async function listPayments(req, res, next) {
           paid: Number(totals[0].paidAmount ?? 0),
           deposit: Number(totals[0].depositAmount ?? 0),
           unpaid: Number(totals[0].unpaidAmount ?? 0),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/* ================================================================
+   Báo cáo — tổng hợp theo dịch vụ, nhân viên và khách hàng
+   ================================================================ */
+export async function getReports(req, res, next) {
+  try {
+    const [byService, byStaff, byCustomer, totals] = await Promise.all([
+      pool.query(`SELECT s.service_name AS name, c.category_name AS category,
+          COUNT(b.booking_id) AS bookings,
+          COALESCE(SUM(CASE WHEN b.status = 'COMPLETED' THEN s.price END), 0) AS revenue
+        FROM services s
+        JOIN service_category c ON c.category_id = s.category_id
+        LEFT JOIN booking b ON b.service_id = s.service_id
+        GROUP BY s.service_id, s.service_name, c.category_name
+        HAVING bookings > 0
+        ORDER BY revenue DESC, bookings DESC`),
+
+      pool.query(`SELECT u.full_name AS name, st.specialty,
+          COUNT(b.booking_id) AS bookings,
+          COALESCE(SUM(CASE WHEN b.status = 'COMPLETED' THEN s.price END), 0) AS revenue
+        FROM staff st
+        JOIN users u ON u.user_id = st.user_id
+        LEFT JOIN booking b ON b.staff_id = st.staff_id
+        LEFT JOIN services s ON s.service_id = b.service_id
+        GROUP BY st.staff_id, u.full_name, st.specialty
+        ORDER BY revenue DESC`),
+
+      pool.query(`SELECT u.full_name AS name, u.phone,
+          COUNT(b.booking_id) AS bookings, c.total_spending AS spending
+        FROM customer c
+        JOIN users u ON u.user_id = c.user_id
+        LEFT JOIN booking b ON b.customer_id = c.customer_id
+        GROUP BY c.customer_id, u.full_name, u.phone, c.total_spending
+        ORDER BY bookings DESC LIMIT 10`),
+
+      pool.query(`SELECT
+          COUNT(*) AS bookings,
+          SUM(b.status = 'COMPLETED') AS completed,
+          SUM(b.status = 'CANCELLED') AS cancelled,
+          SUM(b.status = 'NO_SHOW') AS noShow,
+          COALESCE(AVG(NULLIF(TIMESTAMPDIFF(MINUTE, b.start_time, b.end_time), 0)), 0) AS avgMinutes
+        FROM booking b`),
+    ]);
+
+    const t = totals[0][0];
+
+    res.json({
+      data: {
+        byService: byService[0].map((row) => ({
+          ...row,
+          bookings: Number(row.bookings),
+          revenue: Number(row.revenue),
+        })),
+        byStaff: byStaff[0].map((row) => ({
+          ...row,
+          bookings: Number(row.bookings),
+          revenue: Number(row.revenue),
+        })),
+        byCustomer: byCustomer[0].map((row) => ({
+          ...row,
+          bookings: Number(row.bookings),
+          spending: Number(row.spending),
+        })),
+        totals: {
+          bookings: Number(t.bookings ?? 0),
+          completed: Number(t.completed ?? 0),
+          cancelled: Number(t.cancelled ?? 0),
+          noShow: Number(t.noShow ?? 0),
+          avgMinutes: Math.round(Number(t.avgMinutes ?? 0)),
         },
       },
     });

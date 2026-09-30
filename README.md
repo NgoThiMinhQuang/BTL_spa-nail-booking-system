@@ -1,881 +1,2117 @@
-# 💅 Hệ thống đặt lịch và quản lý dịch vụ Nail
+# HỆ THỐNG ĐẶT LỊCH VÀ QUẢN LÝ DỊCH VỤ NAIL
 
-## 1. Giới thiệu đề tài
+# 1. GIỚI THIỆU ĐỀ TÀI
 
-## Tên đề tài
+## 1.1. Tên đề tài
 
 **Xây dựng ứng dụng đặt lịch và quản lý dịch vụ Nail**
 
+## 1.2. Mô tả đề tài
 
+Hệ thống được xây dựng nhằm số hóa quy trình đặt lịch và quản lý hoạt động của cửa hàng Nail.
 
-## Mô tả
+Khách hàng sử dụng **Mobile Application** để xem dịch vụ, xem thông tin nhân viên, lựa chọn thời gian, đặt lịch, theo dõi lịch hẹn, thanh toán và đánh giá sau khi sử dụng dịch vụ.
 
-Hệ thống được xây dựng nhằm số hóa quy trình đặt lịch và quản lý hoạt động kinh doanh của cửa hàng Nail.
+Nhân viên và quản lý sử dụng **Web Administration** để quản lý lịch làm việc, tiếp nhận và xử lý lịch đặt, thực hiện dịch vụ, quản lý khách hàng, dịch vụ, thanh toán và doanh thu.
 
-Ứng dụng cho phép khách hàng đặt lịch sử dụng dịch vụ thông qua Mobile Application, đồng thời hỗ trợ cửa hàng quản lý dịch vụ, nhân viên, lịch làm việc, khách hàng và doanh thu thông qua Web Administration.
+Hệ thống gồm hai nền tảng chính:
 
-Hệ thống gồm hai nền tảng:
+### Mobile Application
 
-### 1. Mobile Application (Customer App)
+Đối tượng sử dụng:
 
-Dành cho khách hàng:
+- Customer.
 
-- Đăng ký, đăng nhập tài khoản.
-- Xem danh sách dịch vụ Nail.
+Chức năng chính:
+
+- Đăng ký.
+- Đăng nhập.
+- Quản lý thông tin cá nhân.
+- Xem danh mục dịch vụ.
+- Xem danh sách dịch vụ.
+- Xem chi tiết dịch vụ.
 - Xem thông tin nhân viên.
-- Chọn thời gian đặt lịch.
+- Chọn nhân viên.
+- Chọn ngày và giờ.
+- Xem lịch trống.
+- Đặt lịch.
+- Gửi ghi chú và ảnh mẫu móng.
 - Theo dõi lịch hẹn.
-- Thanh toán.
-- Đánh giá dịch vụ.
+- Hủy lịch.
+- Theo dõi thanh toán.
+- Xem lịch sử sử dụng dịch vụ.
+- Đánh giá dịch vụ và nhân viên.
 
+### Web Administration
 
+Đối tượng sử dụng:
 
-### 2. Web Administration
+- Staff.
+- Admin/Manager.
 
-Dành cho quản lý và nhân viên:
+Chức năng chính:
 
 - Quản lý dịch vụ.
+- Quản lý danh mục dịch vụ.
 - Quản lý nhân viên.
-- Quản lý lịch đặt.
+- Quản lý chuyên môn nhân viên.
+- Quản lý lịch làm việc.
+- Quản lý ngày nghỉ.
+- Quản lý Booking.
+- Xác nhận hoặc điều chỉnh Booking.
 - Phân công nhân viên.
+- Tạo Booking cho khách Walk-in.
+- Theo dõi quá trình thực hiện dịch vụ.
+- Thêm dịch vụ phát sinh.
 - Quản lý khách hàng.
-- Quản lý doanh thu.
-- Theo dõi lịch làm việc.
+- Quản lý thanh toán.
+- Quản lý đánh giá.
+- Theo dõi doanh thu.
+- Xem báo cáo thống kê.
 
+---
 
+# 2. ACTOR CỦA HỆ THỐNG
 
-# 2. Đối tượng sử dụng hệ thống
+Hệ thống gồm ba Actor chính.
 
-Hệ thống gồm 3 nhóm người dùng:
+## 2.1. Customer
 
-| Vai trò | Mô tả |
-|---|---|
-| Customer | Khách hàng đặt lịch và sử dụng dịch vụ |
-| Staff | Nhân viên thực hiện dịch vụ Nail |
-| Admin/Manager | Chủ cửa hàng quản lý toàn bộ hệ thống |
+Customer là khách hàng sử dụng Mobile Application.
 
+Customer có thể:
 
+- Đăng ký tài khoản.
+- Đăng nhập.
+- Cập nhật thông tin cá nhân.
+- Xem Category.
+- Xem Service.
+- Xem Staff.
+- Chọn Service.
+- Chọn Staff.
+- Chọn Date/Time.
+- Kiểm tra lịch trống.
+- Tạo Booking.
+- Gửi ghi chú.
+- Gửi ảnh mẫu móng.
+- Xem Booking.
+- Hủy Booking.
+- Theo dõi thanh toán.
+- Xem lịch sử.
+- Đánh giá sau khi hoàn thành dịch vụ.
 
+## 2.2. Staff
 
-# 3. Quy trình nghiệp vụ tổng quan
+Staff là nhân viên thực hiện dịch vụ Nail.
 
+Staff sử dụng Web Administration và chỉ được truy cập các chức năng liên quan đến công việc của mình.
 
+Staff có thể:
+
+- Đăng nhập.
+- Xem lịch làm việc cá nhân.
+- Xem Booking được phân công.
+- Xem thông tin Customer trong Booking.
+- Xem Service cần thực hiện.
+- Xem ghi chú của Customer.
+- Xem ảnh mẫu móng Customer gửi.
+- Bắt đầu thực hiện dịch vụ.
+- Thêm Service/Add-on phát sinh.
+- Hoàn thành dịch vụ.
+- Gửi yêu cầu đăng ký/thay đổi ca làm việc.
+- Gửi yêu cầu nghỉ.
+- Xem trạng thái yêu cầu.
+- Xem Rating cá nhân.
+- Xem Feedback của Customer.
+- Xem lịch sử các dịch vụ mình đã thực hiện.
+
+Staff không được:
+
+- Quản lý nhân viên khác.
+- Quản lý tài khoản Admin.
+- Thay đổi cấu hình hệ thống.
+- Xem hoặc thay đổi toàn bộ doanh thu của cửa hàng.
+- Tự ý thay đổi Booking không thuộc quyền xử lý của mình.
+
+## 2.3. Admin/Manager
+
+Admin/Manager là người quản lý cửa hàng.
+
+Admin có quyền:
+
+- Quản lý Category.
+- Quản lý Service.
+- Quản lý Staff.
+- Quản lý Customer.
+- Quản lý Staff-Service.
+- Quản lý Staff Schedule.
+- Duyệt yêu cầu nghỉ.
+- Quản lý Booking.
+- Phân công Staff.
+- Thay đổi thời gian Booking.
+- Tạo Walk-in Booking.
+- Quản lý Payment.
+- Quản lý Review.
+- Xem Dashboard.
+- Xem Revenue Report.
+- Quản lý toàn bộ hệ thống.
+
+---
+
+# 3. QUY TRÌNH NGHIỆP VỤ TỔNG QUAN
+
+```text
+Customer đăng nhập Mobile App
+             ↓
+        Xem Service
+             ↓
+        Chọn Service
+             ↓
+          Chọn ngày
+             ↓
+         Chọn Staff
+       ↙              ↘
+Specific Staff       Any Staff
+       \              /
+        ↓            ↓
+         Chọn thời gian
+                ↓
+     Kiểm tra Availability
+                ↓
+      Nhập ghi chú / ảnh mẫu
+                ↓
+      Xác nhận thông tin
+                ↓
+ Backend kiểm tra Availability
+          lần cuối
+                ↓
+       Tạo Booking
+       Status = Pending
+                ↓
+         Admin xác nhận
+                ↓
+       Status = Confirmed
+                ↓
+     Staff xem Booking
+                ↓
+ Customer đến cửa hàng
+                ↓
+        Staff bắt đầu
+                ↓
+      Status = Processing
+                ↓
+ Có thể thêm Add-on Service
+                ↓
+        Staff hoàn thành
+                ↓
+      Status = Completed
+                ↓
+           Payment
+                ↓
+           Review
 ```
-Customer Mobile App
 
-        |
+---
 
-Chọn dịch vụ + thời gian + nhân viên
+# 4. NGHIỆP VỤ CUSTOMER MOBILE APPLICATION
 
-        |
+# 4.1. Đăng ký tài khoản
 
-Hệ thống kiểm tra lịch trống
-
-        |
-
-Tạo Booking Pending
-
-        |
-
-Admin xác nhận / điều chỉnh
-
-        |
-
-Staff thực hiện dịch vụ
-
-        |
-
-Thanh toán
-
-        |
-
-Customer đánh giá
-```
-
-
-
-
-# 4. Nghiệp vụ Mobile Application (Khách hàng)
-
-
-# 4.1. Quản lý tài khoản
-
-
-## Đăng ký
-
-Khách hàng tạo tài khoản bằng:
+Customer đăng ký bằng:
 
 - Họ tên.
 - Số điện thoại.
 - Email.
 - Mật khẩu.
 
-
-Hệ thống:
+Hệ thống thực hiện:
 
 - Kiểm tra dữ liệu hợp lệ.
-- Kiểm tra tài khoản tồn tại.
-- Tạo tài khoản mới.
-
-
-
-
-## Đăng nhập
-
-Khách hàng đăng nhập để sử dụng các chức năng:
-
-- Xem dịch vụ.
-- Đặt lịch.
-- Theo dõi lịch sử.
-- Đánh giá.
-
-
-
-
-## Cập nhật thông tin cá nhân
-
-Khách hàng có thể:
-
-- Thay đổi họ tên.
-- Cập nhật ảnh.
-- Thay đổi số điện thoại.
-- Đổi mật khẩu.
-
-
-
-# 4.2. Xem danh sách dịch vụ Nail
-
-
-Khách hàng có thể xem các dịch vụ cửa hàng cung cấp.
-
-
-Thông tin dịch vụ:
-
-
-| Thuộc tính | Mô tả |
-|-|-|
-| Service Name | Tên dịch vụ |
-| Image | Hình ảnh |
-| Description | Mô tả |
-| Price | Giá tiền |
-| Duration | Thời gian thực hiện |
-| Category | Loại dịch vụ |
-
-
-Ví dụ:
-
-
-```
-Dịch vụ:
-Sơn Gel Cao Cấp
-
-Giá:
-200.000 VNĐ
-
-Thời gian:
-60 phút
-```
-
-
-
-
-# 4.3. Xem thông tin nhân viên
-
-
-Khách hàng có thể xem danh sách nhân viên.
-
-
-Thông tin:
-
-
-- Họ tên.
-- Ảnh đại diện.
-- Kinh nghiệm.
-- Chuyên môn.
-- Đánh giá.
-
-
-Ví dụ:
-
-
-```
-Nhân viên:
-
-Nguyễn Lan
-
-Chuyên môn:
-Sơn gel, Nail Art
-
-Kinh nghiệm:
-3 năm
-
-Rating:
-4.8/5
-```
-
-
-
-
-# 4.4. Đặt lịch dịch vụ
-
-
-## Mô tả
-
-Khách hàng thực hiện đặt lịch thông qua Mobile App.
-
-
-Quy trình:
-
-
-```
-Chọn dịch vụ
-
-        ↓
-
-Chọn nhân viên
-
-        ↓
-
-Chọn ngày giờ
-
-        ↓
-
-Kiểm tra lịch trống
-
-        ↓
-
-Xác nhận đặt lịch
-
-        ↓
-
-Tạo Booking
-```
-
-
-
-
-# 4.5. Lựa chọn nhân viên
-
-
-Khách hàng có hai lựa chọn:
-
-
-## Trường hợp 1: Chọn nhân viên cụ thể
-
-
-Ví dụ:
-
-
-```
-Dịch vụ:
-Sơn Gel
-
-Nhân viên:
-Lan
-
-Thời gian:
-09:00 20/09/2026
-```
-
-
-Hệ thống kiểm tra:
-
-- Nhân viên có làm việc trong thời gian đó không.
-- Có lịch đặt bị trùng không.
-
-
-Nếu hợp lệ:
-
-```
-Booking Status = Pending
-```
-
+- Kiểm tra email đã tồn tại hay chưa.
+- Kiểm tra số điện thoại đã tồn tại hay chưa.
+- Mã hóa mật khẩu.
+- Tạo User.
+- Gán Role = CUSTOMER.
 
 ---
 
-## Trường hợp 2: Chọn "Nhân viên bất kỳ"
+# 4.2. Đăng nhập
 
+Customer đăng nhập bằng tài khoản đã đăng ký.
 
-Khách hàng không chọn nhân viên.
+Sau khi đăng nhập thành công, Customer được chuyển vào giao diện Mobile Application.
 
+---
 
-Hệ thống tự động:
+# 4.3. Quản lý thông tin cá nhân
 
-- Tìm nhân viên phù hợp.
-- Kiểm tra lịch trống.
-- Ưu tiên nhân viên rảnh sớm nhất.
+Customer có thể:
 
+- Xem thông tin cá nhân.
+- Thay đổi họ tên.
+- Cập nhật ảnh đại diện.
+- Thay đổi số điện thoại.
+- Đổi mật khẩu.
 
-Sau đó tạo booking.
+---
 
+# 4.4. Xem Category
 
-
-
-# 4.6. Kiểm tra lịch trống
-
-
-Đây là nghiệp vụ quan trọng nhất của hệ thống.
-
-
-## Công thức tính thời gian
-
-
-```
-End Time = Start Time + Service Duration
-```
-
+Service được phân thành các Category.
 
 Ví dụ:
 
+- Manicure.
+- Pedicure.
+- Sơn Gel.
+- Nail Art.
+- Chăm sóc móng.
 
+Customer chỉ xem được Category đang:
+
+```text
+ACTIVE
 ```
-Dịch vụ:
 
-Sơn gel
+---
+
+# 4.5. Xem Service
+
+Thông tin Service gồm:
+
+- Name.
+- Image.
+- Description.
+- Price.
+- Duration.
+- Buffer Time.
+- Category.
+
+Ví dụ:
+
+```text
+Service:
+Sơn Gel Cao Cấp
+
+Price:
+200.000 VNĐ
 
 Duration:
 60 phút
 
-
-Khách đặt:
-
-09:00
-
-
-=> Chiếm slot:
-
-09:00 - 10:00
+Buffer:
+15 phút
 ```
 
+Customer chỉ được xem Service có trạng thái:
 
-
-
-## Quy tắc kiểm tra trùng lịch
-
-
-Một nhân viên được phép nhận lịch mới khi:
-
-
+```text
+ACTIVE
 ```
-Start_Time_Mới >= End_Time_Cũ
-
-HOẶC
-
-End_Time_Mới <= Start_Time_Cũ
-```
-
-
-Ngược lại:
-
-```
-Không cho phép đặt lịch
-```
-
 
 ---
 
-## Buffer Time
+# 4.6. Xem Staff
 
+Customer có thể xem:
 
-Để phù hợp thực tế, hệ thống hỗ trợ thời gian nghỉ/dọn dẹp.
-
+- Họ tên.
+- Ảnh.
+- Kinh nghiệm.
+- Chuyên môn.
+- Những Service có thể thực hiện.
+- Rating trung bình.
 
 Ví dụ:
 
+```text
+Nguyễn Lan
 
+Experience:
+3 năm
+
+Services:
+- Sơn Gel
+- Nail Art
+
+Rating:
+4.8 / 5
 ```
-Service Duration:
+
+---
+
+# 4.7. Quan hệ Staff và Service
+
+Một Staff có thể thực hiện nhiều Service.
+
+Một Service có thể được nhiều Staff thực hiện.
+
+Đây là quan hệ Many-to-Many.
+
+```text
+StaffService
+------------
+id
+staff_id
+service_id
+```
+
+Khi Customer chọn một Service, hệ thống chỉ hiển thị những Staff có khả năng thực hiện Service đó.
+
+---
+
+# 4.8. Đặt lịch
+
+Quy trình:
+
+```text
+Chọn Service
+      ↓
+Chọn ngày
+      ↓
+Chọn Staff
+      ↓
+Chọn Time
+      ↓
+Kiểm tra lịch trống
+      ↓
+Nhập Note
+      ↓
+Upload Reference Images nếu có
+      ↓
+Xem Booking Summary
+      ↓
+Confirm
+      ↓
+Tạo Booking
+```
+
+Booking Summary cần hiển thị:
+
+- Service.
+- Staff.
+- Date.
+- Start Time.
+- Estimated End Time.
+- Service Price.
+- Duration.
+- Note.
+
+---
+
+# 4.9. Chọn Staff cụ thể
+
+Ví dụ:
+
+```text
+Service:
+Sơn Gel
+
+Staff:
+Lan
+
+Date:
+30/09/2026
+
+Start:
+09:00
+```
+
+Hệ thống kiểm tra:
+
+1. Lan có thực hiện được Service này hay không.
+2. Lan có lịch làm việc ngày đó hay không.
+3. Thời gian Customer chọn có nằm trong ca làm việc không.
+4. Lan có nghỉ trong khoảng thời gian đó hay không.
+5. Lan có Booking khác trùng thời gian không.
+
+Nếu tất cả điều kiện hợp lệ thì Customer có thể tiếp tục đặt lịch.
+
+---
+
+# 4.10. Chọn Any Staff
+
+Nếu Customer không quan tâm Staff cụ thể, Customer chọn:
+
+```text
+Any Staff
+```
+
+Hệ thống:
+
+```text
+Service
+  ↓
+Tìm Staff thực hiện được Service
+  ↓
+Kiểm tra Staff đang làm việc
+  ↓
+Loại Staff đang nghỉ
+  ↓
+Loại Staff đang bận Booking khác
+  ↓
+Danh sách Staff Available
+```
+
+Nếu nhiều Staff cùng Available, hệ thống có thể ưu tiên Staff có số lượng Booking trong ngày ít hơn.
+
+Nếu không còn Staff:
+
+```text
+Selected time is unavailable.
+```
+
+Customer phải lựa chọn thời gian khác.
+
+---
+
+# 4.11. Availability
+
+Availability là nghiệp vụ quan trọng nhất của Booking.
+
+Hệ thống kiểm tra:
+
+- Staff có đúng chuyên môn.
+- Staff đang ACTIVE.
+- Staff có lịch làm việc.
+- Staff không nghỉ.
+- Staff không có Booking trùng.
+- Service có thời gian phù hợp với thời gian còn lại của ca làm.
+
+---
+
+# 4.12. Tính thời gian Booking
+
+```text
+End Time = Start Time + Service Duration
+```
+
+Ví dụ:
+
+```text
+Start:
+09:00
+
+Duration:
 60 phút
 
-
-Buffer:
-15 phút
-
-
-Tổng thời gian chiếm lịch:
-
-75 phút
+End:
+10:00
 ```
 
+Nếu:
 
+```text
+Buffer Time = 15 phút
+```
 
+thì Staff thực tế bị chiếm lịch:
 
-# 4.7. Quản lý lịch hẹn
+```text
+09:00 → 10:15
+```
 
+Buffer dùng cho:
 
-Khách hàng có thể xem:
+- Nghỉ.
+- Dọn bàn.
+- Chuẩn bị dụng cụ.
+- Chuẩn bị cho Customer tiếp theo.
 
+---
 
-## Lịch sắp tới
+# 4.13. Kiểm tra trùng Booking
 
-Bao gồm:
+Hai Booking bị overlap khi:
 
-- Dịch vụ.
-- Nhân viên.
-- Thời gian.
-- Trạng thái.
+```text
+NewStart < ExistingEnd
+AND
+NewEnd > ExistingStart
+```
 
+Nếu đúng:
 
-## Lịch sử
+```text
+Booking Conflict
+```
 
-Bao gồm:
+Không cho tạo Booking.
 
-- Hoàn thành.
-- Đã hủy.
-- Không đến.
+Không bị trùng nếu:
 
+```text
+NewStart >= ExistingEnd
+```
 
+hoặc:
 
+```text
+NewEnd <= ExistingStart
+```
 
-# 4.8. Hủy lịch
+---
 
+# 4.14. Chống Double Booking
 
-Khách hàng có thể hủy lịch trước thời gian quy định.
-
+Mobile App chỉ hiển thị Availability tại thời điểm truy vấn.
 
 Ví dụ:
 
+```text
+Customer A:
+09:00 Available
 
-```
-Chỉ được hủy trước 2 giờ.
-```
-
-
-Nếu khách không đến:
-
-```
-Booking Status = No-show
+Customer B:
+09:00 Available
 ```
 
+Nếu cả hai cùng bấm Booking, Backend phải kiểm tra Availability lại trước khi lưu.
 
+Chỉ Request đầu tiên hợp lệ được tạo Booking.
 
+Request còn lại nhận:
 
-# 4.9. Thanh toán
-
-
-Hệ thống tách riêng:
-
-
-## Booking Status
-
-
-```
-Pending
-
-Confirmed
-
-Processing
-
-Completed
-
-Cancelled
-
-No-show
+```text
+This time slot is no longer available.
 ```
 
+---
 
-## Payment Status
+# 4.15. Ghi chú và ảnh mẫu móng
 
+Customer có thể gửi:
 
-```
-Unpaid
-
-Deposited
-
-Paid
-```
-
+- Ghi chú.
+- Một hoặc nhiều hình ảnh tham khảo.
 
 Ví dụ:
 
-
-```
-Booking:
-
-Completed
-
-
-Payment:
-
-Unpaid
+```text
+Note:
+"Em muốn mẫu giống ảnh nhưng đổi màu xanh thành màu đỏ."
 ```
 
-
-
-
-# 4.10. Đánh giá dịch vụ
-
-
-Chỉ được đánh giá khi:
-
-
-```
-Booking Status = Completed
-```
-
-
-Khách hàng có thể:
-
-- Chấm sao.
-- Viết nhận xét.
-- Upload hình ảnh.
-
-
-
-
-# 5. Nghiệp vụ Web Administration
-
-
-# 5.1. Phân quyền người dùng
-
-
-## Admin
-
-
-Có toàn quyền:
-
-
-- Quản lý hệ thống.
-- Xem doanh thu.
-- Quản lý nhân viên.
-- Quản lý dịch vụ.
-
-
-
-
-## Staff
-
-
-Nhân viên có quyền:
-
-
-- Xem lịch làm việc cá nhân.
-- Xem khách hàng của mình.
-- Cập nhật trạng thái dịch vụ.
-
-
-Không được:
-
-- Xem doanh thu.
-- Quản lý nhân viên khác.
-
-
-
-
-# 5.2. Dashboard
-
-
-Admin xem:
-
-
-- Tổng số khách hàng.
-- Lịch hôm nay.
-- Doanh thu.
-- Dịch vụ phổ biến.
-
-
-
-
-# 5.3. Quản lý dịch vụ
-
-
-Admin có thể:
-
-
-## Thêm dịch vụ
-
-Thông tin:
-
-- Tên.
-- Hình ảnh.
-- Giá.
-- Thời gian.
-- Loại.
-
-
-## Cập nhật dịch vụ
-
-
-- Đổi giá.
-- Đổi mô tả.
-- Ẩn/hiện dịch vụ.
-
-
-
-
-# 5.4. Quản lý nhân viên
-
-
-Admin:
-
-
-- Thêm nhân viên.
-- Sửa thông tin.
-- Xóa nhân viên.
-- Gán chuyên môn.
-
-
-Ví dụ:
-
-
-```
-Lan
-
-Chuyên môn:
-
-- Sơn gel
-- Nail Art
-```
-
-
-
-
-# 5.5. Quản lý lịch đặt
-
-
-Admin xem toàn bộ booking.
-
-
-Thông tin:
-
-
-| Field | Ý nghĩa |
-|-|-|
-| Customer | Khách hàng |
-| Service | Dịch vụ |
-| Staff | Nhân viên |
-| Start Time | Thời gian bắt đầu |
-| End Time | Thời gian kết thúc |
-| Status | Trạng thái |
-
-
-
-
-# 5.6. Duyệt và điều chỉnh lịch
-
-
-Sau khi khách đặt:
-
-
-Booking:
-
-
-```
-Pending
-```
-
-
-Admin có thể:
-
-
-- Xác nhận.
-- Đổi nhân viên.
-- Đổi thời gian.
-- Hủy lịch.
-
-
-Ví dụ:
-
-
-Khách chọn:
-
-```
-Lan
-```
-
-
-Nhưng Lan nghỉ.
-
-
-Admin đổi:
-
-```
-Hoa
-```
-
-
-
-
-# 5.7. Tạo lịch thủ công (Walk-in Customer)
-
-
-Hỗ trợ khách đến trực tiếp cửa hàng.
-
-
-Admin có thể tạo booking:
-
-
-Thông tin:
-
-
-- Tên khách.
-- Số điện thoại.
-- Dịch vụ.
-- Nhân viên.
-- Thời gian.
-
+Staff có thể xem thông tin này trên Web trước khi Customer đến.
 
 Mục đích:
 
+- Chuẩn bị màu.
+- Chuẩn bị đá.
+- Chuẩn bị charm.
+- Chuẩn bị dụng cụ cần thiết.
 
-- Chiếm slot thời gian.
-- Tránh khách App đặt trùng.
+---
 
+# 4.16. Trạng thái Booking
 
+Booking gồm các trạng thái:
 
-
-# 5.8. Staff quản lý lịch làm việc
-
-
-Staff có thể:
-
-
-- Xem lịch hôm nay.
-- Xem khách hàng.
-- Xem dịch vụ.
-
-
-Cập nhật trạng thái:
-
-
-```
-Confirmed
-
-      ↓
-
-Processing
-
-      ↓
-
-Completed
+```text
+PENDING
+CONFIRMED
+PROCESSING
+COMPLETED
+CANCELLED
+NO_SHOW
 ```
 
+## PENDING
 
+Customer vừa tạo Booking và chờ cửa hàng xác nhận.
 
+## CONFIRMED
 
-# 5.9. Quản lý khách hàng
+Booking đã được cửa hàng xác nhận.
 
+## PROCESSING
+
+Customer đã đến và Staff đang thực hiện dịch vụ.
+
+## COMPLETED
+
+Dịch vụ đã hoàn thành.
+
+## CANCELLED
+
+Booking đã bị hủy.
+
+## NO_SHOW
+
+Customer không đến theo lịch.
+
+---
+
+# 4.17. Luồng trạng thái Booking
+
+Luồng thông thường:
+
+```text
+PENDING
+   ↓
+CONFIRMED
+   ↓
+PROCESSING
+   ↓
+COMPLETED
+```
+
+Hủy:
+
+```text
+PENDING
+   ↓
+CANCELLED
+```
+
+hoặc:
+
+```text
+CONFIRMED
+   ↓
+CANCELLED
+```
+
+Không đến:
+
+```text
+CONFIRMED
+   ↓
+NO_SHOW
+```
+
+---
+
+# 4.18. Hủy Booking
+
+Customer được phép hủy theo quy định.
+
+Ví dụ:
+
+```text
+Chỉ được hủy trước giờ hẹn tối thiểu 2 giờ.
+```
+
+Quy tắc:
+
+```text
+PENDING
+→ Có thể Cancel
+
+CONFIRMED
+→ Có thể Cancel nếu còn trên 2 giờ
+
+PROCESSING
+→ Không được Cancel
+
+COMPLETED
+→ Không được Cancel
+
+CANCELLED
+→ Không thay đổi
+
+NO_SHOW
+→ Không thay đổi
+```
+
+---
+
+# 4.19. Xem Booking
+
+Customer có hai khu vực:
+
+## Upcoming Appointments
+
+Hiển thị:
+
+- Service.
+- Staff.
+- Date.
+- Time.
+- Price.
+- Booking Status.
+- Payment Status.
+
+## History
+
+Hiển thị:
+
+- Completed.
+- Cancelled.
+- No-show.
+
+---
+
+# 5. NGHIỆP VỤ STAFF TRÊN WEB ADMINISTRATION
+
+# 5.1. Staff đăng nhập
+
+Staff sử dụng Web Administration.
+
+Sau khi đăng nhập, hệ thống kiểm tra:
+
+```text
+Role = STAFF
+```
+
+và chỉ hiển thị những chức năng Staff được phép sử dụng.
+
+---
+
+# 5.2. Staff Dashboard
+
+Staff có thể xem:
+
+- Số Booking hôm nay.
+- Booking tiếp theo.
+- Booking đang Processing.
+- Booking đã Completed.
+- Lịch làm việc hôm nay.
+
+---
+
+# 5.3. Xem lịch làm việc
+
+Staff có thể xem:
+
+- Lịch hôm nay.
+- Lịch theo ngày.
+- Lịch theo tuần.
+
+Thông tin:
+
+- Date.
+- Start Time.
+- End Time.
+- Booking.
+- Customer.
+- Service.
+
+---
+
+# 5.4. Xem Booking được phân công
+
+Staff chỉ được xem những Booking được phân công cho mình.
+
+Thông tin gồm:
+
+- Customer Name.
+- Phone.
+- Service.
+- Start Time.
+- End Time.
+- Note.
+- Reference Images.
+- Booking Status.
+
+---
+
+# 5.5. Xem ảnh mẫu móng
+
+Staff có thể mở các Reference Images mà Customer đã gửi khi Booking.
+
+Staff có thể dùng chúng để chuẩn bị:
+
+- Sơn.
+- Đá.
+- Charm.
+- Mẫu vẽ.
+- Dụng cụ.
+
+---
+
+# 5.6. Bắt đầu thực hiện dịch vụ
+
+Khi Customer đến và Staff bắt đầu làm:
+
+```text
+CONFIRMED
+     ↓
+PROCESSING
+```
+
+Staff không được Start một Booking:
+
+- Cancelled.
+- Completed.
+- No-show.
+
+---
+
+# 5.7. Add-on Service
+
+Trong quá trình làm, Customer có thể yêu cầu thêm dịch vụ.
+
+Ví dụ:
+
+```text
+Sơn Gel                 200.000
+Vẽ Nail Art 2 ngón       40.000
+Đính đá                  30.000
+Sửa móng gãy             20.000
+```
+
+Staff có thể thêm Add-on vào Booking.
+
+Thông tin:
+
+```text
+BookingAddOn
+------------
+id
+booking_id
+service_id
+name
+quantity
+unit_price
+total_price
+added_by
+created_at
+```
+
+Tổng tiền:
+
+```text
+Final Amount
+=
+Original Booking Amount
++
+Total Add-ons
+```
+
+Ví dụ:
+
+```text
+Original Service:
+200.000
+
+Add-on:
+90.000
+
+Final:
+290.000 VNĐ
+```
+
+---
+
+# 5.8. Hoàn thành dịch vụ
+
+Sau khi hoàn thành:
+
+```text
+PROCESSING
+     ↓
+COMPLETED
+```
+
+Khi Booking đã Completed:
+
+- Không được quay lại Pending.
+- Không được Customer Cancel.
+- Customer được phép Review.
+
+---
+
+# 5.9. Đăng ký lịch làm việc
+
+Staff có thể gửi yêu cầu về lịch làm việc.
+
+Ví dụ:
+
+```text
+Date:
+01/10/2026
+
+Start:
+08:00
+
+End:
+17:00
+```
+
+Yêu cầu được gửi tới Admin.
+
+Admin:
+
+```text
+APPROVE
+hoặc
+REJECT
+```
+
+Sau khi được APPROVED, Staff Schedule mới chính thức có hiệu lực.
+
+---
+
+# 5.10. Xin nghỉ
+
+Staff có thể gửi Leave Request.
+
+Thông tin:
+
+```text
+StaffLeaveRequest
+-----------------
+id
+staff_id
+start_datetime
+end_datetime
+reason
+status
+created_at
+reviewed_by
+reviewed_at
+```
+
+Status:
+
+```text
+PENDING
+APPROVED
+REJECTED
+```
+
+Luồng:
+
+```text
+Staff gửi Leave Request
+          ↓
+       PENDING
+          ↓
+      Admin kiểm tra
+       ↙         ↘
+ APPROVED      REJECTED
+```
+
+Nếu APPROVED:
+
+Hệ thống block khoảng thời gian đó để Customer không thể tạo Booking mới cho Staff.
+
+---
+
+# 5.11. Xử lý xin nghỉ khi đã có Booking
+
+Nếu Staff xin nghỉ trong khoảng thời gian đang có Booking:
+
+Hệ thống phải cảnh báo Admin.
+
+Ví dụ:
+
+```text
+This staff currently has 3 bookings
+during the requested leave period.
+```
+
+Admin cần:
+
+- Đổi Staff.
+- Đổi giờ.
+- Hoặc xử lý/hủy Booking.
+
+Sau đó mới xác nhận Leave Request.
+
+---
+
+# 5.12. Xem Rating và Feedback
+
+Staff có thể xem:
+
+```text
+Average Rating
+Total Reviews
+Review History
+```
+
+Ví dụ:
+
+```text
+Average:
+4.8 / 5
+
+★★★★★
+"Làm rất đẹp và nhiệt tình."
+
+★★★★☆
+"Mẫu đẹp nhưng hơi lâu."
+```
+
+Staff chỉ được xem Review liên quan đến chính mình.
+
+---
+
+# 6. NGHIỆP VỤ ADMIN/MANAGER
+
+# 6.1. Admin Dashboard
+
+Dashboard có:
+
+- Tổng Customer.
+- Tổng Staff.
+- Booking hôm nay.
+- Pending Booking.
+- Confirmed Booking.
+- Processing Booking.
+- Completed Booking.
+- Cancelled Booking.
+- No-show.
+- Revenue hôm nay.
+- Revenue tháng.
+- Popular Services.
+
+---
+
+# 6.2. Quản lý Category
+
+Admin có thể:
+
+- Add Category.
+- Edit Category.
+- Activate.
+- Deactivate.
+
+Không nên xóa cứng Category nếu đã có Service sử dụng.
+
+---
+
+# 6.3. Quản lý Service
+
+Admin có thể:
+
+- Add Service.
+- Edit Service.
+- Upload Image.
+- Edit Description.
+- Edit Price.
+- Edit Duration.
+- Edit Buffer Time.
+- Change Category.
+- Activate/Deactivate.
+
+Service đã từng xuất hiện trong Booking không nên bị xóa cứng.
+
+Sử dụng:
+
+```text
+ACTIVE
+INACTIVE
+```
+
+---
+
+# 6.4. Quản lý Staff
+
+Admin có thể:
+
+- Thêm Staff.
+- Sửa thông tin.
+- Upload Avatar.
+- Quản lý Experience.
+- Activate/Deactivate Staff.
+- Gán Service.
+- Quản lý Schedule.
+- Quản lý Leave Request.
+
+Staff đã từng có Booking không nên bị xóa khỏi Database.
+
+---
+
+# 6.5. Quản lý Staff-Service
+
+Admin xác định Staff nào có thể thực hiện Service nào.
+
+Ví dụ:
+
+```text
+Lan
+├── Sơn Gel
+└── Nail Art
+
+Hoa
+├── Sơn Gel
+└── Manicure
+```
+
+---
+
+# 6.6. Quản lý Staff Schedule
+
+Admin có thể:
+
+- Tạo Schedule.
+- Sửa Schedule.
+- Duyệt Schedule Request.
+- Theo dõi Schedule.
+- Block khoảng thời gian nghỉ.
+
+---
+
+# 6.7. Duyệt Leave Request
+
+Admin có thể:
+
+```text
+APPROVE
+REJECT
+```
+
+Nếu Approve:
+
+- Block Staff Availability.
+- Không cho Booking mới.
+- Kiểm tra Booking đang tồn tại.
+
+---
+
+# 6.8. Quản lý Booking
+
+Admin xem toàn bộ Booking.
+
+Thông tin:
+
+```text
+Booking ID
+Customer
+Service
+Staff
+Date
+Start Time
+End Time
+Booking Status
+Payment Status
+Source
+Total Amount
+```
+
+Admin có thể:
+
+- Search.
+- Filter.
+- Confirm.
+- Change Staff.
+- Change Time.
+- Cancel.
+- Mark No-show.
+
+---
+
+# 6.9. Confirm Booking
+
+Booking mới:
+
+```text
+PENDING
+```
+
+Admin xác nhận:
+
+```text
+CONFIRMED
+```
+
+Trước khi Confirm, hệ thống phải kiểm tra Availability.
+
+---
+
+# 6.10. Điều chỉnh Booking
+
+Admin có thể:
+
+- Change Staff.
+- Change Date.
+- Change Time.
+
+Mỗi lần thay đổi Staff/Time:
+
+```text
+Check Availability Again
+```
+
+Nếu trùng:
+
+Không cho phép Save.
+
+---
+
+# 6.11. Walk-in Customer
+
+Khách có thể đến trực tiếp cửa hàng mà không Booking qua App.
+
+Admin tạo Walk-in Booking.
+
+Thông tin:
+
+- Guest Name.
+- Guest Phone.
+- Service.
+- Staff.
+- Date.
+- Time.
+- Note.
+
+Booking Source:
+
+```text
+WALK_IN
+```
+
+Mobile Booking:
+
+```text
+MOBILE
+```
+
+Nếu Walk-in Customer chưa có Account:
+
+```text
+customer_id = NULL
+```
+
+và lưu:
+
+```text
+guest_name
+guest_phone
+```
+
+Walk-in Booking phải chiếm Staff Slot giống Booking Mobile.
+
+---
+
+# 6.12. Quản lý Customer
 
 Admin xem:
 
+- Customer List.
+- Contact Information.
+- Booking History.
+- Completed Booking.
+- Cancelled Booking.
+- No-show Count.
+- Total Spending.
 
-- Danh sách khách hàng.
-- Lịch sử sử dụng.
-- Tổng chi tiêu.
-- Số lần No-show.
+---
 
+# 6.13. Payment
 
+Booking Status và Payment Status phải tách riêng.
 
+Booking Status:
 
-# 5.10. Báo cáo doanh thu
+```text
+PENDING
+CONFIRMED
+PROCESSING
+COMPLETED
+CANCELLED
+NO_SHOW
+```
 
+Payment Status:
 
-Thống kê:
+```text
+UNPAID
+DEPOSITED
+PAID
+```
 
+Ví dụ hợp lệ:
 
-- Doanh thu ngày.
-- Doanh thu tháng.
-- Doanh thu năm.
-- Dịch vụ phổ biến.
+```text
+Booking Status:
+COMPLETED
 
+Payment Status:
+UNPAID
+```
 
+---
 
+# 6.14. Payment Method
 
-# 6. Database Schema
+Có thể hỗ trợ:
 
+```text
+CASH
+BANK_TRANSFER
+ONLINE
+```
 
-## Users
+Thông tin Payment:
 
+```text
+Payment
+-------
+id
+booking_id
+amount
+payment_method
+transaction_id
+status
+paid_at
+created_at
+```
 
-| Field | Description |
-|-|-|
-| id | User ID |
-| name | Họ tên |
-| phone | Số điện thoại |
-| email | Email |
-| password | Mật khẩu |
-| role | Customer/Staff/Admin |
+---
 
+# 6.15. Review Management
 
+Admin có thể xem:
 
+- Customer.
+- Staff.
+- Service.
+- Rating.
+- Comment.
+- Images.
+- Created Date.
 
-## Services
+Review chỉ có thể được tạo khi:
 
+```text
+Booking Status = COMPLETED
+```
 
-| Field | Description |
-|-|-|
-| id | Service ID |
-| name | Tên dịch vụ |
-| price | Giá |
-| duration | Thời gian |
-| buffer_time | Thời gian nghỉ |
+Mỗi Booking chỉ có tối đa một Review.
 
+---
 
+# 6.16. Revenue Report
 
+Admin xem:
+
+- Daily Revenue.
+- Weekly Revenue.
+- Monthly Revenue.
+- Yearly Revenue.
+- Revenue by Service.
+- Popular Service.
+
+Revenue chỉ tính các Payment thực tế:
+
+```text
+Payment Status = PAID
+```
+
+---
+
+# 7. SNAPSHOT DỮ LIỆU BOOKING
+
+Booking không được phụ thuộc hoàn toàn vào dữ liệu hiện tại của Service.
+
+Ví dụ:
+
+Ngày Customer Booking:
+
+```text
+Sơn Gel
+200.000 VNĐ
+60 phút
+```
+
+Sau đó Admin thay đổi Service:
+
+```text
+250.000 VNĐ
+75 phút
+```
+
+Booking cũ vẫn phải giữ:
+
+```text
+Price:
+200.000
+
+Duration:
+60 phút
+```
+
+Do đó Booking phải lưu Snapshot:
+
+```text
+service_price
+service_duration
+buffer_time
+```
+
+---
+
+# 8. DATABASE SCHEMA
+
+## 8.1. Users
+
+```text
+Users
+-----
+id
+name
+phone
+email
+password
+avatar
+role
+status
+created_at
+updated_at
+```
+
+Role:
+
+```text
+CUSTOMER
+STAFF
+ADMIN
+```
+
+---
+
+# 8.2. Categories
+
+```text
+Categories
+----------
+id
+name
+description
+status
+created_at
+updated_at
+```
+
+---
+
+# 8.3. Services
+
+```text
+Services
+--------
+id
+category_id
+name
+description
+image
+price
+duration
+buffer_time
+status
+created_at
+updated_at
+```
+
+---
+
+# 8.4. Staff
+
+```text
+Staff
+-----
+id
+user_id
+experience
+description
+status
+created_at
+updated_at
+```
+
+---
+
+# 8.5. StaffService
+
+```text
+StaffService
+------------
+id
+staff_id
+service_id
+```
+
+---
+
+# 8.6. StaffSchedule
+
+```text
+StaffSchedule
+-------------
+id
+staff_id
+date
+start_time
+end_time
+status
+created_at
+updated_at
+```
+
+---
+
+# 8.7. StaffLeaveRequest
+
+```text
+StaffLeaveRequest
+-----------------
+id
+staff_id
+start_datetime
+end_datetime
+reason
+status
+reviewed_by
+reviewed_at
+created_at
+```
+
+---
+
+# 8.8. Bookings
+
+```text
+Bookings
+--------
+id
+
+customer_id
+staff_id
+service_id
+
+guest_name
+guest_phone
+
+booking_source
+
+start_time
+end_time
+
+service_price
+service_duration
+buffer_time
+
+customer_note
+
+status
+payment_status
+
+created_at
+updated_at
+```
+
+Booking Source:
+
+```text
+MOBILE
+WALK_IN
+```
+
+---
+
+# 8.9. BookingReferenceImages
+
+```text
+BookingReferenceImages
+----------------------
+id
+booking_id
+image_url
+created_at
+```
+
+---
+
+# 8.10. BookingAddOns
+
+```text
+BookingAddOns
+-------------
+id
+booking_id
+service_id
+name
+quantity
+unit_price
+total_price
+added_by
+created_at
+```
+
+---
+
+# 8.11. Payments
+
+```text
+Payments
+--------
+id
+booking_id
+amount
+payment_method
+transaction_id
+status
+paid_at
+created_at
+```
+
+---
+
+# 8.12. Reviews
+
+```text
+Reviews
+-------
+id
+booking_id
+customer_id
+staff_id
+service_id
+rating
+comment
+created_at
+```
+
+---
+
+# 8.13. ReviewImages
+
+```text
+ReviewImages
+------------
+id
+review_id
+image_url
+```
+
+---
+
+# 9. QUAN HỆ DỮ LIỆU
+
+```text
+                    USER
+             ┌────────┼────────┐
+             │        │        │
+         CUSTOMER    STAFF    ADMIN
+             │        │
+             │        ├── StaffService
+             │        │       │
+             │        │     Service
+             │        │       │
+             │        │    Category
+             │        │
+             │        ├── StaffSchedule
+             │        │
+             │        └── StaffLeaveRequest
+             │
+          BOOKING
+             │
+      ┌──────┼──────────┐
+      │      │          │
+    AddOn  Payment    Review
+      │                 │
+      │             ReviewImages
+      │
+ReferenceImages
+```
+
+---
+
+# 10. BUSINESS RULES
+
+## BR01
+
+Customer phải đăng nhập mới được tạo Booking.
+
+## BR02
+
+Customer chỉ được Booking những Service đang ACTIVE.
+
+## BR03
+
+Staff phải ACTIVE.
+
+## BR04
+
+Staff phải được gán Service tương ứng mới được thực hiện Service đó.
+
+## BR05
+
+Staff phải có Schedule tại thời điểm Booking.
+
+## BR06
+
+Không cho Booking nếu Staff đang nghỉ.
+
+## BR07
+
+Một Staff không được có hai Booking trùng thời gian.
+
+## BR08
+
+Backend phải kiểm tra Availability lại khi Create Booking.
+
+## BR09
+
+Buffer Time phải được tính vào khoảng thời gian Staff bị chiếm lịch.
+
+## BR10
+
+Nếu Any Staff được lựa chọn, chỉ chọn Staff có đủ điều kiện thực hiện Service.
+
+## BR11
+
+Admin thay đổi Staff hoặc Time phải kiểm tra Availability lại.
+
+## BR12
+
+Walk-in Booking và Mobile Booking sử dụng cùng cơ chế kiểm tra lịch.
+
+## BR13
+
+Booking phải Snapshot Price, Duration và Buffer Time.
+
+## BR14
+
+Service đã có Booking không được xóa cứng.
+
+## BR15
+
+Staff đã có Booking không được xóa cứng.
+
+## BR16
+
+Customer chỉ được Review Booking COMPLETED.
+
+## BR17
+
+Một Booking chỉ có một Review.
+
+## BR18
+
+Customer không được Cancel Booking đang PROCESSING hoặc COMPLETED.
+
+## BR19
+
+Staff chỉ được thay đổi trạng thái Booking được phân công cho mình.
+
+## BR20
+
+Staff chỉ được:
+
+```text
+CONFIRMED → PROCESSING
+```
+
+và:
+
+```text
+PROCESSING → COMPLETED
+```
+
+## BR21
+
+Add-on phải thuộc Booking đang PROCESSING hoặc được Admin cho phép chỉnh sửa trước khi thanh toán hoàn tất.
+
+## BR22
+
+Add-on phải được cộng vào Final Amount.
+
+## BR23
+
+Leave Request phải được Admin Approve mới ảnh hưởng Availability.
+
+## BR24
+
+Nếu Staff xin nghỉ trong thời gian đã có Booking, Admin phải xử lý các Booking đó trước.
+
+## BR25
+
+Revenue chỉ tính Payment đã PAID.
+
+---
+
+# 11. USE CASE CUSTOMER
+
+```text
+Register
+Login
+Logout
+
+View Profile
+Update Profile
+Change Password
+
+View Categories
+View Services
+View Service Detail
+
+View Staff
+View Staff Rating
+
+View Available Dates
+View Available Time
+Select Specific Staff
+Select Any Staff
+
+Create Booking
+Upload Reference Images
+Add Booking Note
+
+View Upcoming Bookings
+View Booking Detail
+Cancel Booking
+View Booking History
+
+View Payment
+Make Payment
+
+Create Review
+Upload Review Images
+```
+
+---
+
+# 12. USE CASE STAFF
+
+```text
+Login
+Logout
+
+View Staff Dashboard
+View Personal Schedule
+
+View Assigned Bookings
+View Booking Detail
+View Customer Information
+View Customer Note
+View Reference Images
+
+Start Service
+Add Booking Add-on
+Complete Service
+
+Create Schedule Request
+Create Leave Request
+View Request Status
+
+View Personal Rating
+View Customer Feedback
+View Service History
+```
+
+---
+
+# 13. USE CASE ADMIN
+
+```text
+Login
+Logout
+
+View Dashboard
+
+Manage Categories
+Manage Services
+
+Manage Staff
+Manage Staff-Service
+
+Manage Staff Schedule
+Approve Schedule Request
+Approve Leave Request
+
+Manage Customers
+
+Manage Bookings
+Confirm Booking
+Change Staff
+Change Booking Time
+Cancel Booking
+Mark No-show
+
+Create Walk-in Booking
+
+Manage Payments
+Manage Reviews
+
+View Revenue Report
+View Service Statistics
+```
+
+---
+
+# 14. KIẾN TRÚC HỆ THỐNG
+
+```text
+            MOBILE APPLICATION
+                Customer
+                   │
+                   │
+                REST API
+                   │
+                   ↓
+              BACKEND SERVER
+                   │
+                   ↓
+                DATABASE
+                   ↑
+                   │
+                REST API
+                   │
+                   │
+          WEB ADMINISTRATION
+             ┌─────┴─────┐
+             │           │
+           Staff       Admin
+```
+
+---
+
+# 15. PHẠM VI MOBILE APPLICATION
+
+Do đề tài thuộc môn:
+
+**Lập trình Mobile đa nền tảng**
+
+Mobile Application của Customer là thành phần trọng tâm.
+
+Các màn hình chính:
+
+```text
+Splash
+   ↓
+Login / Register
+   ↓
+Home
+   ↓
+Category
+   ↓
+Service List
+   ↓
+Service Detail
+   ↓
+Staff Selection
+   ↓
+Date / Time Selection
+   ↓
+Booking Confirmation
+   ↓
+My Appointments
+   ↓
+Booking Detail
+   ↓
+Payment
+   ↓
+Review
+   ↓
+Profile
+```
+
+Web Administration đóng vai trò hỗ trợ vận hành cửa hàng.
+
+---
+
+# 16. PHẠM VI WEB ADMINISTRATION
+
+Web có hai Role:
+
+```text
+STAFF
+ADMIN
+```
 
 ## Staff
 
+Tập trung vào:
 
-| Field | Description |
-|-|-|
-| id | Staff ID |
-| user_id | User |
-| specialty | Chuyên môn |
-
-
-
-
-## Bookings
-
-
-| Field | Description |
-|-|-|
-| id | Booking ID |
-| customer_id | Khách hàng |
-| staff_id | Nhân viên |
-| service_id | Dịch vụ |
-| start_time | Bắt đầu |
-| end_time | Kết thúc |
-| status | Booking Status |
-| payment_status | Payment Status |
-| note | Ghi chú |
-
-
-
-
-# 7. Kiến trúc hệ thống
-
-
-```
-              Mobile App
-
-             React Native
-
-                  |
-
-                API
-
-                  |
-
-             Backend Server
-
-                  |
-
-               Database
-
-                  |
-
-              Web Admin
-
-             ReactJS/NextJS
+```text
+My Schedule
+My Bookings
+Booking Detail
+Customer Note
+Reference Images
+Processing Service
+Add-on Service
+Complete Service
+Leave Request
+Rating / Feedback
 ```
 
+## Admin
 
+Tập trung vào:
 
+```text
+Dashboard
+Service
+Category
+Staff
+Schedule
+Bookings
+Customers
+Payments
+Reviews
+Revenue
+```
 
-# 8. Kết luận
+---
 
+# 17. NGHIỆP VỤ TRỌNG TÂM CỦA ĐỀ TÀI
 
-Hệ thống "Ứng dụng đặt lịch và quản lý dịch vụ Nail" giúp cửa hàng Nail quản lý toàn bộ quy trình từ đặt lịch, phân công nhân viên, thực hiện dịch vụ đến thanh toán và đánh giá.
+Nghiệp vụ quan trọng nhất không phải CRUD Service hay Customer mà là:
 
-Ứng dụng đảm bảo phù hợp với mô hình vận hành thực tế của các tiệm Nail hiện nay, đồng thời phù hợp để triển khai trong môn học Lập trình Mobile đa nền tảng.
+## Booking & Staff Availability
+
+Hệ thống cần giải quyết:
+
+```text
+Customer muốn đặt Service
+          ↓
+Staff nào làm được?
+          ↓
+Staff có đi làm không?
+          ↓
+Staff có nghỉ không?
+          ↓
+Staff có Booking khác không?
+          ↓
+Service mất bao lâu?
+          ↓
+Có Buffer bao nhiêu?
+          ↓
+Slot có đủ thời gian không?
+          ↓
+Available / Unavailable
+```
+
+Đây là nghiệp vụ trung tâm liên kết:
+
+- Customer.
+- Service.
+- Staff.
+- Schedule.
+- Booking.
+- Payment.
+- Review.
+
+---
+
+# 18. KẾT LUẬN
+
+Hệ thống **Đặt lịch và quản lý dịch vụ Nail** gồm Mobile Application dành cho Customer và Web Administration dành cho Staff và Admin/Manager.
+
+Customer sử dụng Mobile App để tìm kiếm dịch vụ, lựa chọn Staff, kiểm tra lịch trống, đặt lịch, gửi mẫu móng, theo dõi Booking, thanh toán và Review.
+
+Staff sử dụng Web Administration để theo dõi lịch làm việc, xem Booking được phân công, xem yêu cầu và mẫu móng của Customer, cập nhật trạng thái thực hiện, thêm dịch vụ phát sinh, gửi yêu cầu nghỉ và xem Feedback cá nhân.
+
+Admin/Manager sử dụng Web Administration để quản lý toàn bộ Service, Staff, Customer, Schedule, Booking, Payment, Review và Revenue.
+
+Nghiệp vụ trung tâm của hệ thống là **Booking và Staff Availability**, trong đó hệ thống phải đảm bảo:
+
+- Staff có chuyên môn phù hợp.
+- Staff đang làm việc.
+- Staff không nghỉ.
+- Không xảy ra trùng Booking.
+- Buffer Time được tính chính xác.
+- Không xảy ra Double Booking.
+- Price và Duration được Snapshot.
+- Walk-in và Mobile Booking sử dụng chung lịch.
+- Add-on được cộng chính xác vào hóa đơn.
+- Customer chỉ được Review sau khi hoàn thành dịch vụ.
+- Revenue chỉ tính từ các khoản Payment thực tế đã thanh toán.
+
+Thiết kế này giúp hệ thống có quy trình nghiệp vụ rõ ràng, đủ tính thực tế nhưng vẫn phù hợp với phạm vi một bài tập lớn môn **Lập trình Mobile đa nền tảng**.
