@@ -577,6 +577,48 @@
   #nailhouse{--adm-sidebar:76px}
 }
 
+/* ==========================================================================
+   BIỂU ĐỒ THỐNG KÊ — vẽ SVG tay, không dùng thư viện
+   ========================================================================== */
+
+/* Chữ trục: nhỏ, tương phản nhạt, số chữ dùng font tabular cho thẳng hàng */
+.adm-axis-text{font-size:10.5px;fill:#9A8B93;font-family:inherit;
+  font-variant-numeric:tabular-nums}
+
+/* Khung chứa biểu đồ đường — position:relative để tooltip neo theo pixel */
+.adm-linechart{position:relative;width:100%}
+.adm-linechart svg{display:block;overflow:visible}
+
+/* Tooltip hiện khi rê chuột */
+.adm-tooltip{position:absolute;z-index:5;pointer-events:none;display:grid;gap:1px;
+  padding:7px 10px;background:rgba(45,36,48,.93);color:#fff;border-radius:8px;
+  white-space:nowrap;box-shadow:0 8px 18px -10px rgba(45,36,48,.6)}
+.adm-tooltip strong{font-size:10.5px;font-weight:500;color:#E9DDE1}
+.adm-tooltip span{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* Trạng thái rỗng thay cho biểu đồ khi chưa có số liệu */
+.adm-chart-empty{padding:26px 8px;text-align:center}
+.adm-chart-empty p{margin:0;font-size:12.5px;color:var(--nh-muted)}
+.adm-chart-empty small{display:block;margin-top:5px;font-size:11px;color:#A9A2A8}
+
+/* Biểu đồ tròn */
+.adm-donut{position:relative;flex:0 0 auto}
+.adm-donut-center{position:absolute;inset:0;display:grid;place-content:center;
+  text-align:center;pointer-events:none}
+.adm-donut-center strong{font-size:26px;font-weight:700;color:var(--nh-ink);line-height:1;
+  font-variant-numeric:tabular-nums}
+.adm-donut-center span{display:block;margin-top:4px;font-size:10.5px;color:var(--nh-muted)}
+
+/* Hộp chứa tròn + chú giải nằm cạnh nhau khi màn đủ rộng */
+.adm-donut-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.adm-donut-legend{flex:1;min-width:132px;display:grid;gap:7px}
+.adm-donut-legend div{display:flex;align-items:center;gap:8px;font-size:12px}
+.adm-donut-legend i{width:9px;height:9px;border-radius:3px;flex:0 0 9px}
+.adm-donut-legend span{flex:1;min-width:0;color:var(--nh-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-donut-legend b{font-weight:600;color:var(--nh-ink);font-variant-numeric:tabular-nums}
+.adm-donut-legend small{color:#A9A2A8;font-size:11px;font-variant-numeric:tabular-nums}
+
 /* ---- Hộp thoại xác nhận ---- */
 .adm-modal-backdrop{position:fixed;inset:0;background:rgba(45,36,48,.42);display:grid;place-items:center;z-index:60;padding:20px}
 .adm-modal{width:min(400px,100%);background:#fff;border:1px solid var(--nh-line);border-radius:14px;padding:22px}

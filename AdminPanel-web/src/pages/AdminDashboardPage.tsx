@@ -12,8 +12,11 @@ import { useState } from 'react';
 import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatusBadge } from '../components/Primitives';
-import { useApp, type Booking, type ChartRange, type ViewName } from '../store';
-import { fmtDate, fmtRating, fmtTime, formatVND, moneyShort, weekdayShort } from '../lib/utils';
+import { useApp, type Booking, type ChartRange, type Overview, type ViewName } from '../store';
+import {
+  fmtDate, fmtDay, fmtRating, fmtTime, formatVND, moneyShort, weekdayShort,
+} from '../lib/utils';
+import { DonutChart, LineChart } from '../components/Charts';
 import { WalkInDialog } from '../components/WalkInDialog';
 import { ReviewPanel } from '../components/ReviewPanel';
 
@@ -57,6 +60,16 @@ const RANGES: { key: ChartRange; label: string }[] = [
   { key: 'month', label: 'Tháng này' },
 ];
 
+/* Màu biểu đồ tròn lấy đúng bảng màu của badge trạng thái đang dùng. */
+type Today = Overview['today'];
+const SLICES = (today: Today) => ([
+  { label: 'Chờ xác nhận', value: today.pending, color: '#C9922F' },
+  { label: 'Đã xác nhận', value: today.confirmed, color: '#765E8B' },
+  { label: 'Đang thực hiện', value: today.processing, color: '#D56B81' },
+  { label: 'Hoàn thành', value: today.completed, color: '#4E7D74' },
+  { label: 'Đã huỷ', value: today.cancelled + today.noShow, color: '#B6A3AB' },
+]);
+
 export function AdminDashboardPage() {
   const { state, dispatch, chartRange, setChartRange, reload } = useApp();
   const { overview, user, loading, feedback } = state;
@@ -82,7 +95,6 @@ export function AdminDashboardPage() {
   if (!overview) return <DashboardSkeleton />;
 
   const { today, pendingAll, revenue, todayBookings, staffToday, chart, topServices, todos } = overview;
-  const peak = Math.max(...chart.map((point) => point.revenue), 1);
 
   async function setStatus(booking: Booking, status: string) {
     setBusyId(booking.id);
@@ -129,7 +141,68 @@ export function AdminDashboardPage() {
           note={`${revenue.paidCount} giao dịch đã trả`} onClick={() => go('admin-payments')} />
       </div>
 
-      {/* Hàng 2 — lịch hẹn hôm nay + việc cần xử lý */}
+      {/* Hàng 2 — hai biểu đồ, đặt ngay dưới hàng KPI để có cái nhìn tổng
+          quan trước khi đọc tới từng dòng lịch. */}
+      <div className="adm-dash-row">
+        <Panel>
+          <SectionHeading
+            icon={<Icon name="dollar" />}
+            title="Doanh thu"
+            subtitle="Tính trên lịch đã hoàn thành"
+          >
+            <div className="mode-tabs">
+              {RANGES.map((item) => (
+                <button key={item.key} className={chartRange === item.key ? 'active' : ''}
+                  onClick={() => setChartRange(item.key)}>{item.label}</button>
+              ))}
+            </div>
+          </SectionHeading>
+          <div className="adm-chart-wrap">
+            {chart.every((point) => point.revenue === 0) ? (
+              <EmptyState title="Chưa có giao dịch trong khoảng này"
+                detail="Biểu đồ sẽ có dữ liệu khi phát sinh doanh thu." />
+            ) : (
+              <>
+                {/* Đường có trục tung tính theo triệu; rê chuột hiện số tiền */}
+                <LineChart
+                  unit="tr"
+                  data={chart.map((point) => ({
+                    label: chart.length <= 10
+                      ? weekdayShort(point.day)
+                      : fmtDay(point.day).slice(0, 5),
+                    value: point.revenue,
+                    hint: `${fmtDate(point.day)} · ${point.bookings} lịch`,
+                  }))}
+                />
+                <p className="adm-chart-foot">
+                  Tổng {formatVND(chart.reduce((sum, point) => sum + point.revenue, 0))}
+                </p>
+              </>
+            )}
+          </div>
+        </Panel>
+
+        <Panel>
+          <SectionHeading icon={<Icon name="check" />} title="Trạng thái lịch hẹn" subtitle="Trong hôm nay" />
+          <div className="adm-tools" style={{ paddingBottom: 16 }}>
+            <div className="adm-donut-row">
+              <DonutChart slices={SLICES(today)} />
+              <div className="adm-donut-legend">
+                {SLICES(today).map((row) => (
+                  <div key={row.label}>
+                    <i style={{ background: row.color }} />
+                    <span>{row.label}</span>
+                    <b>{row.value}</b>
+                    <small>{today.total > 0 ? `${Math.round((row.value / today.total) * 100)}%` : '0%'}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      {/* Hàng 3 — lịch hẹn hôm nay + việc cần xử lý */}
       <div className="adm-dash-row">
         <Panel>
           <SectionHeading
@@ -233,7 +306,7 @@ export function AdminDashboardPage() {
         </Panel>
       </div>
 
-      {/* Hàng 3 — nhân viên hôm nay + cơ cấu trạng thái */}
+      {/* Hàng 4 — nhân viên hôm nay + dịch vụ phổ biến */}
       <div className="adm-dash-row">
         <Panel>
           <SectionHeading
@@ -267,73 +340,6 @@ export function AdminDashboardPage() {
               })}
             </div>
           )}
-        </Panel>
-
-        <Panel>
-          <SectionHeading icon={<Icon name="check" />} title="Trạng thái lịch hẹn" subtitle="Trong hôm nay" />
-          <div className="adm-bars">
-            {([
-              { label: 'Chờ xác nhận', tone: 'pending', value: today.pending },
-              { label: 'Đã xác nhận', tone: 'confirmed', value: today.confirmed },
-              { label: 'Đang thực hiện', tone: 'processing', value: today.processing },
-              { label: 'Hoàn thành', tone: 'completed', value: today.completed },
-              { label: 'Đã huỷ', tone: 'cancelled', value: today.cancelled + today.noShow },
-            ]).map((row) => {
-              const max = Math.max(today.total, 1);
-              return (
-                <div key={row.label} className="adm-bar-row"
-                  style={{ gridTemplateColumns: '96px minmax(0,1fr) 30px' }}>
-                  <span className="adm-bar-name">{row.label}</span>
-                  <span className="adm-bar-track">
-                    <span className={`adm-bar-fill is-${row.tone}`}
-                      style={{ width: `${(row.value / max) * 100}%` }} />
-                  </span>
-                  <span className="adm-bar-value">{row.value}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-      </div>
-
-      {/* Hàng 4 — doanh thu + dịch vụ phổ biến */}
-      <div className="adm-dash-row">
-        <Panel>
-          <SectionHeading
-            icon={<Icon name="dollar" />}
-            title="Doanh thu"
-            subtitle="Tính trên lịch đã hoàn thành"
-          >
-            <div className="mode-tabs">
-              {RANGES.map((item) => (
-                <button key={item.key} className={chartRange === item.key ? 'active' : ''}
-                  onClick={() => setChartRange(item.key)}>{item.label}</button>
-              ))}
-            </div>
-          </SectionHeading>
-          <div className="adm-chart-wrap">
-            {chart.every((point) => point.revenue === 0) ? (
-              <EmptyState title="Chưa có giao dịch trong khoảng này"
-                detail="Biểu đồ sẽ có dữ liệu khi phát sinh doanh thu." />
-            ) : (
-              <>
-                <div className="adm-chart" style={{ height: 150 }}>
-                  {chart.map((point, index) => (
-                    <div key={point.day} className="adm-chart-col"
-                      title={`${fmtDate(point.day)}: ${point.bookings} lịch · ${formatVND(point.revenue)}`}>
-                      <div className="adm-chart-bar"
-                        style={{ height: `${Math.max(3, (point.revenue / peak) * 110)}px` }} />
-                      {chart.length <= 10 || index % Math.ceil(chart.length / 7) === 0
-                        ? <small>{weekdayShort(point.day)}</small> : <small />}
-                    </div>
-                  ))}
-                </div>
-                <p className="adm-chart-foot">
-                  Tổng {formatVND(chart.reduce((sum, point) => sum + point.revenue, 0))}
-                </p>
-              </>
-            )}
-          </div>
         </Panel>
 
         <Panel>
