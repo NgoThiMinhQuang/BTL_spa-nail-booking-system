@@ -20,7 +20,9 @@
 @import './admin.css';
 /* 7. Trang Quản lý lịch hẹn: bảng lịch, bộ lọc, chế độ xem lịch, hộp thoại xử lý */
 @import './bookings.css';
-/* 8. Màn đăng nhập quản trị */
+/* 8. Trang Chi tiết lịch hẹn: hai cột, dòng thời gian, luồng trạng thái */
+@import './booking-detail.css';
+/* 9. Màn đăng nhập quản trị */
 @import './login.css';
-/* 9. Tương phản WCAG AA — đặt sau tất cả để ghi đè màu chữ khi cần */
+/* 10. Tương phản WCAG AA — đặt sau tất cả để ghi đè màu chữ khi cần */
 @import './a11y-fixes.css';

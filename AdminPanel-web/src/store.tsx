@@ -23,6 +23,19 @@ export type ViewName =
 
 export type ChartRange = '7' | '30' | 'month';
 
+/* ---- Đường dẫn của trang chi tiết lịch hẹn ----
+   Dự án không dùng thư viện định tuyến nên điều hướng bằng hash: URL có dạng
+   #/bookings/125, copy lại là mở đúng lịch đó, và nút Back của trình duyệt
+   hoạt động như bình thường. */
+
+export const bookingHash = (id: string) => `#/bookings/${id}`;
+
+/** Đọc mã lịch từ hash, trả về null nếu không ở trang chi tiết. */
+export function bookingIdFromHash(hash: string): string | null {
+  const match = /^#\/bookings\/(\d+)/.exec(hash);
+  return match ? match[1] : null;
+}
+
 /** Khoá riêng của khu vực quản trị, KHÔNG dùng chung với app nhân viên. */
 const STORAGE_KEY = 'nailhouse_admin_user';
 
@@ -185,6 +198,8 @@ export interface AdminState {
   user: AuthUser | null;
   role: Role;
   view: ViewName;
+  /** Mã lịch đang mở trang chi tiết; null nghĩa là đang ở trang danh sách. */
+  bookingDetailId: string | null;
   loading: boolean;
   feedback: string;
   overview: Overview | null;
@@ -216,11 +231,15 @@ function getStoredUser(): AuthUser | null {
 }
 
 const initialUser = getStoredUser();
+const initialBookingId = bookingIdFromHash(window.location.hash);
 
 export const initialState: AdminState = {
   user: initialUser,
   role: 'admin',
-  view: 'admin-dashboard',
+  /* Mở thẳng một URL dạng #/bookings/125 thì phải đứng ở mục Lịch hẹn ngay từ
+     đầu, không phải Tổng quan — nếu không sidebar và breadcrumb sẽ chỉ sai. */
+  bookingDetailId: initialBookingId,
+  view: initialBookingId ? 'admin-bookings' : 'admin-dashboard',
   loading: false,
   feedback: '',
   overview: null,
@@ -249,6 +268,7 @@ export type Action =
   | { type: 'login'; user: AuthUser }
   | { type: 'logout' }
   | { type: 'view'; view: ViewName }
+  | { type: 'bookingDetail'; id: string | null }
   | { type: 'loadStart' }
   | { type: 'loadError'; message: string }
   | { type: 'loaded'; payload: Partial<AdminState> }
@@ -270,7 +290,17 @@ export function reducer(state: AdminState, action: Action): AdminState {
       return { ...initialState };
 
     case 'view':
-      return { ...state, view: action.view };
+      /* Chuyển sang trang khác thì đóng trang chi tiết lịch hẹn. */
+      return { ...state, view: action.view, bookingDetailId: null };
+
+    case 'bookingDetail':
+      return {
+        ...state,
+        bookingDetailId: action.id,
+        /* Mở chi tiết thì chuyển sang trang lịch hẹn để sidebar và breadcrumb
+           khớp với nơi đang xem. */
+        view: action.id ? 'admin-bookings' : state.view,
+      };
 
     case 'bookingQuery':
       return { ...state, bookingQuery: { ...state.bookingQuery, ...action.patch } };
@@ -304,6 +334,9 @@ interface AppContextValue {
   setChartRange: (value: ChartRange) => void;
   /** Đổi bộ lọc lịch hẹn; chỉ tải lại danh sách lịch và số đếm. */
   setBookingQuery: (patch: Partial<BookingQuery>) => void;
+  /** Mở / đóng trang chi tiết một lịch hẹn; đồng bộ với hash của trình duyệt. */
+  openBookingDetail: (id: string) => void;
+  closeBookingDetail: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -435,6 +468,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'bookingQuery', patch });
   }, []);
 
+  /* Đồng bộ hai chiều giữa hash và trạng thái: bấm vào lịch thì hash đổi,
+     người dùng bấm nút Back hoặc dán URL thì trang mở đúng lịch đó. */
+  const openBookingDetail = useCallback((id: string) => {
+    window.location.hash = bookingHash(id);
+  }, []);
+
+  const closeBookingDetail = useCallback(() => {
+    window.location.hash = '#/bookings';
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      const id = bookingIdFromHash(window.location.hash);
+      dispatch({ type: 'bookingDetail', id });
+    };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+
   const value = useMemo<AppContextValue>(() => ({
     state,
     dispatch,
@@ -445,7 +497,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     chartRange,
     setChartRange,
     setBookingQuery,
-  }), [state, reload, anchorDate, chartRange, setBookingQuery]);
+    openBookingDetail,
+    closeBookingDetail,
+  }), [state, reload, anchorDate, chartRange, setBookingQuery, openBookingDetail, closeBookingDetail]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

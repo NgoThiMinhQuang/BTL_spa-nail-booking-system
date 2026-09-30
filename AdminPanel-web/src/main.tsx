@@ -13,6 +13,7 @@ import { AppProvider, useApp } from './store';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './LoginPage';
 import { AdminBookingsPage } from './pages/AdminBookingsPage';
+import { AdminBookingDetailPage } from './pages/AdminBookingDetailPage';
 import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
@@ -27,13 +28,16 @@ import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
 
 function Routes() {
   const { state } = useApp();
-  const { view } = state;
+  const { view, bookingDetailId } = state;
 
   /* Màn đăng nhập nằm ngoài khung ứng dụng nên không cần bọc #nailhouse. */
   if (!state.user) return <LoginPage />;
 
   let page: React.ReactNode;
-  if (view === 'admin-bookings') page = <AdminBookingsPage />;
+  /* Trang chi tiết đè lên trang danh sách khi đang mở một lịch, nhờ vậy quay
+     lại chỉ cần bỏ mã lịch khỏi URL. */
+  if (bookingDetailId) page = <AdminBookingDetailPage />;
+  else if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-services') page = <AdminServicesPage />;
   else if (view === 'admin-categories') page = <AdminCategoriesPage />;
@@ -46,12 +50,24 @@ function Routes() {
   else if (view === 'admin-settings') page = <AdminSettingsPage />;
   else page = <AdminDashboardPage />;
 
-  /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị. */
+  /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị.
+     Mở chi tiết lịch hẹn thì breadcrumb kéo dài thêm một bậc. */
   const breadcrumb = view === 'admin-dashboard'
     ? ['Trang chủ', 'Tổng quan']
-    : undefined;
+    : bookingDetailId
+      ? ['Trang chủ', 'Lịch hẹn', 'Chi tiết']
+      : undefined;
 
-  return <div id="nailhouse"><AdminLayout breadcrumb={breadcrumb}>{page}</AdminLayout></div>;
+  return (
+    <div id="nailhouse">
+      <AdminLayout
+        breadcrumb={breadcrumb}
+        hideHeading={Boolean(bookingDetailId)}
+      >
+        {page}
+      </AdminLayout>
+    </div>
+  );
 }
 
 createRoot(document.getElementById('root')!).render(

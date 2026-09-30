@@ -12,6 +12,7 @@ import {
 } from '../controllers/admin.controller.js';
 import {
   addAddon,
+  addImage,
   bookingCounts,
   createBooking,
   getAvailableStaff,
@@ -21,6 +22,7 @@ import {
   patchBooking,
   postAvailability,
   removeAddon,
+  removeImage,
 } from '../controllers/booking-admin.controller.js';
 
 const router = Router();
@@ -47,5 +49,7 @@ router.get('/bookings/:id', getBooking);
 router.patch('/bookings/:id', patchBooking);
 router.post('/bookings/:id/addons', addAddon);
 router.delete('/bookings/:id/addons/:addonId', removeAddon);
+router.post('/bookings/:id/images', addImage);
+router.delete('/bookings/:id/images/:imageId', removeImage);
 
 export default router;

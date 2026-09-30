@@ -74,12 +74,14 @@ const TITLES: Record<ViewName, [string, string]> = {
 };
 
 export function AdminLayout({
-  children, actions, breadcrumb,
+  children, actions, breadcrumb, hideHeading,
 }: {
   children: ReactNode;
   actions?: ReactNode;
   /** Ghi đè breadcrumb khi trang con có đường dẫn riêng. */
   breadcrumb?: string[];
+  /** Trang con tự có tiêu đề riêng thì ẩn tiêu đề chung để không hiện hai lần. */
+  hideHeading?: boolean;
 }) {
   const { state, dispatch, activeNav, reload } = useApp();
   const { goView } = useNavigation();
@@ -190,12 +192,16 @@ export function AdminLayout({
         </header>
 
         <main>
+          {/* Trang con có tiêu đề riêng thì chỉ giữ nút làm mới dữ liệu, tránh
+              hai khối tiêu đề cạnh nhau. */}
           <div className="page-heading">
-            <div>
-              <p className="eyebrow">MỖI NGÀY, MỘT CHÚT CHĂM CHÚT</p>
-              <h1 id="page-title">{title}</h1>
-              <p className="subtitle" id="page-subtitle">{subtitle}</p>
-            </div>
+            {hideHeading ? <span /> : (
+              <div>
+                <p className="eyebrow">MỖI NGÀY, MỘT CHÚT CHĂM CHÚT</p>
+                <h1 id="page-title">{title}</h1>
+                <p className="subtitle" id="page-subtitle">{subtitle}</p>
+              </div>
+            )}
             <div className="page-heading-actions">
               {actions}
               <button id="refresh" aria-label="Làm mới dữ liệu"

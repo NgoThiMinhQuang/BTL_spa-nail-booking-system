@@ -19,7 +19,6 @@ import {
   RescheduleDialog, sendBookingRequest,
 } from '../components/BookingDialogs';
 import { BookingCalendar } from '../components/BookingCalendar';
-import { BookingDetail } from '../components/BookingDetail';
 import { WalkInDialog } from '../components/WalkInDialog';
 import { useApp, type Booking, type BookingScope } from '../store';
 import { fmtDate, fmtTime, formatVND } from '../lib/utils';
@@ -86,7 +85,7 @@ const MENU_BY_STATUS: Record<string, { key: string; label: string; icon: IconNam
 const PAGE_SIZE = 20;
 
 export function AdminBookingsPage() {
-  const { state, dispatch, reload, setBookingQuery } = useApp();
+  const { state, dispatch, reload, setBookingQuery, openBookingDetail } = useApp();
   const {
     bookings, bookingCounts, bookingQuery, staff, services, shifts, loading,
   } = state;
@@ -95,7 +94,6 @@ export function AdminBookingsPage() {
   const [page, setPage] = useState(1);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ kind: string; booking: Booking } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [walkIn, setWalkIn] = useState(false);
   const [flash, setFlash] = useState('');
 
@@ -341,7 +339,7 @@ export function AdminBookingsPage() {
                         return (
                           <tr key={booking.id} className={done ? 'is-done' : undefined}>
                             <td>
-                              <button className="adm-link" onClick={() => setDetailId(booking.id)}>
+                              <button className="adm-link" onClick={() => openBookingDetail(booking.id)}>
                                 {booking.code}
                               </button>
                               {booking.note && <small title={booking.note}><Icon name="tag" /></small>}
@@ -418,7 +416,7 @@ export function AdminBookingsPage() {
                                 </button>
                                 {openMenu === booking.id && (
                                   <span className="adm-row-menu" onClick={(e) => e.stopPropagation()}>
-                                    <button className="adm-link" onClick={() => setDetailId(booking.id)}>
+                                    <button className="adm-link" onClick={() => openBookingDetail(booking.id)}>
                                       Xem chi tiết
                                     </button>
                                     {menu.map((item) => (
@@ -487,15 +485,6 @@ export function AdminBookingsPage() {
       {dialog?.kind === 'noshow' && (
         <NoShowDialog booking={dialog.booking} onClose={() => setDialog(null)}
           onDone={() => { setDialog(null); reload(); }} />
-      )}
-
-      {detailId && (
-        <BookingDetail
-          bookingId={detailId}
-          services={services.map((item) => ({ id: item.id, name: item.name, price: item.price }))}
-          onClose={() => setDetailId(null)}
-          onChanged={reload}
-        />
       )}
 
       {walkIn && (
