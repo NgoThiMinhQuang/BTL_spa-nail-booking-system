@@ -19,7 +19,17 @@
 @import './booking.css';
 /* 7. Khách hàng: thẻ số liệu, bảng, drawer, hộp thoại, thanh phân trang */
 @import './customers.css';
+/* 7b. Dịch vụ: lưới thẻ, bộ lọc cột phải, hộp thoại thêm/sửa */
+@import './services.css';
+/* 7c. Thẻ trang trí dùng chung cho cột phải (trích dẫn + trợ giúp) */
+@import './cards.css';
+/* 7d. Cá nhân: thẻ tiêu đề, số liệu, khối thông tin */
+@import './profile.css';
 /* 8. Bổ sung cho bản React */
 @import './react-fixes.css';
+/* 8b. Lưới lịch tuần / lịch ngày dạng dải thời gian */
+@import './calendar-grid.css';
 /* 9. Màu chung — phải cuối cùng */
 @import './theme.css';
+/* 10. Tương phản WCAG AA — nạp sau tất cả để ghi đè được mọi bảng màu cũ */
+@import './a11y-fixes.css';

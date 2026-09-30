@@ -7,6 +7,7 @@ import bookingRoutes from './routes/booking.routes.js';
 import customerRoutes from './routes/customer.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import serviceRoutes from './routes/service.routes.js';
+import staffServiceRoutes from './routes/staff-service.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import { staffDashboard } from './controllers/staff-dashboard.controller.js';
 
@@ -32,6 +33,8 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhou
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/staff/customers', customerRoutes);
+/* Đăng ký trước `/api/staff` để không bị router('/:id') của staff bắt mất. */
+app.use('/api/staff/services', staffServiceRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/bookings', bookingRoutes);
 

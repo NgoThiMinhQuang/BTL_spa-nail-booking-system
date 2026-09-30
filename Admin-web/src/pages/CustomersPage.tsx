@@ -49,27 +49,18 @@ export function CustomersPage() {
 
   return (
     <>
+      {/* Thẻ số liệu chỉ để đọc, không bấm. Lọc nhóm vẫn dùng select bên dưới. */}
       <div className="cust-stats">
-        {cards.map((card) => {
-          const isActive = card.key === 'rating'
-            ? state.customerFilter === 'all' && state.customerSort === 'rating'
-            : state.customerFilter === card.key;
-          return (
-            <button
-              key={card.key}
-              className={`cust-stat cust-stat-${card.tone}${isActive ? ' is-active' : ''}`}
-              onClick={() => dispatch({ type: 'customerSegment', key: card.key })}
-              aria-pressed={isActive}
-            >
-              <span className="cust-stat-icon"><Icon name={card.symbol} /></span>
-              <div className="cust-stat-copy">
-                <p>{card.label}</p>
-                <strong>{card.value}</strong>
-                {card.stars ? <Stars rating={Number(stats.avgRating)} /> : <small>{card.note}</small>}
-              </div>
-            </button>
-          );
-        })}
+        {cards.map((card) => (
+          <div key={card.key} className={`cust-stat cust-stat-${card.tone}`}>
+            <span className="cust-stat-icon"><Icon name={card.symbol} /></span>
+            <div className="cust-stat-copy">
+              <p>{card.label}</p>
+              <strong>{card.value}</strong>
+              {card.stars ? <Stars rating={Number(stats.avgRating)} /> : <small>{card.note}</small>}
+            </div>
+          </div>
+        ))}
       </div>
 
       <section className="panel cust-list">

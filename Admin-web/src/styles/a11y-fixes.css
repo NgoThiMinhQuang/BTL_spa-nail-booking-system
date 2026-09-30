@@ -1,0 +1,123 @@
+/* NailHouse — chỉnh tương phản màu theo WCAG AA. File này nạp SAU CÙNG nên
+   thắng mọi bảng màu cũ khi specificity bằng nhau.
+
+   Vấn đề gốc: các bảng màu vanilla (home.css, schedule.css) còn nhiều màu chữ
+   nhạt hơn ngưỡng 4.5:1. Ở đây chỉ ghi đè MÀU, không đổi bố cục hay kích thước.
+
+   Ngưỡng WCAG AA: chữ nhỏ (<18px) cần 4.5:1 so với nền ngay sau nó.
+   | màu cũ      | trên nền     | đạt   | thay bằng   | đạt   |
+   |-------------|--------------|-------|-------------|-------|
+   | #D56B81     | #FFFFFF      | 3.36  | #B93E62     | 5.35  |
+   | #8A7B80     | #FFFFFF      | 4.02  | #6E5F66     | 6.01  |
+   | #806F78     | #FFF0F3      | 4.26  | #6E5F66     | 5.44  |
+   | #4E7D74     | #E8F3EF      | 4.10  | #3A6B62     | 5.35  |
+   | #9B6D1D     | #FFF1D5      | 4.09  | #8A5D0E     | 5.15  |
+   | #777182     | #F4F3F6      | 4.25  | #5F5A6B     | 6.01  | */
+
+/* ---- 0. Biến màu ----
+   --nh-primary giữ nguyên #D56B81 vì nó còn dùng cho viền, chấm tròn, thanh tiến
+   trình — những chỗ không có chữ. Mọi chữ trên nền hồng dùng --nh-primary-dark. */
+:root{
+  --nh-sage:#3A6B62;   /* 4E7D74 -> 4.10:1 trên #E8F3EF */
+  --nh-gold:#8A5D0E;   /* 9B6D1D -> 4.09:1 trên #FFF1D5 */
+}
+
+/* ---- 1. Nền hồng có chữ trắng ---- */
+#nailhouse .button,
+#nailhouse .today-button,
+#nailhouse .call-button,
+#nailhouse .home-agenda .section-heading > .home-link,
+#nailhouse .pager-num.active,
+#nailhouse .home-calendar-grid button.selected-date,
+#nailhouse .month-day.today > strong,
+#nailhouse .schedule-page .button,
+#nailhouse .schedule-aside .button,
+#nailhouse .booking-detail-drawer .button{background:var(--nh-primary-dark);border-color:var(--nh-primary-dark)}
+
+/* Nút phụ dùng nền hồng đậm hơn (schedule.css) */
+#nailhouse .schedule-toolbar .today-button,
+#nailhouse .schedule-aside .home-calendar-grid button.selected-date{background:var(--nh-primary-dark);border-color:var(--nh-primary-dark)}
+
+/* Các huy hiệu tròn có ký tự trắng bên trong */
+#nailhouse .service-progress h3::before,
+#nailhouse .schedule-tip > span{background:var(--nh-primary-dark)}
+
+/* ---- 2. Chữ phụ trên nền trắng / nền thẻ ----
+   theme.css dùng #8A7B80 cho các nhóm dưới; khai lại đúng selector để thắng. */
+#nailhouse .metric-note,
+#nailhouse .metric-copy strong small,
+#nailhouse .stats small{color:#6E5F66}
+#nailhouse .attention-row small,
+#nailhouse .attention-clear p,
+#nailhouse .home-progress p,
+#nailhouse .home-progress > small,
+#nailhouse .home-agenda-foot,
+#nailhouse .home-calendar .calendar-caption{color:#6E5F66}
+#nailhouse .empty p{color:#6E5F66}
+#nailhouse .empty-icon{color:var(--nh-primary-dark)}
+
+/* ---- 3. Chữ phụ trong bảng lịch ---- */
+#nailhouse .schedule-person a,
+#nailhouse .schedule-service,
+#nailhouse .duration,
+#nailhouse dt{color:#6E5F66}
+#nailhouse .schedule-date{color:#6E5F66}
+#nailhouse .period-caption{color:#6E5F66}
+#nailhouse .schedule-list-footer,
+#nailhouse .schedule-list-footer span,
+#nailhouse .schedule-list-footer b{color:#6E5F66}
+
+/* ---- 4. Các thẻ chú thích ---- */
+#nailhouse .workday-reminder,
+#nailhouse .workday-reminder p{color:#6B4A55}
+#nailhouse .schedule-tip{color:#7A3B4E}
+#nailhouse .home-welcome p,
+#nailhouse .welcome-date,
+#nailhouse .home-kicker{color:#6B4A55}
+#nailhouse .welcome-photo > span{color:#6B4A55}
+#nailhouse .home-shift small,
+#nailhouse .home-shift .shift-message,
+#nailhouse .home-shift .shift-summary span{color:#4F6B66}
+
+/* ---- 5. Nhãn cột trong lịch nhỏ ---- */
+#nailhouse .home-calendar-grid .weekday,
+#nailhouse .schedule-aside .home-calendar-grid .weekday{color:#6E5F66}
+
+/* Nút chuyển chế độ xem: chữ #777182 chỉ đạt 4.25:1 trên nền #F4F3F6 */
+#nailhouse .mode-tabs button,
+#nailhouse .mode-tabs button:hover{color:#5F5A6B}
+
+/* Danh sách "sắp tới": dòng phụ #9A8696 chỉ đạt 3.37:1 trên nền trắng */
+#nailhouse .upcoming-row,
+#nailhouse .upcoming-row b,
+#nailhouse .upcoming-row span,
+#nailhouse .upcoming-row small{color:#6E5F66}
+#nailhouse .upcoming-row strong{color:var(--nh-ink)}
+
+/* ---- 6. Ô lịch tháng ---- */
+#nailhouse .month-weekdays span{color:#6E5F66}
+#nailhouse .month-day > strong{color:#6B4A55}
+#nailhouse .month-day > small{color:#6E5F66}
+
+/* ---- 7. Lịch tuần ---- */
+#nailhouse .agenda-date,
+#nailhouse .agenda-date span,
+#nailhouse .agenda-date small{color:#6B4A55}
+#nailhouse .agenda-empty{color:#6E5F66}
+#nailhouse .agenda-booking,
+#nailhouse .agenda-booking span,
+#nailhouse .agenda-booking small{color:#4A3660}
+#nailhouse .agenda-booking.completed{color:#3D5A36}
+#nailhouse .agenda-booking.processing{color:#6E5210}
+
+/* ---- 8. Thẻ chi tiết lịch hẹn (schedule.css dùng màu riêng) ---- */
+#nailhouse .booking-person > div > a{color:#6E5F66}
+#nailhouse .booking-info dt{color:#6E5F66}
+#nailhouse .booking-info dd small{color:#6E5F66}
+#nailhouse .service-progress .progress small{color:#6E5F66}
+#nailhouse .service-progress .progress .done small{color:#356158}
+
+/* ---- 9. Chuyển động ---- */
+@media (prefers-reduced-motion: reduce) {
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}

@@ -14,6 +14,14 @@ const PATHS = {
   email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
   address: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   birthday: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M8 3v4m8-4v4m-6 5h4"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
+  tag: '<path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9Z"/><circle cx="7.5" cy="7.5" r="1.4"/>',
+  check: '<path d="m5 12 4 4 10-10"/>',
+  pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6m4-6v6"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+  bell: '<path d="M18 15V10a6 6 0 1 0-12 0v5l-2 3h16Z"/><path d="M10 21h4"/>',
+  edit: '<path d="M4 20h4L20 8l-4-4L4 16Z"/><path d="m14 6 4 4"/>',
+  trash: '<path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13"/>',
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,6 +1,10 @@
 /* Home — bố cục gọn 2 cột, thang chữ đồng bộ trang chi tiết lịch hẹn.
-   Base 14px / 1.5 · H2 16px · body 14px · muted 12–13px. File này nạp cuối nên thắng các lớp cũ. */
-#nailhouse.staff-home { font-size:14px; line-height:1.5; }
+   Base 14px · H2 16px · body 14px · muted 12–13px. File này nạp cuối nên thắng các lớp cũ.
+
+   KHÔNG đặt line-height ở đây: #nailhouse chính là <body>, nên line-height sẽ rò
+   vào cả khung chung (logo, menu, topbar) và làm chúng khác 4 trang còn lại.
+   Các khối của trang chủ đã tự khai line-height riêng ở dưới. */
+#nailhouse.staff-home { font-size:14px; }
 #nailhouse.staff-home .page-heading { margin-bottom:16px; gap:12px; align-items:center; }
 #nailhouse.staff-home .page-heading h1 { font-size:24px; font-weight:600; line-height:1.35; letter-spacing:-.3px; margin:0 0 4px; }
 #nailhouse.staff-home .subtitle { font-size:13px; line-height:1.5; }

@@ -19,7 +19,7 @@ const TITLES: Record<string, string> = {
   home: 'Trang chủ nhân viên',
   schedule: 'Lịch làm việc',
   customers: 'Khách hàng của tôi',
-  services: 'Dịch vụ của tôi',
+  services: 'Dịch vụ',
   profile: 'Hồ sơ cá nhân',
   booking: 'Chi tiết lịch hẹn',
 };
@@ -35,6 +35,15 @@ export function Layout({
 
   useEffect(() => {
     history.replaceState(null, '', state.view === 'schedule' || state.view === 'booking' ? '#schedule' : location.pathname);
+  }, [state.view]);
+
+  /* Đổi trang thì đưa con trỏ về đầu. Nếu giữ nguyên vị trí cuộn cũ, trang mới mở
+     ở giữa nội dung nên nhìn như bị nhảy. Chỉ áp dụng khi thật sự đổi trang —
+     đổi ngày hay bộ lọc trong cùng trang thì giữ nguyên chỗ đang xem. */
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
   }, [state.view]);
 
   /* home.css và home-layout.css viết toàn bộ style trang chủ dưới phạm vi
@@ -54,9 +63,13 @@ export function Layout({
       ? 'Quản lý lịch hẹn của bạn, chăm sóc khách hàng thật chu đáo mỗi ngày.'
       : state.view === 'customers'
         ? 'Quản lý thông tin khách hàng đã đặt lịch với bạn.'
-        : state.view === 'booking'
-          ? 'Thông tin chi tiết và trạng thái lịch hẹn'
-          : DEFAULT_SUBTITLE;
+        : state.view === 'services'
+          ? 'Danh sách dịch vụ tại NailHouse — giá, thời lượng và trạng thái.'
+          : state.view === 'profile'
+            ? 'Hồ sơ, chuyên môn và ca làm việc của bạn tại NailHouse.'
+            : state.view === 'booking'
+              ? 'Thông tin chi tiết và trạng thái lịch hẹn'
+              : DEFAULT_SUBTITLE;
 
   const onGlobalSearch = (event: React.FormEvent) => {
     event.preventDefault();

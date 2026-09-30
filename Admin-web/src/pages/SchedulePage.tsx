@@ -2,23 +2,22 @@
 
 import { useMemo } from 'react';
 import { Avatar } from '../components/Avatar';
-import { Badge, EmptyState } from '../components/Primitives';
-import { BookingTable } from '../components/BookingTable';
+import { DayTimeline } from '../components/DayTimeline';
+import { WeekGrid } from '../components/WeekGrid';
 import { Icon } from '../components/Icon';
 import { MiniCalendar } from '../components/MiniCalendar';
-import { PageBar } from '../components/PageBar';
 import { useApp, type CalendarMode } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
-import { usePager } from '../hooks/usePager';
-import { longDate, localDate, money, STATUS_LABELS, STATUS_ORDER } from '../lib/utils';
+import { longDate, localDate, STATUS_LABELS, STATUS_ORDER } from '../lib/utils';
 import type { Booking, BookingStatus } from '../types';
 
 const MODE_TABS: [CalendarMode, string][] = [['day', 'Ngày'], ['week', 'Tuần'], ['month', 'Tháng']];
 
-const STAT_CARDS: [string, BookingStatus | '', string, 'schedule' | 'done' | 'play'][] = [
+const STAT_CARDS: [string, BookingStatus | '', string, 'schedule' | 'done' | 'play' | 'clock'][] = [
   ['Tổng lịch', '', 'rose-bg', 'schedule'],
   ['Đã xác nhận', 'CONFIRMED', 'neutral-bg', 'done'],
   ['Đang thực hiện', 'PROCESSING', 'ochre-bg', 'play'],
+  ['Đã hoàn thành', 'COMPLETED', 'green-bg', 'clock'],
 ];
 
 export function SchedulePage() {
@@ -42,6 +41,17 @@ export function SchedulePage() {
     .slice(0, 3);
 
   const periodCaption = usePeriodCaption();
+
+  /* Bảy ngày của tuần chứa state.date, luôn bắt đầu từ thứ Hai. */
+  const weekDates = useMemo(() => {
+    const anchor = new Date(`${state.date}T12:00:00`);
+    anchor.setDate(anchor.getDate() - (anchor.getDay() + 6) % 7);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(anchor);
+      d.setDate(d.getDate() + i);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
+  }, [state.date]);
 
   return (
     <div className="schedule-workspace">
@@ -92,18 +102,25 @@ export function SchedulePage() {
               return (
                 <article key={label}>
                   <span className={`stat-icon ${color}`}><Icon name={symbol} /></span>
-                  <div>
+                  <div className="stat-body">
                     <p>{index === 0 ? `${label} ${period}` : label}</p>
-                    <strong>{count}</strong>
-                    <small>
-                      {index === 0
-                        ? 'lịch hẹn'
-                        : `${all.length ? Math.round((count / all.length) * 100) : 0}% tổng lịch`}
-                    </small>
+                    <div className="stat-line">
+                      <strong>{count}</strong>
+                      <small>
+                        {index === 0
+                          ? 'lịch hẹn'
+                          : `${all.length ? Math.round((count / all.length) * 100) : 0}% tổng lịch`}
+                      </small>
+                    </div>
                   </div>
                 </article>
               );
             })}
+          </div>
+
+          <div className="workday-reminder">
+            <Icon name="flower" />
+            <p>Chuẩn bị đầy đủ dụng cụ và kiểm tra ghi chú trước mỗi cuộc hẹn.</p>
           </div>
 
           <section className="panel schedule-list">
@@ -125,30 +142,30 @@ export function SchedulePage() {
             </div>
 
             {state.calendarMode === 'day' && (
-              <BookingTable
+              <DayTimeline
                 rows={rows}
+                shifts={state.data!.shifts}
+                date={state.date}
                 selected={state.selected}
-                pagerKey="schedule-day"
-                size={10}
-                detailed
-                hasFilter={Boolean(state.query || state.status)}
                 onOpen={openBooking}
               />
             )}
-            {state.calendarMode === 'week' && <WeekAgenda rows={rows} onOpen={openBooking} />}
+            {state.calendarMode === 'week' && (
+              <WeekGrid
+                rows={rows}
+                shifts={state.data!.shifts}
+                dates={weekDates}
+                selected={state.selected}
+                onOpen={openBooking}
+                onPickDate={(date) => dispatch({ type: 'date', date })}
+              />
+            )}
             {state.calendarMode === 'month' && <MonthGrid rows={rows} />}
 
             <div className="schedule-list-footer">
               <span><i /> Lịch hẹn hiển thị theo giờ bắt đầu</span>
             </div>
           </section>
-
-          <SelectedDetail rows={rows} onOpen={openBooking} />
-
-          <div className="workday-reminder">
-            <Icon name="flower" />
-            <p>Chuẩn bị đầy đủ dụng cụ và kiểm tra ghi chú trước mỗi cuộc hẹn.</p>
-          </div>
         </div>
 
         <div className="schedule-aside">
@@ -201,55 +218,6 @@ function usePeriodCaption() {
   const first = dates[0].split('-').reverse().join('/');
   const last = dates[dates.length - 1].split('-').reverse().join('/');
   return `${first} – ${last}`;
-}
-
-/* ===== Chế độ tuần: mỗi trang 2 ngày ===== */
-
-function WeekAgenda({ rows, onOpen }: { rows: Booking[]; onOpen: (id: string) => void }) {
-  const { state, dispatch } = useApp();
-  const dates = useMemo(() => {
-    const anchor = new Date(`${state.date}T12:00:00`);
-    anchor.setDate(anchor.getDate() - (anchor.getDay() + 6) % 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(anchor);
-      d.setDate(d.getDate() + i);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    });
-  }, [state.date]);
-
-  const info = usePager('schedule-week', dates, 2);
-  return (
-    <>
-      <div className="week-agenda">
-        {info.rows.map((date) => {
-          const dayRows = rows.filter((b) => b.startsAt.startsWith(date));
-          return (
-            <section key={date} className="agenda-day">
-              <button className="agenda-date" onClick={() => dispatch({ type: 'date', date })}>
-                <span>{new Date(`${date}T12:00:00`).toLocaleDateString('vi-VN', { weekday: 'short' })}</span>
-                <strong>{date.slice(8)}</strong>
-                <small>{dayRows.length} lịch hẹn</small>
-              </button>
-              <div className="agenda-items">
-                {dayRows.length ? dayRows.map((b) => (
-                  <button
-                    key={b.id}
-                    className={`agenda-booking ${b.status.toLowerCase()} ${String(b.id) === String(state.selected) ? 'chosen' : ''}`}
-                    onClick={() => onOpen(String(b.id))}
-                  >
-                    <strong>{b.startsAt.slice(11)} · {b.customerName}</strong>
-                    <span>{b.serviceName}</span>
-                    <small>{STATUS_LABELS[b.status]}</small>
-                  </button>
-                )) : <p className="agenda-empty">Chưa có lịch hẹn</p>}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-      <PageBar info={info} onChange={info.goTo} unit="ngày" />
-    </>
-  );
 }
 
 /* ===== Chế độ tháng: lưới 7 cột, không phân trang ===== */
@@ -346,86 +314,5 @@ function WorkdayCard() {
         </div>
       </details>
     </section>
-  );
-}
-
-/* ===== Chi tiết lịch hẹn đang chọn ===== */
-
-const NOTES: Record<string, string> = {
-  PENDING: 'Lịch hẹn đang chờ xác nhận từ cửa hàng.',
-  CONFIRMED: 'Lịch hẹn đã được xác nhận. Hãy kiểm tra ghi chú và chuẩn bị dụng cụ trước giờ hẹn.',
-  PROCESSING: 'Dịch vụ đang được thực hiện. Chúc bạn và khách hàng một trải nghiệm thật tốt.',
-  COMPLETED: 'Dịch vụ đã hoàn thành. Cảm ơn bạn đã chăm sóc khách hàng!',
-  CANCELLED: 'Lịch hẹn này đã được hủy.',
-  NO_SHOW: 'Khách hàng được ghi nhận không đến.',
-};
-
-const STEPS = ['Đã xác nhận', 'Đang thực hiện', 'Hoàn thành'];
-
-function SelectedDetail({ rows, onOpen }: { rows: Booking[]; onOpen: (id: string) => void }) {
-  const { state } = useApp();
-  const b = rows.find((item) => String(item.id) === String(state.selected));
-  const phase = b ? ['CONFIRMED', 'PROCESSING', 'COMPLETED'].indexOf(b.status) : -1;
-
-  return (
-    <details className="booking-detail-drawer" open={Boolean(b)}>
-      <summary>Chi tiết lịch hẹn đang chọn</summary>
-      <aside className="panel schedule-detail">
-        {!b ? (
-          <>
-            <div className="section-heading"><h2>Chi tiết lịch hẹn</h2></div>
-            <EmptyState title="Sẵn sàng đón khách" detail="Chọn lịch hẹn trong danh sách để xem thông tin chi tiết." />
-            <div className="schedule-tip">Chuẩn bị dụng cụ, kiểm tra lịch và dành một chút thời gian cho khách hàng tiếp theo.</div>
-          </>
-        ) : (
-          <>
-            <div className="section-heading">
-              <h2>Chi tiết lịch hẹn</h2>
-              <span className="booking-code">#LH{String(b.id).padStart(5, '0')}</span>
-            </div>
-            <div className="booking-info">
-              <div className="booking-person">
-                <Avatar name={b.customerName} url={b.avatar} large />
-                <div>
-                  <h3>{b.customerName}</h3>
-                  <a href={`tel:${b.phone}`}>{b.phone}</a>
-                </div>
-                <a className="contact-pill" href={`tel:${b.phone}`}>Liên hệ ↗</a>
-              </div>
-              <dl>
-                <div>
-                  <dt>◷ &nbsp; Thời gian</dt>
-                  <dd>
-                    {b.startsAt.slice(11)} – {b.endsAt.slice(11)}
-                    <small>{longDate(b.startsAt.slice(0, 10))}</small>
-                  </dd>
-                </div>
-                <div><dt>✂ &nbsp; Dịch vụ</dt><dd>{b.serviceName}</dd></div>
-                <div><dt>◷ &nbsp; Thời lượng</dt><dd>{b.duration} phút</dd></div>
-                <div><dt>₫ &nbsp; Giá dịch vụ</dt><dd>{money(b.price)}</dd></div>
-                <div><dt>≡ &nbsp; Ghi chú</dt><dd>{b.note || 'Khách hàng chưa có ghi chú.'}</dd></div>
-              </dl>
-            </div>
-            <div className="service-progress">
-              <h3>Trạng thái dịch vụ</h3>
-              {['CANCELLED', 'NO_SHOW', 'PENDING'].includes(b.status) ? (
-                <Badge status={b.status} />
-              ) : (
-                <div className="progress">
-                  {STEPS.map((label, i) => (
-                    <div key={label} className={i <= phase ? 'done' : ''}>
-                      <span>{i <= phase ? '✓' : i + 1}</span>
-                      <small>{label}</small>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="schedule-tip"><span>i</span><p>{NOTES[b.status]}</p></div>
-            <button className="button call-button" onClick={() => onOpen(String(b.id))}>Mở trang chi tiết ↗</button>
-          </>
-        )}
-      </aside>
-    </details>
   );
 }

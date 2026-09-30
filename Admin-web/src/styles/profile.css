@@ -1,0 +1,163 @@
+/* ==========================================================================
+   TRANG THÔNG TIN CÁ NHÂN
+   Cùng ngôn ngữ với trang Dịch vụ: chữ 10–13px, nhãn 600 tối đa, bo góc 12–13px.
+   Cột phải dánh (sticky) chứa thẻ trang trí dùng chung (.quote-card/.help-card).
+   ========================================================================== */
+
+.pro-layout{display:grid;grid-template-columns:minmax(0,1fr) 288px;gap:18px;align-items:start}
+.pro-main,.pro-aside{display:grid;gap:14px;min-width:0}
+.pro-aside{position:sticky;top:14px}
+
+/* ---- Thẻ tiêu đề: ảnh bìa + thông tin + đánh giá ---- */
+.pro-hero{overflow:hidden}
+.pro-hero-cover{position:relative;height:84px;background:linear-gradient(120deg,#FFF0F3 0%,#FBE4EC 45%,#F6D8E4 100%)}
+.pro-hero-cover:before{content:'';position:absolute;inset:0;
+  background:url('/uploads/nails/nail-collection-v2.png') right 30%/auto 150px no-repeat;opacity:.14}
+.pro-hero-cover>span{position:absolute;left:18px;bottom:-6px;color:#E7B9C6;opacity:.9}
+.pro-hero-cover svg{width:34px;height:34px}
+.pro-hero-body{display:flex;align-items:flex-end;gap:14px;padding:0 18px 16px}
+.pro-hero-body>.avatar{width:76px;height:76px;flex:0 0 76px;margin-top:-30px;border-width:3px;background:#F5E1E8;color:#AD677D}
+.pro-hero-copy{min-width:0;flex:1;padding-top:10px}
+.pro-hero-copy .eyebrow{font-size:9px;letter-spacing:1.4px;color:#8A7B80;margin:0 0 3px}
+.pro-hero-copy h2{font-size:22px;font-weight:700;line-height:1.25;color:var(--nh-ink);letter-spacing:-.4px}
+.pro-hero-scope{font-size:12.5px;color:var(--nh-muted);margin-top:3px}
+.pro-hero-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pro-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:9px;
+  background:#FCF8FA;border:1px solid #EEDFE5;font-size:11.5px;color:#59454F}
+.pro-chip svg{width:13px;height:13px;flex:0 0 13px;color:var(--nh-primary)}
+a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-primary-dark)}
+.pro-chip.is-plain{background:#F6FBF9;border-color:#DDECE7;color:var(--nh-sage)}
+.pro-chip.is-plain svg{color:var(--nh-sage)}
+
+/* Ô đánh giá đặt bên phải thẻ tiêu đề */
+.pro-hero-rate{flex:0 0 auto;min-width:140px;padding:11px 14px;border-radius:12px;
+  background:var(--nh-blush);text-align:right}
+/* Chưa có đánh giá: nền trung tính, không số lớn để khỏi gây hiểu nhầm */
+.pro-hero-rate.is-empty{background:#FAF7F9}
+.pro-rate-empty-title{margin:0;font-size:13px;font-weight:600;color:#8A7B80}
+.pro-rate-top{display:flex;align-items:baseline;justify-content:flex-end;gap:7px}
+.pro-rate-top strong{font-size:24px;font-weight:600;color:var(--nh-primary-dark);
+  line-height:1.15;font-variant-numeric:tabular-nums}
+.pro-rate-note{margin:4px 0 0;font-size:10.5px;line-height:1.5;color:#9A6B7C}
+.pro-hero-rate.is-empty .pro-rate-note{color:#9A8B93}
+.pro-rate-faces{list-style:none;display:flex;justify-content:flex-end;gap:4px;margin:8px 0 0;padding:0}
+.pro-rate-faces .avatar{width:24px;height:24px;border:2px solid #fff;font-size:10px}
+
+/* ---- Bốn thẻ số liệu ---- */
+.pro-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.pro-stat{display:flex;align-items:center;gap:12px;min-width:0;
+  padding:14px 16px;border:1px solid var(--nh-line);border-radius:12px;background:#fff}
+.pro-stat-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:11px}
+.pro-stat-icon svg{width:21px;height:21px}
+/* flex:1 để mép phải 4 thẻ đều nhau, khớp với .svc-stat-copy bên trang Dịch vụ */
+.pro-stat-copy{min-width:0;flex:1;display:block}
+.pro-stat-label{display:block;font-size:12.5px;color:var(--nh-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-stat-copy strong{display:block;font-size:24px;line-height:1.25;font-weight:600;font-variant-numeric:tabular-nums}
+.pro-stat-copy small{font-size:11px;color:#8A7B80}
+.pro-stat-rose .pro-stat-icon{background:#FBE8ED;color:var(--nh-primary-dark)}
+.pro-stat-rose strong{color:var(--nh-primary-dark)}
+.pro-stat-lavender .pro-stat-icon{background:var(--nh-lavender-soft);color:var(--nh-lavender)}
+.pro-stat-lavender strong{color:var(--nh-lavender)}
+.pro-stat-sage .pro-stat-icon{background:var(--nh-sage-soft);color:var(--nh-sage)}
+.pro-stat-sage strong{color:var(--nh-sage)}
+.pro-stat-gold .pro-stat-icon{background:var(--nh-gold-soft);color:var(--nh-gold)}
+.pro-stat-gold strong{color:var(--nh-gold)}
+
+/* ---- Cặp thẻ cạnh nhau ---- */
+.pro-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.pro-panel{padding:14px 16px 12px}
+.pro-panel-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pro-panel-head h3{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--nh-ink)}
+.pro-panel-note{font-size:11px;color:#8A7B80;white-space:nowrap}
+.pro-link{flex:0 0 auto;font-size:11.5px;color:var(--nh-primary-dark);background:transparent;
+  padding:3px 7px;border-radius:6px;white-space:nowrap}
+.pro-link:hover{background:var(--nh-blush)}
+.pro-muted{color:#A2969C}
+.pro-hint{margin:2px 0 0;font-size:11.5px;line-height:1.6;color:#8A7B80}
+/* Ô trống gọn — không dùng .empty toàn trang, chỉ một dòng giải thích */
+.pro-empty{margin:0;padding:14px 0 6px;font-size:11.5px;line-height:1.7;color:#8A7B80}
+.pro-more{padding-top:8px!important;font-size:11px;color:#9A8B93}
+
+/* ---- Danh sách ----
+   Vạch kẻ giữa các dòng nên dòng phải đủ cao và có đệm trên/dưới để chữ
+   không áp sát vạch. Mỗi dòng cao ~46px, đọc thoải mái bằng mắt. */
+.pro-service-list,.pro-booking-list,.pro-shift-list{list-style:none;margin:0;padding:0}
+.pro-service-list li,.pro-booking-list li,.pro-shift-list li{
+  display:flex;align-items:center;gap:9px;padding:13px 0;border-top:1px solid #F4EAEE}
+.pro-service-list li:first-child,.pro-booking-list li:first-child,.pro-shift-list li:first-child{
+  border-top:0;padding-top:4px}
+.pro-service-list li:last-child,.pro-booking-list li:last-child{padding-bottom:4px}
+.pro-service-name{flex:1;min-width:0;font-size:12.5px;line-height:1.45;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-service-code{flex:0 0 auto;font-size:10.5px;letter-spacing:.3px;color:#A2969C;font-variant-numeric:tabular-nums}
+.pro-service-list em{flex:0 0 auto;font-style:normal;font-size:11.5px;color:#8A7B80}
+.pro-service-list strong{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--nh-primary-dark);
+  font-variant-numeric:tabular-nums}
+/* Chấm nhỏ báo trạng thái: xanh = đang cung cấp, vàng = tạm ngưng */
+.pro-service-flag{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:var(--nh-sage);
+  box-shadow:0 0 0 3px var(--nh-sage-soft)}
+.pro-service-flag.is-paused{background:var(--nh-gold);box-shadow:0 0 0 3px var(--nh-gold-soft)}
+
+/* ---- Lịch hẹn trong ngày ---- */
+.pro-booking-time{flex:0 0 auto;min-width:40px;font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.pro-booking-name{flex:1;min-width:0}
+.pro-booking-name strong{display:block;font-size:12.5px;line-height:1.45;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-booking-name small{display:block;font-size:11px;line-height:1.45;color:#8A7B80;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-booking-list .badge{flex:0 0 auto}
+.pro-booking-go{flex:0 0 auto;width:24px;height:24px;border-radius:6px;background:transparent;
+  color:#9A8B93;font-size:15px;line-height:1}
+.pro-booking-go:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
+
+/* ---- Ca làm việc ----
+   Cột ngày và cột giờ tách bằng gap lớn, chữ cao hơn một chút cho dễ đọc
+   vì đây là danh sách ngắn, người dùng quét bằng mắt chứ không tìm kiếm. */
+/* Thẻ ca làm việc nằm ở cột phải, không kế thừa padding của .pro-panel
+   nên phải khai báo riêng — thiếu, chữ sẽ dính sát mép phải. */
+.pro-shift{padding:14px 16px 12px}
+/* Dải ca làm việc: nền "hôm nay" tràn ra ngoài một chút cho thoáng, nhưng
+   phần chữ bên trong vẫn giữ đúng lề 16px như các thẻ khác. */
+.pro-shift-list{margin-inline:-6px;padding-inline:6px}
+.pro-shift-list li{padding:12px 6px}
+.pro-shift-day{flex:1;min-width:0;display:flex;align-items:baseline;gap:7px}
+.pro-shift-day strong{font-size:12.5px;line-height:1.4;font-weight:600;color:var(--nh-ink)}
+.pro-shift-day small{font-size:11.5px;color:#9A8B93;font-variant-numeric:tabular-nums}
+.pro-shift-time{flex:0 0 auto;font-size:12px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+/* Hôm nay: nền nhạt + chữ hồng đậm, dùng padding trong để không tràn ngang. */
+.pro-shift-list li.is-today{background:#FFF6F8;border-radius:8px}
+.pro-shift-list li.is-today .pro-shift-day strong{color:var(--nh-primary-dark)}
+.pro-shift-list li.is-today .pro-shift-time{color:var(--nh-primary-dark)}
+
+/* ---- Thu hẹp ---- */
+@media(max-width:1200px){
+  .pro-layout{grid-template-columns:minmax(0,1fr) 252px;gap:14px}
+  .pro-stat{gap:10px;padding:12px 12px}
+  .pro-stat-icon{width:36px;height:36px;flex:0 0 36px;border-radius:10px}
+  .pro-stat-icon svg{width:18px;height:18px}
+  .pro-stat-label{font-size:12px}
+  .pro-stat-copy strong{font-size:20px}
+  .pro-hero-rate{min-width:118px;padding:9px 10px}
+  .pro-rate-top strong{font-size:21px}
+}
+@media(max-width:960px){
+  .pro-layout{grid-template-columns:1fr}
+  .pro-aside{position:static;grid-template-columns:1fr 1fr;align-items:start}
+  .pro-aside .quote-card{grid-column:1 / -1}
+  .pro-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .pro-panels,.pro-aside{grid-template-columns:1fr}
+  .pro-hero-body{align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px}
+  .pro-hero-body>.avatar{margin-top:-28px}
+  .pro-hero-copy{padding-top:0;flex:1 1 200px}
+  .pro-hero-copy h2{font-size:19px}
+  .pro-hero-rate{flex:1 1 100%;text-align:left}
+  .pro-rate-top{justify-content:flex-start}
+  .pro-rate-faces{justify-content:flex-start}
+  .pro-service-list li{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+  .pro-chip:hover{transition:none}
+}

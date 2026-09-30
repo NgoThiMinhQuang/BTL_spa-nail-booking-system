@@ -61,7 +61,12 @@ export interface ServiceItem {
   price: number;
   duration: number;
   category: string | null;
+  categoryId?: number | null;
+  /** 'ACTIVE' đang mở bán cho khách · 'HIDDEN' nhân viên đang tạm ngưng. */
+  status: ServiceStatus;
 }
+
+export type ServiceStatus = 'ACTIVE' | 'HIDDEN';
 
 export interface Shift {
   date: string;

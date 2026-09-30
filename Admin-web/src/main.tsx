@@ -8,12 +8,16 @@ import { HomePage } from './pages/HomePage';
 import { SchedulePage } from './pages/SchedulePage';
 import { BookingPage } from './pages/BookingPage';
 import { CustomersPage, CustomersPageActions } from './pages/CustomersPage';
-import { ProfilePage, ServicesPage } from './pages/SimplePages';
+import { ProfilePage } from './pages/ProfilePage';
+import { ServicesPage, ServicesPageActions } from './pages/ServicesPage';
 
 function Routes() {
   const { state } = useApp();
   const { data, loading, view, feedback } = state;
 
+  /* Chỉ lần đầu chưa có dữ liệu mới hiện màn hình chờ đầy trang. Những lần sau
+     (đổi ngày, đổi chế độ xem lịch, đổi nhân viên) giữ nguyên nội dung đang có và
+     chỉ báo bằng thanh tiến trình mảnh — tránh trang bị co lại rồi bung ra. */
   if (!data) {
     return (
       <Layout actions={null}>
@@ -24,8 +28,6 @@ function Routes() {
     );
   }
 
-  const actions = view === 'customers' ? <CustomersPageActions /> : null;
-
   let page: React.ReactNode = null;
   if (view === 'home') page = <HomePage />;
   else if (view === 'schedule') page = <SchedulePage />;
@@ -35,9 +37,14 @@ function Routes() {
   else if (view === 'booking') page = <BookingPage />;
 
   return (
-    <Layout actions={actions}>
-      {loading && <div className="loading">Đang tải dữ liệu công việc…</div>}
-      {!loading && page}
+    <Layout actions={
+      view === 'customers' ? <CustomersPageActions />
+        : view === 'services' ? <ServicesPageActions />
+          : null
+    }>
+      {loading && <div className="app-progress" role="status" aria-label="Đang tải dữ liệu" />}
+      {feedback && <p className="app-feedback">{feedback}</p>}
+      {page}
     </Layout>
   );
 }

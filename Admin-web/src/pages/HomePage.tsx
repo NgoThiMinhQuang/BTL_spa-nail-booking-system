@@ -62,25 +62,18 @@ export function HomePage() {
         <span>{longDate(state.date)}</span>
       </div>
 
+      {/* Thẻ số liệu chỉ để đọc, không bấm — nên dùng <article> thay vì <button>. */}
       <div className="home-metrics">
-        {buildMetrics(bookings, dateLabel).map((m) => {
-          const isActive = m.status ? state.status === m.status : !state.status;
-          return (
-            <button
-              key={m.label}
-              className={`home-metric home-metric-${m.tone}${isActive ? ' is-active' : ''}`}
-              onClick={() => dispatch({ type: 'stat', status: m.status })}
-              aria-pressed={m.status ? state.status === m.status : undefined}
-            >
-              <span className="metric-symbol" aria-hidden="true"><Icon name={m.symbol} /></span>
-              <span className="metric-copy">
-                <span>{m.label}</span>
-                <strong>{fmtNum(m.value)}</strong>
-                <small className="metric-note">{m.note}</small>
-              </span>
-            </button>
-          );
-        })}
+        {buildMetrics(bookings, dateLabel).map((m) => (
+          <article key={m.label} className={`home-metric home-metric-${m.tone}`}>
+            <span className="metric-symbol" aria-hidden="true"><Icon name={m.symbol} /></span>
+            <div className="metric-copy">
+              <span>{m.label}</span>
+              <strong>{fmtNum(m.value)}</strong>
+              <small className="metric-note">{m.note}</small>
+            </div>
+          </article>
+        ))}
       </div>
 
       <div className="home-layout">

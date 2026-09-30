@@ -1,6 +1,185 @@
 /* Bổ sung cho bản React: các lớp mới + dọn lớp không còn dùng.
    Nạp sau các file gốc nhưng TRƯỚC theme.css (lớp màu chung). */
 
+/* ==========================================================================
+   ĐỒNG BỘ 5 MÀN HÌNH
+   home-layout.css đặt `#nailhouse.staff-home { line-height:1.5 }` — mà #nailhouse
+   chính là <body>, nên giá trị này rò vào MỌI phần tử khi đang ở trang chủ.
+   Hậu quả đo được: dòng chữ "NailHouse" trong logo cao 40.5px thay vì ~31px
+   (normal) như 4 trang kia, và các khối khác cũng lệch theo.
+   Dưới đây ghim lại những thuộc tính phải giống nhau ở cả 5 trang.
+   ========================================================================== */
+
+/* ---- 1. Khung chung (sidebar + topbar) không đổi theo trang ---- */
+#nailhouse .sidebar,
+#nailhouse .topbar{line-height:normal}
+#nailhouse .brand{line-height:normal}
+#nailhouse .brand small,
+#nailhouse .brand-mark{line-height:normal}
+
+/* ---- 2. Tiêu đề trang: một bộ kích thước duy nhất ----
+   Lịch làm việc dùng 30px, trang chủ dùng weight 600 / letter-spacing -0.3 /
+   margin 4px, 3 trang còn lại 24px / 700 / -0.65 / 5px. Ghin cả 3 biến thể. */
+#nailhouse .page-heading h1,
+#nailhouse.staff-home .page-heading h1,
+#nailhouse .schedule-page .page-heading h1,
+#nailhouse .booking-page .page-heading h1{
+  font-size:24px;font-weight:700;line-height:31.2px;
+  letter-spacing:-.65px;margin:0 0 5px}
+
+#nailhouse .page-heading .subtitle,
+#nailhouse.staff-home .page-heading .subtitle,
+#nailhouse .schedule-page .page-heading .subtitle,
+#nailhouse .booking-page .page-heading .subtitle{
+  font-size:13px;line-height:1.5;max-width:none}
+
+/* ---- 3. Nút "Làm mới dữ liệu" ----
+   Trang chủ to hơn (13px/8px 12px), trang lịch viền hồng thay vì viền xanh. */
+#nailhouse #refresh{font-size:12px;padding:8px 10px;border-color:#EED4DC}
+
+/* ---- 4. Tiêu đề khối: đều đặn weight 700 ----
+   reference.css đặt 700 nhưng home-layout và customers.css đổi riêng xuống 600. */
+#nailhouse .section-heading h2,
+#nailhouse.staff-home .section-heading h2,
+#nailhouse .schedule-page .section-heading h2,
+#nailhouse .schedule-workspace .schedule-list .section-heading h2{font-weight:700}
+
+/* ---- 5. Thẻ bo góc đều ----
+   home-layout.css đặt bo 10px và tắt đổ bóng; các trang khác bo 13px + đổ bóng. */
+#nailhouse .panel,
+#nailhouse.staff-home .panel{
+  border-radius:13px;
+  box-shadow:0 2px 8px rgba(48,45,71,.12)}
+
+/* ---- 6. Trang lịch dùng màu chữ riêng (#30272A) ---- */
+#nailhouse .schedule-page{--ink:var(--nh-ink)}
+
+/* ---- Thẻ số liệu trang lịch lấp đủ bề rộng ----
+   Trước đây thẻ là flex ngang: icon + một khối chữ tự co lại theo nội dung.
+   Trên màn rộng thẻ rộng ~340px còn khối chữ chỉ ~110px nên bỏ trống hơn 200px
+   bên phải, nhìn như thẻ vỡ. Nay chia lưới: nhãn trên, số lớn trái, % phải. */
+/* Lưới thẻ: schedule-layout.css viết cho 3 cột, nay có 4 thẻ nên phải khai lại
+   — nếu không thẻ thứ tư rơi xuống hàng mới và khối thống kê cao gấp đôi. */
+#nailhouse .schedule-workspace .schedule-stats{
+  grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1080px){
+  #nailhouse .schedule-workspace .schedule-stats{
+    grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  #nailhouse .schedule-workspace .schedule-stats{grid-template-columns:1fr}
+}
+
+#nailhouse .schedule-stats article{
+  display:grid;grid-template-columns:auto minmax(0,1fr);
+  gap:16px;align-items:center}
+#nailhouse .schedule-stats .stat-body{
+  display:grid;gap:2px;min-width:0}
+#nailhouse .schedule-stats .stat-line{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+#nailhouse .schedule-stats p{margin:0;min-width:0}
+#nailhouse .schedule-stats strong{line-height:1.15}
+#nailhouse .schedule-stats small{margin:0;white-space:nowrap;text-align:right}
+
+/* ---- Thanh nhắc nhở: dải mảnh ngay dưới thẻ số liệu ----
+   Trước đây nằm cuối cột chính, cách xa gần 1700px nên lọt dưới tầm nhìn. */
+#nailhouse .workday-reminder{
+  display:flex;align-items:center;gap:10px;
+  margin:0 0 14px;padding:12px 16px;
+  border-radius:12px;background:var(--nh-blush)}
+#nailhouse .workday-reminder svg{width:20px;height:20px;flex-shrink:0}
+#nailhouse .workday-reminder p{margin:0;font-size:13px;line-height:1.5}
+
+/* ---- Luôn chừa chỗ cho thanh cuộn dọc ----
+   Trang ngắn (Dịch vụ) không sinh thanh cuộn, còn các trang dài thì có. Thanh cuộn
+   chiếm 15px nên khi bấm menu qua lại, nội dung bị dịch ngang 15px — nhìn như
+   cả trang đổi kích thước. scrollbar-gutter:stable giữ chỗ trống cố định nên
+   mọi trang luôn cùng một bề rộng. */
+html{scrollbar-gutter:stable}
+
+/* ---- Sidebar vừa đúng chiều cao cửa sổ ----
+   reference.css đặt thẻ quảng bá ở min-height 260px (290px khi rộng ≥1500px) cộng
+   margin trên 75px (105px). Tính ra phần cố định — viền trên/dưới + logo + 5 mục
+   menu + chân sidebar — đã là ~525px, nên với cửa sổ thấp hơn ~815px phần dưới bị
+   đẩy ra ngoài màn hình: thẻ quảng bá bị cắt cụt, chân sidebar biến mất hẳn.
+
+   Cách sửa: thẻ quảng bá co lại theo phần chiều cao còn trống, và phần thừa được
+   đẩy lên trên bằng margin-top:auto thay vì cộng cố định. Con số 560 là tổng
+   chiều cao phần cố định (viền + logo + menu + chân sidebar + margin) đo được. */
+#nailhouse .sidebar{overflow-y:auto;scrollbar-width:thin}
+#nailhouse .sidebar-note{margin-top:auto;min-height:clamp(120px, calc(100vh - 560px), 290px)}
+
+/* Cửa sổ thấp: siết lại khoảng cách và cỡ chữ để mọi thứ vừa đúng một màn hình */
+@media(max-height:820px){
+  #nailhouse .brand{margin-bottom:24px}
+  #nailhouse .sidebar-note{padding:16px 18px}
+  #nailhouse .sidebar-note p{font-size:14px;line-height:1.5;margin:6px 0}
+}
+@media(max-height:700px){
+  #nailhouse nav{gap:6px}
+  #nailhouse nav button{min-height:44px;padding:10px 12px}
+  #nailhouse nav button svg{width:22px;height:22px}
+}
+@media(max-height:600px){
+  #nailhouse .sidebar-note{display:none}
+}
+/* Ở layout ngang (điện thoại) sidebar là một thanh cao 58px — không cuộn */
+@media(max-width:600px){
+  #nailhouse .sidebar{overflow:visible}
+}
+
+/* ---- Đầu trang cao cố định ở mọi trang ----
+   Trước đây vùng tiêu đề cao 56px (trang chủ, khách hàng) tới 130px (lịch làm việc),
+   nên bấm menu là toàn bộ nội dung bên dưới trượt theo — thấy như cả trang "nhảy".
+   Ở đây đặt một chiều cao chung. Trang lịch làm việc có banner tràn viền nên nằm
+   cao hơn 18px (margin trên âm) — bù lại đúng 18px để nội dung vẫn bắt đầu ở
+   cùng một toạ độ y trên mọi trang. */
+#nailhouse{--page-pad:30px;--page-head-h:96px;--page-head-gap:16px}
+#nailhouse .page-heading{
+  min-height:var(--page-head-h);
+  margin:0 0 var(--page-head-gap);
+  align-items:center}
+#nailhouse .schedule-page .page-heading{
+  height:calc(var(--page-head-h) + 18px);
+  min-height:calc(var(--page-head-h) + 18px);
+  margin:-18px calc(-1 * var(--page-pad)) var(--page-head-gap);
+  padding:0 var(--page-pad);
+  align-items:center}
+#nailhouse .schedule-page .page-heading>div{margin-top:0}
+/* booking.css đặt riêng margin dưới 8px cho trang chi tiết — đồng bộ lại */
+#nailhouse .booking-page .page-heading{margin-bottom:var(--page-head-gap)}
+@media(min-width:1500px){ #nailhouse{--page-pad:38px} }
+@media(max-width:1200px){ #nailhouse{--page-pad:18px} }
+@media(max-width:600px){
+  #nailhouse{--page-pad:12px;--page-head-h:88px;--page-head-gap:14px}
+  #nailhouse .schedule-page .page-heading{height:calc(var(--page-head-h) + 18px)}
+}
+
+/* ---- Đồng bộ đầu trang giữa các màn hình ----
+   reference.css đặt riêng màu tiêu đề phụ cho trang lịch (`.schedule-page .page-heading
+   .subtitle`), khiến đầu trang "giật" màu khi chuyển qua lại. Selector phải
+   cùng cấp với rule đó thì mới thắng. */
+#nailhouse .schedule-page .page-heading .subtitle,
+#nailhouse .booking-page .page-heading .subtitle{color:#6E5F66}
+
+/* Dòng nhãn nhỏ ở trang hồ sơ: #928474 chỉ đạt 3.63:1 trên nền trắng */
+#nailhouse .profile .eyebrow{color:#6E5F66}
+
+/* ---- Thanh tiến trình khi đang tải ----
+   Thay cho việc thay cả trang bằng dòng chữ "Đang tải…": giữ nguyên nội dung cũ
+   nên trang không bị co lại rồi bung ra. */
+/* display:flow-root chặn margin của phần tử con đầu "xuyên" lên #content —
+   nếu không, trang nào có margin trên lớn hơn sẽ đẩy cả khối nội dung xuống. */
+#content{position:relative;display:flow-root}
+.app-progress{position:absolute;inset:0 0 auto;height:3px;z-index:20;overflow:hidden;
+  background:linear-gradient(90deg,var(--nh-primary) 0%,var(--nh-primary) 40%,transparent 40%)}
+.app-progress::after{content:'';position:absolute;inset:0;width:40%;
+  background:linear-gradient(90deg,transparent,var(--nh-primary));animation:app-progress 1.1s ease-in-out infinite}
+@keyframes app-progress{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+.app-feedback{margin:0 0 12px;padding:10px 14px;border:1px solid #F0D5DD;border-radius:8px;
+  background:#FFF3F6;color:var(--nh-primary-dark);font-size:13px}
+@media(prefers-reduced-motion:reduce){.app-progress::after{animation:none;width:100%}}
+
 /* ---- Hộp thoại ghi chú: bản React dùng div thay vì <dialog> ---- */
 .cust-dialog-backdrop{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;
   background:rgba(45,36,48,.42);backdrop-filter:blur(2px)}

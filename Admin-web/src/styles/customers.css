@@ -17,12 +17,9 @@
 
 /* ---------------------------------- Thẻ số liệu ---------------------------------- */
 .cust-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+/* Thẻ chỉ để đọc: không bấm, không hover, không viền đậm. */
 .cust-stat{display:flex;align-items:center;gap:12px;width:100%;text-align:left;min-width:0;
-  background:#fff;border:1px solid var(--nh-line);border-radius:12px;padding:14px 16px;cursor:pointer;
-  transition:border-color .16s,box-shadow .16s,background .16s,transform .16s}
-.cust-stat:hover{transform:translateY(-2px);box-shadow:0 8px 20px -14px rgba(45,36,48,.35);border-color:#E8D3DA}
-.cust-stat:focus-visible{outline:2px solid var(--nh-primary);outline-offset:3px}
-.cust-stat.is-active{border-color:var(--nh-primary);background:var(--nh-blush);box-shadow:inset 0 0 0 1px var(--nh-primary)}
+  background:#fff;border:1px solid var(--nh-line);border-radius:12px;padding:14px 16px}
 .cust-stat-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:11px}
 .cust-stat-icon svg{width:21px;height:21px}
 .cust-stat-copy{min-width:0}
@@ -233,6 +230,4 @@ select.cust-dialog-picker:focus-visible{outline:2px solid var(--nh-primary);outl
 }
 @media(prefers-reduced-motion:reduce){
   .cust-drawer-backdrop,.cust-drawer-panel{transition:none}
-  .cust-stat{transition:none}
-  .cust-stat:hover{transform:none}
 }

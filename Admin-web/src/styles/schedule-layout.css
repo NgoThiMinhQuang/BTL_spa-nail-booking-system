@@ -6,7 +6,10 @@
 #nailhouse .schedule-workspace .schedule-date{background:white;padding:11px 14px}
 #nailhouse .schedule-workspace .schedule-date input{font-size:14px}
 #nailhouse .schedule-workspace .mode-tabs button{font-size:13px;padding:12px 22px}
-#nailhouse .schedule-workspace .schedule-toolbar select{font-size:13px;padding:12px}
+/* min-width phải đủ chứa "Đang thực hiện" ở cỡ 13px, nếu không chữ sẽ bị
+   bóp xuống nhiều dòng. schedule.css hạ còn 140px khi ≤1200px nên ở đây
+   phải nới ra cho khớp font-size 13px. */
+#nailhouse .schedule-workspace .schedule-toolbar select{font-size:13px;padding:12px;min-width:186px}
 #nailhouse .schedule-workspace .schedule-columns{grid-template-columns:minmax(0,2.45fr) minmax(280px,1fr);gap:18px}
 #nailhouse .schedule-workspace .schedule-aside{display:flex;flex-direction:column;gap:14px;min-width:0}
 #nailhouse .schedule-workspace .schedule-aside>.panel{width:100%;margin:0}
@@ -62,7 +65,7 @@
 #nailhouse .workday-reminder svg{flex-shrink:0}
 @media(max-width:1150px){#nailhouse .schedule-workspace .schedule-columns{grid-template-columns:minmax(0,1fr) 265px;gap:12px}#nailhouse .schedule-workspace .schedule-stats article{padding:13px 10px;gap:8px}#nailhouse .schedule-workspace .schedule-stats p{font-size:11px}#nailhouse .schedule-workspace .schedule-stats .stat-icon{width:31px;height:31px}#nailhouse .schedule-workspace .schedule-table{min-width:590px}#nailhouse .schedule-page .page-heading .subtitle{max-width:470px}}
 @media(max-width:900px){#nailhouse .schedule-workspace .schedule-columns{grid-template-columns:1fr}#nailhouse .schedule-workspace .schedule-aside{display:grid;grid-template-columns:1fr 1fr;align-items:start}#nailhouse .schedule-workspace .upcoming-panel{grid-column:1/-1}#nailhouse .schedule-workspace .schedule-stats p{font-size:13px}}
-@media(max-width:600px){#nailhouse .schedule-page .page-heading{padding:18px 15px;min-height:120px}#nailhouse .schedule-page .page-heading h1{font-size:22px}#nailhouse .schedule-page .page-heading .subtitle{font-size:13px}#nailhouse .schedule-workspace .schedule-stats{gap:10px}#nailhouse .schedule-workspace .schedule-stats article{padding:12px;min-height:0}#nailhouse .schedule-workspace .schedule-stats p{font-size:12px;min-height:0}#nailhouse .schedule-workspace .schedule-stats strong{font-size:24px}#nailhouse .schedule-workspace .schedule-stats small{font-size:12px}#nailhouse .schedule-workspace .schedule-aside{display:flex}#nailhouse .schedule-workspace .schedule-toolbar .mode-tabs button{padding:10px 13px;font-size:13px}#nailhouse .schedule-workspace .schedule-toolbar select{font-size:13px;padding:10px 7px}#nailhouse .workday-reminder{padding:13px}#nailhouse .workday-reminder p{font-size:13px}}
+@media(max-width:600px){#nailhouse .schedule-page .page-heading{padding:18px 15px;min-height:120px}#nailhouse .schedule-page .page-heading h1{font-size:22px}#nailhouse .schedule-page .page-heading .subtitle{font-size:13px}#nailhouse .schedule-workspace .schedule-stats{gap:10px}#nailhouse .schedule-workspace .schedule-stats article{padding:12px;min-height:0}#nailhouse .schedule-workspace .schedule-stats p{font-size:12px;min-height:0}#nailhouse .schedule-workspace .schedule-stats strong{font-size:24px}#nailhouse .schedule-workspace .schedule-stats small{font-size:12px}#nailhouse .schedule-workspace .schedule-aside{display:flex}#nailhouse .schedule-workspace .schedule-toolbar .mode-tabs button{padding:10px 13px;font-size:13px}#nailhouse .schedule-workspace .schedule-toolbar select{font-size:13px;padding:10px 7px;min-width:0;width:100%}#nailhouse .workday-reminder{padding:13px}#nailhouse .workday-reminder p{font-size:13px}}
 
 /* Chuẩn chữ dễ đọc — đồng bộ trang chủ + chi tiết lịch hẹn (base 14px). */
 #nailhouse .schedule-workspace{font-size:14px;line-height:1.5}

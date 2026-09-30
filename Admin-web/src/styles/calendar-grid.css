@@ -1,0 +1,153 @@
+/* ==========================================================================
+   LỊCH TUẦN DẠNG LƯỚI  (ngang = ngày, dọc = giờ)
+   Thay cho danh sách dạng bảng: mở lên nhìn một là thấy tuần này ngày nào
+   mình làm việc, ca mấy giờ, có khách gì lúc nào.
+   ========================================================================== */
+
+.wk{display:grid;grid-template-columns:46px minmax(0,1fr);gap:0;
+  border-top:1px solid var(--nh-line);
+  --wk-head-h:74px}
+
+/* ---- Cột giờ bên trái ---- */
+.wk-gutter{position:relative;border-right:1px solid var(--nh-line);background:#FBF8F9}
+/* Cột giờ bắt đầu dưới hàng tiêu đề ngày để nhãn khớp đúng vạch giờ. */
+.wk-hours{position:absolute;top:var(--wk-head-h);left:0;right:0}
+.wk-hours span{position:absolute;right:8px;transform:translateY(-50%);
+  font-size:11px;color:var(--nh-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Nhãn ở hai đầu: căn sát trong lưới để không bị cắt đôi ra ngoài. */
+.wk-hours span:first-child{transform:translateY(0);top:1px}
+.wk-hours span:last-child{transform:translateY(-100%)}
+
+.wk-scroll{min-width:0;overflow-x:auto}
+
+/* ---- Hàng tiêu đề ngày ---- */
+.wk-head{display:grid;position:sticky;top:0;z-index:3;background:#fff;
+  border-bottom:1px solid var(--nh-line)}
+/* Header gọn: thứ · ngày · ca · số lịch trên 3 dòng, cao cố định 74px để
+   phần lưới bên dưới có nhiều chỗ hơn. */
+.wk-day{display:grid;gap:1px;justify-items:center;padding:7px 4px;min-height:var(--wk-head-h);
+  border-left:1px solid var(--nh-line);background:none;cursor:pointer;text-align:center}
+.wk-day:hover{background:var(--nh-blush)}
+.wk-day span{font-size:10.5px;color:var(--nh-muted);line-height:1.3}
+.wk-day strong{font-size:18px;font-weight:700;line-height:1.1;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+.wk-day.is-today{background:#FFF6F8;box-shadow:inset 0 -2px 0 var(--nh-primary)}
+.wk-day.is-today strong{color:var(--nh-primary-dark)}
+.wk-shift{font-size:9.5px;font-style:normal;padding:1px 6px;border-radius:9px;
+  background:var(--nh-sage-soft);color:var(--nh-sage);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.wk-shift.is-off{background:#F4F1F3;color:var(--nh-muted)}
+.wk-count{font-size:9.5px;font-style:normal;color:var(--nh-muted);white-space:nowrap}
+
+/* ---- Lưới giờ ---- */
+.wk-grid{position:relative;display:grid}
+.wk-line{position:absolute;left:0;right:0;height:1px;background:#F1E9EC;pointer-events:none}
+.wk-col{position:relative;border-left:1px solid var(--nh-line)}
+.wk-col.is-today{background:#FFFAFB}
+
+/* Dải ca làm việc trong ngày */
+.wk-band{position:absolute;left:0;right:0;border-radius:6px;
+  background:repeating-linear-gradient(135deg,#EAF4F1 0 6px,#E3F0EC 6px 12px);
+  border:1px solid #D7E9E3;pointer-events:none}
+
+/* Vạch "hiện tại" */
+.wk-now{position:absolute;left:0;right:0;height:2px;background:var(--nh-primary);
+  z-index:4;pointer-events:none;box-shadow:0 0 0 1px #fff}
+
+/* ---- Khối lịch hẹn ---- */
+/* Khối lịch hẹn gọn: tên + giờ, vừa đúng chiều cao 44px của một giờ.
+   Khối cao hơn (ca 90–120 phút) vẫn hiện đủ hai dòng. */
+.wk-block{position:absolute;display:grid;gap:1px;align-content:center;grid-auto-rows:min-content;
+  padding:4px 7px;border-radius:7px;border:1px solid transparent;
+  border-left:3px solid currentColor;text-align:left;overflow:hidden;cursor:pointer;
+  box-shadow:0 1px 3px rgba(45,36,48,.07);transition:box-shadow .15s,transform .15s}
+.wk-block:hover{box-shadow:0 4px 12px rgba(45,36,48,.16);transform:translateY(-1px);z-index:2}
+.wk-block strong,.wk-block em{min-width:0;line-height:1.3;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.wk-block strong{font-size:11.5px;font-weight:600;color:inherit}
+.wk-block em{font-size:9.5px;font-style:normal;font-variant-numeric:tabular-nums;opacity:.75}
+.wk-block.is-selected{outline:2px solid currentColor;outline-offset:1px}
+
+/* Khối thấp hơn 40px chỉ còn tên, canh giữa. */
+.wk-block.is-mini em{display:none}
+.wk-block.is-mini{padding:3px 6px}
+
+.wk-block.confirmed{background:#E9F0FF;border-color:#D3E1FA;color:#2F5CA6}
+.wk-block.processing{background:#FFF1D8;border-color:#F5E2B4;color:#8A5D0E}
+.wk-block.completed{background:#E6F4E3;border-color:#CFE7C9;color:#3F7A38}
+.wk-block.pending{background:#F3EDFB;border-color:#E2D7F2;color:#5F4483}
+.wk-block.cancelled,.wk-block.no_show{background:#F4F1F3;border-color:#E6DEE2;
+  color:#7A6A72;text-decoration:line-through}
+.wk-block.cancelled strong,.wk-block.no_show strong{text-decoration:line-through}
+
+/* ---- Chú thích ----
+   Cột phải hẹp nên chú thích cuộn ngang một hàng thay vì xuống dòng —
+   xuống dòng sẽ đẩy cao thêm ~200px, mất đi lợi ích của lưới nén. */
+.wk-legend{display:flex;gap:14px;padding:9px 12px 3px;overflow-x:auto;
+  scrollbar-width:none;border-top:1px solid var(--nh-line)}
+.wk-legend::-webkit-scrollbar{display:none}
+.wk-dot{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--nh-muted);
+  white-space:nowrap;flex:0 0 auto}
+.wk-dot svg{width:12px;height:12px;border-radius:3px;padding:2px;stroke-width:2.4;flex:0 0 12px}
+.wk-dot.confirmed svg{background:#E9F0FF;color:#2F5CA6}
+.wk-dot.processing svg{background:#FFF1D8;color:#8A5D0E}
+.wk-dot.completed svg{background:#E6F4E3;color:#3F7A38}
+.wk-dot.pending svg{background:#F3EDFB;color:#5F4483}
+.wk-dot.cancelled svg{background:#F4F1F3;color:#7A6A72}
+
+/* ---- Lịch trong ngày (chế độ Ngày): cùng ngôn ngữ thị giác ---- */
+.tl{display:grid;grid-template-columns:56px minmax(0,1fr);padding:10px 14px 12px 0}
+.tl-gutter{position:relative;border-right:1px solid var(--nh-line);background:#FBF8F9;
+  border-radius:6px 0 0 6px}
+.tl-gutter span{position:absolute;right:8px;transform:translateY(-50%);
+  font-size:11px;color:var(--nh-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Giờ đầu tiên căn sát trong lưới để không bị cắt đôi ở mép trên. */
+.tl-gutter span:first-child{transform:translateY(0);top:1px}
+.tl-canvas{position:relative}
+.tl-line{position:absolute;left:0;right:0;height:1px;background:#F1E9EC;pointer-events:none}
+.tl-now{position:absolute;left:0;right:0;height:2px;background:var(--nh-primary);
+  z-index:4;pointer-events:none;box-shadow:0 0 0 1px #fff}
+.tl-now i{position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;
+  background:var(--nh-primary)}
+
+.tl-block{position:absolute;display:grid;gap:2px;align-content:start;grid-auto-rows:min-content;
+  padding:6px 10px;border-radius:8px;border:1px solid transparent;border-left:3px solid currentColor;
+  text-align:left;overflow:hidden;cursor:pointer;container:tlb / inline-size;
+  box-shadow:0 1px 3px rgba(45,36,48,.07);transition:box-shadow .15s,transform .15s}
+.tl-block:hover{z-index:2;box-shadow:0 4px 12px rgba(45,36,48,.16);transform:translateY(-1px)}
+.tl-name,.tl-service,.tl-foot{min-width:0}
+.tl-name{font-size:13.5px;font-weight:700;line-height:1.3;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.tl-service{font-size:11.5px;line-height:1.3;color:#57484F;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.tl-foot{display:flex;align-items:center;gap:6px;font-size:11px;line-height:1.3;
+  white-space:nowrap;overflow:hidden}
+.tl-time{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-foot>svg{flex-shrink:0}
+.tl-foot svg{width:12px;height:12px}
+.tl-badge{font-style:normal;padding:1px 7px;border-radius:9px;background:#ffffffb3;
+  font-size:10.5px;flex-shrink:0}
+/* Khối hẹp (nhiều lịch chồng nhau): ẩn nhãn trạng thái cho vừa bề rộng. */
+@container tlb (max-width:150px){.tl-badge{display:none}}
+.tl-block.is-selected{outline:2px solid currentColor;outline-offset:1px}
+
+/* Khối thấp: bớt dòng cho vừa chiều cao, không cắt chữ. */
+.tl-block.is-short .tl-service{display:none}
+.tl-block.is-mini .tl-service,.tl-block.is-mini .tl-foot{display:none}
+.tl-block.is-mini{align-content:center;padding:3px 7px}
+.tl-block.is-mini .tl-name{font-size:12px}
+
+.tl-block.confirmed{background:#E9F0FF;border-color:#D3E1FA;color:#2F5CA6}
+.tl-block.processing{background:#FFF1D8;border-color:#F5E2B4;color:#8A5D0E}
+.tl-block.completed{background:#E6F4E3;border-color:#CFE7C9;color:#3F7A38}
+.tl-block.pending{background:#F3EDFB;border-color:#E2D7F2;color:#5F4483}
+.tl-block.cancelled,.tl-block.no_show{background:#F4F1F3;border-color:#E6DEE2;color:#7A6A72}
+.tl-block.cancelled .tl-name,.tl-block.no_show .tl-name{text-decoration:line-through}
+
+/* ---- Thu hẹp: lưới tuần cuộn ngang, giờ bỏ dấu phút ---- */
+@media(max-width:700px){
+  .wk{grid-template-columns:38px minmax(0,1fr);--wk-head-h:70px}
+  .wk-hours span,.tl-gutter span{right:5px;font-size:10px}
+  .wk-day strong{font-size:16px}
+  .wk-day{padding:6px 3px}
+}

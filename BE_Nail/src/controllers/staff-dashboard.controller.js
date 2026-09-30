@@ -32,9 +32,13 @@ export async function staffDashboard(req, res, next) {
         WHERE b.staff_id=? GROUP BY c.customer_id,u.full_name,u.phone,u.email,u.avatar,
           c.address,c.birthday,c.note,c.total_spending,c.no_show_count
         ORDER BY MAX(b.start_time) DESC`, [id, id, id]),
+      /* Trả cả dịch vụ đang ẩn (HIDDEN) để nhân viên tự quản lý trạng thái
+         trong trang "Dịch vụ"; khách vẫn chỉ thấy dịch vụ ACTIVE. */
       pool.query(`SELECT s.service_id AS id, s.service_name AS name, s.description, s.image, s.price, s.duration,
-        c.category_name AS category FROM staff_service ss JOIN services s ON s.service_id=ss.service_id
-        LEFT JOIN service_category c ON c.category_id=s.category_id WHERE ss.staff_id=? AND s.status='ACTIVE' ORDER BY s.service_name`, [id]),
+        s.status, s.category_id AS categoryId, c.category_name AS category
+        FROM staff_service ss JOIN services s ON s.service_id=ss.service_id
+        LEFT JOIN service_category c ON c.category_id=s.category_id WHERE ss.staff_id=?
+        ORDER BY s.status, s.service_name`, [id]),
       pool.query(`SELECT DATE_FORMAT(work_date,'%Y-%m-%d') AS date, TIME_FORMAT(start_time,'%H:%i') AS start,
         TIME_FORMAT(end_time,'%H:%i') AS end, status FROM staff_schedule WHERE staff_id=? AND work_date>=?
         AND work_date<DATE_ADD(?, INTERVAL 7 DAY) ORDER BY work_date,start_time`, [id, date, date]),
@@ -53,7 +57,11 @@ export async function staffDashboard(req, res, next) {
           total_spending: Number(customer.total_spending ?? 0),
           no_show_count: Number(customer.no_show_count ?? 0),
         })),
-        services,
+        services: services.map((service) => ({
+          ...service,
+          price: Number(service.price ?? 0),
+          duration: Number(service.duration ?? 0),
+        })),
         shifts,
         date,
       },

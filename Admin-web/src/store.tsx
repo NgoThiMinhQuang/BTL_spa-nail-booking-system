@@ -6,7 +6,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useReducer,
   useRef, type ReactNode, type Dispatch,
 } from 'react';
-import type { Dashboard, StaffOption } from './types';
+import type { Dashboard, ServiceItem, StaffOption } from './types';
 import { localDate } from './lib/utils';
 import { resetPages } from './hooks/usePager';
 
@@ -24,6 +24,9 @@ export interface AppState {
   selected: string | null;
   query: string;
   status: string;
+  /** Trang dịch vụ: '' = tất cả. */
+  serviceCategory: string;
+  serviceStatus: string;
   homeMonth: string;
   customerFilter: string;
   customerSort: string;
@@ -36,7 +39,7 @@ export interface AppState {
 
 export const initialState: AppState = {
   view: location.hash === '#schedule' ? 'schedule' : 'home',
-  calendarMode: 'day',
+  calendarMode: 'week',
   rangeBookings: [],
   date: localDate(),
   staffId: '',
@@ -45,6 +48,8 @@ export const initialState: AppState = {
   selected: null,
   query: '',
   status: '',
+  serviceCategory: '',
+  serviceStatus: '',
   homeMonth: localDate().slice(0, 7),
   customerFilter: 'all',
   customerSort: 'recent',
@@ -62,6 +67,7 @@ export type Action =
   | { type: 'loadError'; message: string }
   | { type: 'initError'; message: string }
   | { type: 'view'; view: ViewName }
+  /** Mở trang lịch và lọc theo trạng thái — dùng bởi mục "Cần chú ý". */
   | { type: 'stat'; status: string }
   | { type: 'booking'; id: string; date: string | null }
   | { type: 'date'; date: string }
@@ -71,9 +77,13 @@ export type Action =
   | { type: 'homeMonth'; month: string }
   | { type: 'query'; query: string }
   | { type: 'status'; status: string }
+  | { type: 'serviceCategory'; value: string }
+  | { type: 'serviceStatus'; value: string }
+  /** Thêm/sửa xong thì cập nhật tại chỗ, không phải tải lại cả dashboard. */
+  | { type: 'serviceSaved'; service: ServiceItem }
+  | { type: 'serviceRemoved'; id: number }
   | { type: 'customerFilter'; value: string }
   | { type: 'customerSort'; value: string }
-  | { type: 'customerSegment'; key: string }
   | { type: 'customerOpen'; id: string | null }
   | { type: 'customerNote'; id: string; note: string | null }
   | { type: 'refresh' };
@@ -122,12 +132,13 @@ export function reducer(state: AppState, action: Action): AppState {
       resetPages();
       return {
         ...state, view: action.view, query: '', status: '',
+        serviceCategory: '', serviceStatus: '',
         customerFilter: 'all', customerSort: 'recent', customerId: null,
       };
 
     case 'stat':
       resetPages();
-      return { ...state, view: 'schedule', calendarMode: 'day', status: action.status, query: '' };
+      return { ...state, view: 'schedule', calendarMode: 'week', status: action.status, query: '' };
 
     case 'booking':
       resetPages();
@@ -160,6 +171,34 @@ export function reducer(state: AppState, action: Action): AppState {
       resetPages('home', `schedule-${state.calendarMode}`);
       return { ...state, status: action.status };
 
+    case 'serviceCategory':
+      resetPages('services');
+      return { ...state, serviceCategory: action.value };
+
+    case 'serviceStatus':
+      resetPages('services');
+      return { ...state, serviceStatus: action.value };
+
+    case 'serviceSaved': {
+      if (!state.data) return state;
+      const rest = state.data.services.filter((s) => Number(s.id) !== Number(action.service.id));
+      /* ACTIVE xếp trước HIDDEN, cùng thứ tự tên như API trả về. */
+      const services = [...rest, action.service]
+        .sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name, 'vi') : a.status === 'ACTIVE' ? -1 : 1));
+      return { ...state, data: { ...state.data, services } };
+    }
+
+    case 'serviceRemoved': {
+      if (!state.data) return state;
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          services: state.data.services.filter((s) => Number(s.id) !== Number(action.id)),
+        },
+      };
+    }
+
     case 'customerFilter':
       resetPages('customers');
       return { ...state, customerFilter: action.value };
@@ -167,18 +206,6 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'customerSort':
       resetPages('customers');
       return { ...state, customerSort: action.value };
-
-    case 'customerSegment': {
-      resetPages('customers');
-      if (action.key === 'rating') {
-        return {
-          ...state,
-          customerSort: state.customerSort === 'rating' ? 'recent' : 'rating',
-          customerFilter: 'all',
-        };
-      }
-      return { ...state, customerFilter: state.customerFilter === action.key ? 'all' : action.key };
-    }
 
     case 'customerOpen':
       return { ...state, customerId: action.id === null ? null : String(action.id) };

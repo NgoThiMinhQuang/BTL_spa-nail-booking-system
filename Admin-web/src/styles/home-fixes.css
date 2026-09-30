@@ -4,21 +4,11 @@
    Các rule ghi đè đều có tiền tố `#nailhouse.staff-home` (độ ưu tiên 1 id +
    1 class) nên phải dùng cùng cấu trúc mới thắng được. */
 
-#nailhouse.staff-home .home-metrics{gap:12px;align-items:stretch}
-
-/* Kích thước cố định: các thẻ luôn cao bằng nhau, số dài hay ngắn cũng
-   không làm hàng bên dưới nhảy xuống. */
+/* Thẻ số liệu chỉ để đọc: không hover đổi màu, không cursor:pointer, không viền active. */
+#nailhouse.staff-home .home-metrics{gap:12px}
 #nailhouse.staff-home .home-metric{
-  position:relative;align-items:flex-start;gap:12px;
-  min-height:104px;padding:15px 16px;
-  border:1px solid var(--nh-line);border-radius:12px;background:#fff;
-  transition:border-color .16s,box-shadow .16s,background .16s,transform .16s}
-#nailhouse.staff-home .home-metric:hover{
-  transform:translateY(-2px);border-color:#E8D3DA;background:#fff;
-  box-shadow:0 8px 20px -14px rgba(45,36,48,.35)}
-#nailhouse.staff-home .home-metric:focus-visible{outline:2px solid var(--nh-primary);outline-offset:3px}
-/* Thẻ đang lọc chỉ đổi nền nhạt, giữ nguyên viền để 4 thẻ đồng nhất */
-#nailhouse.staff-home .home-metric.is-active{background:#FFFAFB;box-shadow:inset 0 0 0 1px #F3DCE3}
+  align-items:flex-start;gap:12px;padding:15px 16px;cursor:default;
+  border:1px solid var(--nh-line);border-radius:12px;background:#fff}
 
 /* Ô icon có nền riêng theo tông */
 #nailhouse.staff-home .home-metric .metric-symbol{width:42px;height:42px;flex:0 0 42px;border-radius:11px;margin-top:1px}
@@ -37,13 +27,34 @@
 #nailhouse.staff-home .home-metric-sage .metric-copy>strong{color:var(--nh-sage)}
 #nailhouse.staff-home .home-metric .metric-note{
   display:block;font-size:12px;line-height:1.4;color:var(--nh-muted);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;
-  height:16px;line-height:16px}
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 
-/* Thẻ đang lọc: thêm chấm nhỏ báo trạng thái */
-#nailhouse.staff-home .home-metric.is-active::after{
-  content:'';position:absolute;top:12px;right:12px;width:7px;height:7px;
-  border-radius:50%;background:var(--nh-primary)}
+/* ---- Khung điều hướng phải giống nhau ở mọi trang ----
+   home.css có hai bảng màu chồng lên nhau (một bản xanh cũ, một bản hồng) và
+   gắn vào `.staff-home`. Nhờ vậy bấm "Trang chủ" là sidebar/topbar đổi màu,
+   sang "Lịch làm việc" lại trở về — gây cảm giác giật. Ở đây ép khung về đúng
+   bộ màu mà theme.css dùng chung cho mọi trang. */
+
+#nailhouse.staff-home .sidebar{background:#FFF1F2;border-right-color:var(--nh-line)}
+#nailhouse.staff-home .sidebar nav button{color:#6B5A62}
+#nailhouse.staff-home .sidebar nav button span{color:#6B5A62}
+#nailhouse.staff-home .sidebar nav button:hover{background:#FCE9EF}
+#nailhouse.staff-home .sidebar nav button.active{background:#FBE7EC;color:var(--nh-primary-dark)}
+#nailhouse.staff-home .sidebar nav button.active span{color:var(--nh-primary)}
+#nailhouse.staff-home .brand .rose,
+#nailhouse.staff-home .brand-mark{color:var(--nh-primary);border-color:var(--nh-primary)}
+#nailhouse.staff-home .brand small{color:#6E5F66}
+#nailhouse.staff-home .sidebar-note{filter:none;opacity:1}
+#nailhouse.staff-home .sidebar-note p{color:#493B40}
+#nailhouse.staff-home .sidebar-footer{color:#6E5F66}
+#nailhouse.staff-home .nav-label{color:#90948D}
+#nailhouse.staff-home .topbar{background:#FFF;border-bottom-color:var(--nh-line)}
+#nailhouse.staff-home .global-search{background:#FCF8FA;border-color:#EEDFE5;color:#756A73}
+#nailhouse.staff-home .page-heading h1{color:var(--nh-ink);font-size:24px}
+#nailhouse.staff-home .page-heading .subtitle{color:#6E5F66;font-size:13px}
+#nailhouse.staff-home .panel{background:#FFF;border-color:#F0E5E8;box-shadow:none}
+#nailhouse.staff-home .section-heading h2{color:var(--nh-ink)}
+#nailhouse.staff-home .button.secondary{border-color:#EED4DC;color:var(--nh-primary-dark);font-size:13px}
 
 /* ---- Sửa tương phản chữ (đều dưới 4.5:1 ở bản gốc) ---- */
 
@@ -58,7 +69,10 @@
 /* Ngày đang chọn trong lịch nhỏ: trắng trên #D56B81 chỉ 3.36:1 */
 #nailhouse.staff-home .home-calendar-grid button.selected-date{background:var(--nh-primary-dark);color:#fff}
 
-/* Dòng chú thích dưới lịch nhỏ */
+/* Dòng chú thích dưới lịch nhỏ.
+   theme.css có `#nailhouse .home-calendar .calendar-caption` với cùng số lớp,
+   nên phải thêm một lớp nữa mới thắng được (theme.css nạp sau). */
+#nailhouse.staff-home .home-calendar .calendar-caption,
 #nailhouse.staff-home .calendar-caption{color:var(--nh-muted)}
 
 @media(max-width:1200px){
@@ -70,5 +84,4 @@
   #nailhouse.staff-home .home-metric .metric-symbol svg{width:18px;height:18px}
   #nailhouse.staff-home .home-metric .metric-copy>strong{font-size:22px}
   #nailhouse.staff-home .home-metric .metric-note{font-size:11px}
-  #nailhouse.staff-home .home-metric.is-active::after{top:10px;right:10px}
 }
