@@ -132,14 +132,17 @@ export async function getOverview(req, res, next) {
           GROUP BY st.staff_id, u.full_name, u.avatar
           ORDER BY u.full_name ASC`),
 
-        /* Biểu đồ doanh thu theo khoảng đã chọn. */
+        /* Biểu đồ doanh thu theo khoảng đã chọn.
+           Bảng ngày được sinh ra từ một dãy số 0..29 trừ dãy 0..6, nên phải
+           DISTINCT: nếu không, mỗi ngày sẽ xuất hiện 7 lần và SUM ở ngoài sẽ
+           cộng doanh thu lên 7 lần. */
         pool.query(`SELECT d.day,
             COALESCE(SUM(b.bookings), 0) AS bookings,
             COALESCE(SUM(b.revenue), 0) AS revenue
           FROM (
             SELECT DATE_FORMAT(DATE_ADD(${span.from}, INTERVAL t.d DAY), '%Y-%m-%d') AS day
             FROM (
-              SELECT a.n - b.n AS d
+              SELECT DISTINCT a.n - b.n AS d
               FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
                     UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
                     UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
