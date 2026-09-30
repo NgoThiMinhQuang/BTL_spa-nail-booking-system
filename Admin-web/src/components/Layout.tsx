@@ -1,4 +1,7 @@
-/* ===== Khung ứng dụng: sidebar + topbar + tiêu đề trang ===== */
+/* ===== Khung ứng dụng cho NHÂN VIÊN: sidebar + topbar + tiêu đề trang =====
+   Giao diện dùng class CSS trong base.css / reference.css / theme.css (sidebar
+   hồng, thẻ bo góc, chữ nhỏ) — giữ nguyên như trước khi thêm khu vực Admin.
+   Khu vực Admin nằm ở AdminLayout.tsx, tách riêng hoàn toàn. */
 
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';

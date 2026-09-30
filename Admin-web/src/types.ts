@@ -1,4 +1,12 @@
-/* ===== Kiểu dữ liệu API (khớp 1-1 với staff-dashboard.controller.js) ===== */
+export type Role = 'staff' | 'admin';
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  role: Role;
+  email?: string | null;
+  avatar?: string | null;
+}
 
 export type BookingStatus =
   | 'PENDING' | 'CONFIRMED' | 'PROCESSING'
