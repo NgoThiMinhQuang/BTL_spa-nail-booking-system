@@ -1,0 +1,24 @@
+/* ==========================================================================
+   KHU VỰC QUẢN TRỊ — thứ tự nạp style
+   1–3 là nền tảng sao chép NGUYÊN VĂN từ Admin-web (app nhân viên) để hai bên
+   cùng một bảng màu và cùng một thang chữ. Phần đặc thù quản trị nằm ở
+   admin.css, đặt sau cùng để không bị ghi đè nhầm.
+   ========================================================================== */
+
+/* 1. Nền tảng: biến màu, sidebar, topbar, panel, bảng, avatar, badge */
+@import './base.css';
+/* 2. Lớp bổ sung cỡ chữ dễ đọc + bo góc thẻ (đều gắn tiền tố #nailhouse) */
+@import './density.css';
+/* 3. Bảng màu hồng của NailHouse (đều gắn tiền tố #nailhouse) */
+@import './theme.css';
+/* 4. Ô tìm kiếm, bo góc panel, cỡ chữ bảng — đặt sau base như app nhân viên */
+@import './reference.css';
+/* 5. Thành phần dùng lại nguyên xi từ app nhân viên: thẻ số liệu, tab, thẻ trang trí */
+@import './services.css';
+@import './cards.css';
+/* 6. Riêng khu vực quản trị */
+@import './admin.css';
+/* 7. Màn đăng nhập quản trị */
+@import './login.css';
+/* 8. Tương phản WCAG AA — đặt sau tất cả để ghi đè màu chữ khi cần */
+@import './a11y-fixes.css';

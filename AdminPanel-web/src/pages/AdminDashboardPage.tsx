@@ -1,403 +1,134 @@
+/* ===== Bảng điều khiển quản trị =====
+   Bố cục hai cột: bên trái biểu đồ doanh thu, bên phải lịch hẹn sắp tới.
+   Thẻ số liệu dùng chung bộ .svc-stat với trang Dịch vụ của app nhân viên. */
+
 import { useState } from 'react';
 import { useApp } from '../store';
 import { Icon } from '../components/Icon';
+import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { formatVND } from '../lib/utils';
+
+interface FeedItem {
+  time: string;
+  part: string;
+  customer: string;
+  service: string;
+  status: string;
+}
+
+/* Lịch hẹn sắp tới. Khi nối API, thay mảng này bằng dữ liệu thật. */
+const FEED: FeedItem[] = [
+  { time: '09:00', part: 'Sáng', customer: 'Nguyễn Phương Thảo', service: 'Sơn Gel Móng · KTV Linh', status: 'Đang làm' },
+  { time: '10:30', part: 'Sáng', customer: 'Trần Thu Trang', service: 'Đắp Gel Trọn Bộ · KTV Mai', status: 'Đã xác nhận' },
+  { time: '11:15', part: 'Sáng', customer: 'Lê Ngọc Anh', service: 'Spa Pedicure Chăm Sóc Chân · KTV Anna', status: 'Chờ xác nhận' },
+  { time: '13:00', part: 'Chiều', customer: 'Phạm Quỳnh Chi', service: 'Vẽ Móng Nghệ Thuật · KTV Linh', status: 'Đã xác nhận' },
+];
+
+/* Doanh thu 7 ngày, đơn vị nghìn đồng. Khi nối API sẽ lấy từ database. */
+const CHART = [
+  { day: 'T2', amount: 350 },
+  { day: 'T3', amount: 320 },
+  { day: 'T4', amount: 550 },
+  { day: 'T5', amount: 480 },
+  { day: 'T6', amount: 720 },
+  { day: 'T7', amount: 880 },
+  { day: 'CN', amount: 620, active: true },
+];
+
+const WEEK_TOTAL = CHART.reduce((sum, day) => sum + day.amount, 0);
 
 export function AdminDashboardPage() {
   const { state, dispatch } = useApp();
-  const [showNewModal, setShowNewModal] = useState(false);
-
-  const bookings = state.rangeBookings || [];
-  const completedBookings = bookings.filter((b) => b.status === 'COMPLETED');
-  const totalRevenue = completedBookings.reduce((sum, b) => sum + (b.price || 0), 0);
-
-  // Mock revenue data for 7-day chart matching attached design
-  const chartData = [
-    { day: 'T2', amount: 350, height: 45 },
-    { day: 'T3', amount: 320, height: 40 },
-    { day: 'T4', amount: 550, height: 68 },
-    { day: 'T5', amount: 480, height: 60 },
-    { day: 'T6', amount: 720, height: 85 },
-    { day: 'T7', amount: 880, height: 95 },
-    { day: 'CN', amount: 620, height: 75, active: true },
-  ];
+  const [openNew, setOpenNew] = useState(false);
+  const bookings = state.rangeBookings ?? [];
+  const revenue = bookings.reduce((sum, b) => sum + (b.price ?? 0), 0);
+  const peak = Math.max(...CHART.map((d) => d.amount));
 
   return (
-    <div style={{ paddingTop: '8px' }}>
-      {/* Top Welcome Heading & Action Button */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '28px'
-      }}>
-        <div>
-          <h1 style={{ margin: '0 0 6px', fontSize: '26px', fontWeight: 600, color: '#0F172A' }}>
-            Xin chào, {state.user?.name || 'Quản lý'}
-          </h1>
-          <p style={{ margin: 0, fontSize: '14px', color: '#64748B' }}>
-            Đây là tổng quan hoạt động tại cửa hàng hôm nay.
-          </p>
-        </div>
-
+    <>
+      {/* Bốn thẻ số liệu — chỉ đọc, không bấm được */}
+      <div className="adm-tiles adm-tiles-4">
+        <StatTile tone="rose" icon="schedule" label="Lịch hẹn hôm nay"
+          value={bookings.length || 24} note="+4 so với hôm qua" />
+        <StatTile tone="gold" icon="clock" label="Chờ xác nhận" value={5} note="Cần duyệt" />
+        <StatTile tone="lavender" icon="adminStaff" label="Nhân viên đang làm"
+          value={3} note="trên 6 người đang ca" />
+        <StatTile tone="sage" icon="dollar" label="Doanh thu hôm nay"
+          value={revenue > 0 ? formatVND(revenue) : '5.200.000 đ'} note="+12% so với hôm qua" />
       </div>
 
-      {/* 4 TOP METRIC CARDS */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-        gap: '20px',
-        marginBottom: '28px'
-      }}>
-        {/* Card 1: Today's Appointments */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '20px',
-          padding: '24px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Lịch hẹn hôm nay</span>
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '50%', background: '#FCE7F3', color: '#DB2777',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Icon name="schedule" />
-            </div>
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>
-            {bookings.length > 0 ? bookings.length : 24}
-          </div>
-          <span style={{ fontSize: '12px', color: '#64748B' }}>+4 so với hôm qua</span>
-        </div>
-
-        {/* Card 2: Pending Confirmation */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '20px',
-          padding: '24px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Chờ xác nhận</span>
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '50%', background: '#FEF3C7', color: '#D97706',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Icon name="clock" />
-            </div>
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#D97706', marginBottom: '4px' }}>
-            5
-          </div>
-          <span style={{ fontSize: '12px', color: '#64748B' }}>Cần duyệt</span>
-        </div>
-
-        {/* Card 3: Staff Currently Serving */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '20px',
-          padding: '24px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Nhân viên đang làm</span>
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '50%', background: '#E0F2FE', color: '#0284C7',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Icon name="profile" />
-            </div>
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#0F172A', marginBottom: '4px' }}>
-            3
-          </div>
-          <span style={{ fontSize: '12px', color: '#64748B' }}>trên 6 người đang ca</span>
-        </div>
-
-        {/* Card 4: Today's Revenue */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '20px',
-          padding: '24px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748B' }}>Doanh thu hôm nay</span>
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '50%', background: '#DCFCE7', color: '#16A34A',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-              <Icon name="dollar" />
-            </div>
-          </div>
-          <div style={{ fontSize: '32px', fontWeight: 600, color: '#16A34A', marginBottom: '4px' }}>
-            {totalRevenue > 0 ? formatVND(totalRevenue) : '5.200.000 đ'}
-          </div>
-          <span style={{ fontSize: '12px', color: '#64748B' }}>+12% so với hôm qua</span>
-        </div>
-      </div>
-
-      {/* MIDDLE SECTION: 2 COLUMNS (Revenue Overview & Upcoming Appointments) */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)',
-        gap: '24px',
-        alignItems: 'start'
-      }}>
-        {/* Left Column: Revenue Overview (Bar Chart) */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '24px',
-          padding: '28px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
-            <div>
-              <h2 style={{ margin: '0 0 4px', fontSize: '20px', fontWeight: 600, color: '#0F172A' }}>
-                Tổng quan Doanh thu
-              </h2>
-              <span style={{ fontSize: '13px', color: '#94A3B8' }}>7 ngày gần đây</span>
-            </div>
+      <div className="adm-split">
+        {/* Biểu đồ doanh thu */}
+        <Panel>
+          <SectionHeading
+            icon={<Icon name="dollar" />}
+            title="Tổng quan doanh thu"
+            subtitle="7 ngày gần đây"
+          >
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '24px', fontWeight: 600, color: '#0F172A' }}>18.450.000 đ</div>
-              <div style={{ fontSize: '12px', color: '#16A34A', fontWeight: 600 }}>+8.4% so với tuần trước</div>
+              <strong style={{ display: 'block', fontSize: 17, fontWeight: 600 }}>
+                {formatVND(WEEK_TOTAL * 1000)}
+              </strong>
+              <span style={{ fontSize: 11, color: 'var(--nh-sage)' }}>+8,4% so với tuần trước</span>
+            </div>
+          </SectionHeading>
+          <div style={{ padding: '0 16px 16px' }}>
+            <div className="adm-chart">
+              {CHART.map((day) => (
+                <div key={day.day} className={`adm-chart-col${day.active ? ' is-active' : ''}`}>
+                  <div
+                    className="adm-chart-bar"
+                    style={{ height: `${Math.max(8, (day.amount / peak) * 150)}px` }}
+                    title={`${day.day}: ${formatVND(day.amount * 1000)}`}
+                  />
+                  <small>{day.day}</small>
+                </div>
+              ))}
             </div>
           </div>
+        </Panel>
 
-          {/* Bar Chart Visualization */}
-          <div style={{ height: '220px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '0 20px 20px 40px', position: 'relative' }}>
-            {/* Horizontal Grid lines */}
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: '0px', borderBottom: '1px dashed #E2E8F0', display: 'flex', alignItems: 'center' }}>
-              <span style={{ fontSize: '11px', color: '#94A3B8', position: 'absolute', left: 0 }}>$0</span>
-            </div>
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: '50px', borderBottom: '1px dashed #E2E8F0' }}>
-              <span style={{ fontSize: '11px', color: '#94A3B8', position: 'absolute', left: 0, bottom: '-8px' }}>$250</span>
-            </div>
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: '100px', borderBottom: '1px dashed #E2E8F0' }}>
-              <span style={{ fontSize: '11px', color: '#94A3B8', position: 'absolute', left: 0, bottom: '-8px' }}>$500</span>
-            </div>
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: '150px', borderBottom: '1px dashed #E2E8F0' }}>
-              <span style={{ fontSize: '11px', color: '#94A3B8', position: 'absolute', left: 0, bottom: '-8px' }}>$750</span>
-            </div>
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: '200px', borderBottom: '1px dashed #E2E8F0' }}>
-              <span style={{ fontSize: '11px', color: '#94A3B8', position: 'absolute', left: 0, bottom: '-8px' }}>$1000</span>
-            </div>
-
-            {/* Bars */}
-            {chartData.map((item) => (
-              <div key={item.day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, gap: '10px' }}>
-                <div style={{
-                  width: '28px',
-                  height: `${item.height * 1.8}px`,
-                  background: item.active ? '#E63980' : '#F9A8D4',
-                  borderRadius: '14px',
-                  transition: 'all 0.3s'
-                }} />
-                <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>{item.day}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right Column: Upcoming Appointments */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '24px',
-          padding: '28px',
-          border: '1px solid #F1F5F9',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.02)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#0F172A' }}>
-              Lịch hẹn sắp tới
-            </h2>
-            <button
-              onClick={() => dispatch({ type: 'view', view: 'admin-bookings' })}
-              style={{ background: 'none', border: 'none', color: '#EC4899', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
-            >
+        {/* Lịch hẹn sắp tới */}
+        <Panel>
+          <SectionHeading
+            icon={<Icon name="clock" />}
+            title="Lịch hẹn sắp tới"
+          >
+            <button className="text-button" onClick={() => dispatch({ type: 'view', view: 'admin-bookings' })}>
               Xem tất cả
             </button>
+          </SectionHeading>
+          <div className="adm-feed" style={{ padding: '0 16px 16px' }}>
+            {FEED.length === 0
+              ? <EmptyState title="Chưa có lịch hẹn" detail="Các lịch hẹn sắp tới sẽ hiện ở đây." />
+              : FEED.map((item) => (
+                <article key={item.time} className="adm-feed-row">
+                  <span className="adm-feed-time">{item.time}<small>{item.part}</small></span>
+                  <span className="adm-feed-body">
+                    <strong>{item.customer}</strong>
+                    <span>{item.service}</span>
+                  </span>
+                  <span className={`badge ${item.status === 'Chờ xác nhận' ? 'pending'
+                    : item.status === 'Đang làm' ? 'processing' : 'confirmed'}`}>
+                    <i />{item.status}
+                  </span>
+                </article>
+              ))}
           </div>
-
-          {/* Appointment list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {/* Item 1 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '16px',
-              border: '1px solid #F1F5F9',
-              background: '#FFFFFF'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  background: '#F1F5F9',
-                  padding: '8px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#334155',
-                  textAlign: 'center'
-                }}>
-                  09:00<br /><small style={{ fontSize: '10px', color: '#94A3B8' }}>Sáng</small>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>Nguyễn Phương Thảo</div>
-                  <div style={{ fontSize: '12px', color: '#64748B' }}>Sơn Gel Móng · KTV Linh</div>
-                </div>
-              </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, background: '#FCE7F3', color: '#EC4899', padding: '4px 10px', borderRadius: '12px' }}>
-                Đang làm
-              </span>
-            </div>
-
-            {/* Item 2 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '16px',
-              border: '1px solid #F1F5F9',
-              background: '#FFFFFF'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  background: '#F1F5F9',
-                  padding: '8px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#334155',
-                  textAlign: 'center'
-                }}>
-                  10:30<br /><small style={{ fontSize: '10px', color: '#94A3B8' }}>Sáng</small>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>Trần Thu Trang</div>
-                  <div style={{ fontSize: '12px', color: '#64748B' }}>Đắp Gel Trọn Bộ · KTV Mai</div>
-                </div>
-              </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, background: '#DCFCE7', color: '#16A34A', padding: '4px 10px', borderRadius: '12px' }}>
-                Đã xác nhận
-              </span>
-            </div>
-
-            {/* Item 3 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '16px',
-              border: '1px solid #F1F5F9',
-              background: '#FFFFFF'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  background: '#F1F5F9',
-                  padding: '8px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#334155',
-                  textAlign: 'center'
-                }}>
-                  11:15<br /><small style={{ fontSize: '10px', color: '#94A3B8' }}>Sáng</small>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>Lê Ngọc Anh</div>
-                  <div style={{ fontSize: '12px', color: '#64748B' }}>Spa Pedicure Chăm Sóc Chân · KTV Anna</div>
-                </div>
-              </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, background: '#FEF3C7', color: '#D97706', padding: '4px 10px', borderRadius: '12px' }}>
-                Chờ xác nhận
-              </span>
-            </div>
-
-            {/* Item 4 */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 16px',
-              borderRadius: '16px',
-              border: '1px solid #F1F5F9',
-              background: '#FFFFFF'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  background: '#F1F5F9',
-                  padding: '8px 12px',
-                  borderRadius: '12px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#334155',
-                  textAlign: 'center'
-                }}>
-                  01:00<br /><small style={{ fontSize: '10px', color: '#94A3B8' }}>Chiều</small>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#0F172A' }}>Phạm Quỳnh Chi</div>
-                  <div style={{ fontSize: '12px', color: '#64748B' }}>Vẽ Móng Nghệ Thuật · KTV Linh</div>
-                </div>
-              </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, background: '#DCFCE7', color: '#16A34A', padding: '4px 10px', borderRadius: '12px' }}>
-                Đã xác nhận
-              </span>
-            </div>
-          </div>
-        </div>
+        </Panel>
       </div>
 
-      {/* New Appointment Modal */}
-      {showNewModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: '#FFFFFF',
-            borderRadius: '20px',
-            padding: '28px',
-            width: '100%',
-            maxWidth: '440px',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: '20px', fontWeight: 600 }}>Tạo lịch hẹn mới</h3>
-            <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '20px' }}>
-              Tùy chọn thêm lịch hẹn trực tiếp tại cửa hàng cho khách hàng.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                onClick={() => setShowNewModal(false)}
-                style={{ padding: '8px 16px', borderRadius: '12px', border: '1px solid #CBD5E1', background: '#FFF', cursor: 'pointer' }}
-              >
-                Đóng
-              </button>
-              <button
-                onClick={() => { alert('Đã tạo lịch hẹn mới thành công!'); setShowNewModal(false); }}
-                style={{ padding: '8px 16px', borderRadius: '12px', border: 'none', background: '#EC4899', color: '#FFF', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Xác nhận
-              </button>
+      {openNew && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="adm-modal">
+            <h3>Tạo lịch hẹn mới</h3>
+            <p>Thêm lịch hẹn tại quầy cho khách hàng. Trang này chưa nối API nên chưa lưu được.</p>
+            <div className="adm-modal-foot">
+              <button className="button secondary" onClick={() => setOpenNew(false)}>Đóng</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

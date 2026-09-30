@@ -1,0 +1,25 @@
+/* ==========================================================================
+   HAI THẺ TRANG TRÍ Ở CỘT PHẢI — dùng chung cho trang Dịch vụ và Cá nhân
+   ========================================================================== */
+
+/* Thẻ trích dẫn hồng, có ảnh nail mờ dần ở góc phải */
+.quote-card{position:relative;overflow:hidden;padding:16px 14px;border-radius:13px;color:#fff;
+  background:linear-gradient(135deg,#F4A0B4 0%,#E4748F 45%,#D96C8B 100%)}
+.quote-card p{position:relative;margin:0;max-width:64%;font-size:14px;line-height:1.4;font-weight:600;
+  font-style:italic;text-shadow:0 1px 8px rgba(150,50,80,.28)}
+.quote-card span{position:relative;display:block;margin-top:7px;max-width:64%;font-size:9.5px;
+  letter-spacing:1.2px;opacity:.9}
+.quote-card:after{content:'';position:absolute;right:-6px;bottom:-14px;width:56%;height:150%;
+  background:url('/uploads/nails/nail-collection-v2.png') right center/cover no-repeat;
+  opacity:.9;border-radius:50% 0 0 50%;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 62%);
+  mask-image:linear-gradient(90deg,transparent,#000 62%)}
+
+/* Thẻ gợi ý liên hệ quản lý */
+.help-card{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:#fff;
+  border:1px solid var(--nh-line);border-radius:13px}
+.help-card-icon{display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;border-radius:10px;
+  background:var(--nh-blush);color:var(--nh-primary)}
+.help-card-icon svg{width:16px;height:16px}
+.help-card h3{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.help-card p{margin:2px 0 0;font-size:11px;line-height:1.55;color:#8A7B80}

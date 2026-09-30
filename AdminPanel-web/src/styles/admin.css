@@ -1,0 +1,209 @@
+/* ==========================================================================
+   KHU VỰC QUẢN TRỊ — phần CSS riêng
+   Nền tảng (biến màu, sidebar, topbar, panel, bảng) lấy nguyên văn từ
+   Admin-web: base.css + theme.css + density.css. File này CHỈ bổ sung những
+   thành phần riêng của trang quản trị, dùng đúng thang giá trị đang áp cho
+   app nhân viên: chữ 11–13px, nhãn 600 tối đa, bo góc thẻ 12–13px, điều khiển 6–8px.
+   ========================================================================== */
+
+/* ---- Cụm nút ở đầu trang ----
+   Sao chép nguyên vẹn từ customers.css của app nhân viên: nút phụ đứng trước
+   nút làm mới, nút chính đậm hơn một bậc. */
+.page-heading-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;min-width:0;flex-wrap:wrap;
+  justify-content:flex-end}
+.page-heading-actions .button:not(#refresh){display:inline-flex;align-items:center;gap:6px;
+  white-space:nowrap;font-size:12px;line-height:1.4;min-height:34px;
+  background:var(--nh-primary-dark);border-color:var(--nh-primary-dark)}
+.page-heading-actions .button:not(#refresh):hover{background:#9E2F4F;border-color:#9E2F4F}
+
+/* ---- Nhóm nút chuyển chế độ ----
+   Cùng bộ `.mode-tabs` của trang Lịch làm việc; màu khi được chọn do theme.css lo. */
+.mode-tabs{display:flex;gap:7px}
+.mode-tabs button{background:#F4F3F6;color:#777182;padding:10px 24px;border-radius:7px;
+  font-size:12px;border:1px solid transparent}
+.mode-tabs button.active{font-weight:600}
+.mode-tabs button:hover{background:#F7E9EF}
+
+/* ---- Lưới hai cột: nội dung chính + cột phụ ---- */
+.adm-split{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
+.adm-split-even{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.adm-stack{display:grid;gap:16px;min-width:0}
+
+/* ---- Thanh công cụ trên đầu bảng ---- */
+.adm-tools{display:flex;gap:10px;padding:0 16px 14px;flex-wrap:wrap;align-items:center}
+.adm-tools .search{flex:1;min-width:180px}
+.adm-tools select{font-size:12px;border:1px solid var(--nh-line);border-radius:7px;padding:7px 9px;background:#fff;color:var(--nh-ink)}
+
+/* ---- Thẻ tiêu đề trong panel: nhãn + con số ---- */
+.adm-tiles{display:grid;gap:12px;margin-bottom:16px}
+.adm-tiles-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.adm-tiles-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.adm-tiles-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+/* ---- Biểu đồ cột doanh thu ---- */
+.adm-chart{display:flex;align-items:flex-end;gap:12px;height:180px;padding:14px 4px 0}
+.adm-chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end}
+.adm-chart-bar{width:100%;max-width:30px;border-radius:8px 8px 4px 4px;background:#F9C0D0}
+.adm-chart-col.is-active .adm-chart-bar{background:var(--nh-primary)}
+.adm-chart-col small{font-size:11px;color:var(--nh-muted)}
+
+/* ---- Danh sách lịch hẹn sắp tới ---- */
+.adm-feed{display:grid;gap:9px}
+.adm-feed-row{display:flex;align-items:center;gap:11px;padding:11px 13px;
+  border:1px solid var(--nh-line);border-radius:12px;background:#fff}
+.adm-feed-time{flex:0 0 52px;text-align:center;background:var(--nh-blush);color:var(--nh-primary-dark);
+  border-radius:9px;padding:7px 4px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.3}
+.adm-feed-time small{display:block;font-size:9.5px;font-weight:400;color:#9A5065}
+.adm-feed-body{min-width:0;flex:1}
+.adm-feed-body strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-feed-body span{display:block;font-size:11px;color:var(--nh-muted);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- Nút bật/tắt ---- */
+.adm-toggle{width:38px;height:22px;border-radius:11px;background:#EFE7EA;position:relative;
+  cursor:pointer;transition:background .18s;flex:0 0 38px}
+.adm-toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.18);transition:left .18s}
+.adm-toggle.is-on{background:var(--nh-primary)}
+.adm-toggle.is-on::after{left:19px}
+
+/* ---- Nút biểu tượng trong bảng ---- */
+.adm-icon-btn{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:7px;
+  background:transparent;color:#9A8B93;cursor:pointer}
+.adm-icon-btn:hover{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-icon-btn svg{width:15px;height:15px}
+.adm-row-actions{display:flex;gap:4px;justify-content:flex-end}
+
+/* ---- Bảng: dùng chung .schedule-table của app nhân viên, chỉ chỉnh chiều rộng ---- */
+.adm-table{min-width:720px}
+.adm-table td:first-child, .adm-table th:first-child{padding-left:16px}
+.adm-table td:last-child, .adm-table th:last-child{padding-right:16px;text-align:right}
+.adm-table td{padding:13px 14px;font-size:12px}
+.adm-table th{font-size:10px;padding:11px 14px}
+.adm-cell-name{display:flex;align-items:center;gap:10px;min-width:0}
+.adm-thumb{width:38px;height:38px;flex:0 0 38px;border-radius:10px;object-fit:cover;background:var(--nh-blush)}
+.adm-cell-name strong{font-size:12.5px;font-weight:600;color:var(--nh-ink);display:block}
+.adm-cell-name small{font-size:10.5px;color:var(--nh-muted);display:block;margin-top:2px}
+.adm-tag{display:inline-block;font-size:10px;background:var(--nh-blush);color:var(--nh-primary-dark);
+  padding:2px 7px;border-radius:5px;margin-top:3px}
+
+/* ---- Lưới lịch hẹn theo cột nhân viên ----
+   Cùng nguyên lý với lưới tuần của app nhân viên: cột giờ bên trái, mỗi nhân
+   viên một cột, khối lịch đặt theo trục thời gian. */
+.adm-book{display:flex;min-width:900px}
+.adm-book-hours{flex:0 0 64px;border-right:1px solid var(--nh-line);background:#fff;position:sticky;left:0;z-index:20}
+.adm-book-hours-head{height:58px;border-bottom:1px solid var(--nh-line)}
+.adm-book-hours-body{position:relative}
+.adm-book-hours span{position:absolute;right:9px;transform:translateY(-50%);
+  font-size:10px;color:#9A8B93;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.adm-book-cols{flex:1;display:flex;overflow-x:auto}
+.adm-book-col{flex:1;min-width:210px;border-right:1px solid var(--nh-line)}
+.adm-book-col:last-child{border-right:0}
+.adm-book-head{height:58px;border-bottom:1px solid var(--nh-line);display:flex;align-items:center;
+  gap:9px;padding:0 12px;background:#fff;position:sticky;top:0;z-index:10}
+.adm-book-head .avatar{width:30px;height:30px;font-size:11px}
+.adm-book-head strong{display:block;font-size:12px;font-weight:600;color:var(--nh-ink)}
+.adm-book-head small{display:block;font-size:10.5px;color:var(--nh-muted)}
+
+.adm-book-body{position:relative}
+.adm-book-body:before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(to bottom,var(--nh-line) 1px,transparent 1px);background-size:100% var(--adm-slot)}
+
+/* Khối lịch: viền trái 3px theo trạng thái, bo góc 8px */
+.adm-book-block{position:absolute;left:9px;right:9px;display:flex;flex-direction:column;
+  border-radius:8px;overflow:hidden;border-left:3px solid;box-shadow:0 1px 3px rgba(45,36,48,.05)}
+.adm-book-block.is-confirmed{background:#FBEAF1;border-color:var(--nh-primary)}
+.adm-book-block.is-pending{background:var(--nh-gold-soft);border-color:var(--nh-gold)}
+.adm-book-block.is-processing{background:var(--nh-lavender-soft);border-color:var(--nh-lavender)}
+.adm-book-block.is-completed{background:var(--nh-sage-soft);border-color:var(--nh-sage)}
+.adm-book-main{flex:1;padding:7px 9px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.adm-book-main strong{font-size:12px;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-book-main span{font-size:10.5px;color:var(--nh-muted);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-book-main small{font-size:10px;color:#8A7B80;margin-top:3px;font-variant-numeric:tabular-nums}
+/* 15 phút dọn dẹp nối tiếp khối lịch, kẻ sọc như app nhân viên vẽ ca trống */
+.adm-book-buffer{flex:0 0 22px;display:grid;place-items:center;font-size:9.5px;color:#9A8B93;
+  border-top:1px dashed rgba(45,36,48,.14);
+  background:repeating-linear-gradient(-45deg,transparent,transparent 4px,rgba(154,139,147,.13) 4px,rgba(154,139,147,.13) 8px)}
+
+/* Chú giải màu */
+.adm-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--nh-muted)}
+.adm-legend>span{display:flex;align-items:center;gap:6px}
+.adm-legend i{width:4px;height:14px;border-radius:2px;background:var(--nh-primary)}
+.adm-legend i.is-pending{background:var(--nh-gold)}
+.adm-legend i.is-completed{background:var(--nh-sage)}
+.adm-legend i.is-buffer{width:14px;height:14px;background:rgba(154,139,147,.2)}
+
+/* ---- Ma trận lịch tuần ---- */
+.adm-week{min-width:900px;table-layout:fixed}
+.adm-week th,.adm-week td{border-left:1px solid var(--nh-line);text-align:center;vertical-align:top}
+.adm-week thead th{padding:9px 6px;background:#FAF7FA;font-size:10px;font-weight:500;letter-spacing:.8px;color:var(--nh-muted)}
+.adm-week thead th:first-child{width:186px;text-align:left;padding-left:16px;border-left:0}
+.adm-week thead th small{display:block;font-size:14px;font-weight:600;letter-spacing:0;color:var(--nh-ink);margin-top:3px}
+.adm-week tbody th{text-align:left;padding:12px 16px;border-left:0;font-weight:400}
+.adm-week tbody td{padding:7px;height:96px}
+.adm-week tbody tr+tr th,.adm-week tbody tr+tr td{border-top:1px solid var(--nh-line)}
+
+.adm-cell{height:100%;border-radius:9px;padding:8px 9px;text-align:left;
+  display:flex;flex-direction:column;gap:4px;justify-content:center}
+.adm-cell strong{font-size:11.5px;font-weight:600}
+.adm-cell small{font-size:10.5px}
+.adm-cell.is-shift{background:var(--nh-sage-soft);border-left:3px solid var(--nh-sage)}
+.adm-cell.is-shift strong{color:var(--nh-sage)}
+.adm-cell.is-shift small{color:#6F8580}
+.adm-cell.is-lunch{background:#FAF7FA;border-left:3px solid #D9CFD6}
+.adm-cell.is-lunch strong{color:var(--nh-muted)}
+.adm-cell.is-lunch small{color:#8A7B80}
+.adm-cell.is-leave{background:#FBE8ED;border-left:3px solid var(--nh-primary-dark)}
+.adm-cell.is-leave strong{color:var(--nh-primary-dark)}
+.adm-cell.is-leave small{color:#9A5065}
+.adm-cell.is-off{align-items:center;justify-content:center;background:#FAF7FA;border:1px dashed #E4DBE0;
+  color:#A8999F;font-size:11px;text-align:center}
+
+/* ---- Lưới lịch làm việc của nhân viên ---- */
+.adm-shift-grid{display:grid;gap:10px;padding:0 16px 16px}
+.adm-shift{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid #DDECE7;
+  border-radius:12px;background:#F6FBF9}
+.adm-shift-when{flex:0 0 116px;font-size:12px;font-weight:600;color:var(--nh-sage);font-variant-numeric:tabular-nums}
+.adm-shift-who{min-width:0;flex:1;display:flex;align-items:center;gap:9px}
+.adm-shift-who strong{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
+.adm-shift-who small{font-size:11px;color:#6F8580}
+
+/* ---- Hàng thẻ nhỏ (chuyên môn) ---- */
+.adm-cell-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+
+/* ---- Lưới thẻ hồ sơ nhân viên ----
+   Thẻ dọc (avatar cạnh tên, thông tin bên dưới) nên không dùng .svc-card của
+   trang Dịch vụ — thẻ đó bố cục ngang, cột ảnh chiếm 92px. */
+.adm-people{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:12px;
+  padding:0 16px 16px}
+.adm-person{padding:14px;border:1px solid var(--nh-line);border-radius:12px;background:#fff;
+  display:flex;flex-direction:column;min-width:0}
+.adm-person-head{display:flex;align-items:center;gap:10px;min-width:0}
+.adm-person-head .avatar{width:44px;height:44px;flex:0 0 44px;font-size:15px}
+.adm-person h3{font-size:13px;font-weight:600;line-height:1.4;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-person small{display:block;font-size:10.5px;color:var(--nh-muted);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-person-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--nh-muted)}
+.adm-person-meta>span{display:flex;align-items:center;gap:4px}
+.adm-person-meta svg{width:13px;height:13px;color:var(--nh-gold)}
+
+/* ---- Hộp thoại xác nhận ---- */
+.adm-modal-backdrop{position:fixed;inset:0;background:rgba(45,36,48,.42);display:grid;place-items:center;z-index:60;padding:20px}
+.adm-modal{width:min(400px,100%);background:#fff;border:1px solid var(--nh-line);border-radius:14px;padding:22px}
+.adm-modal h3{font-size:16px;font-weight:600;color:var(--nh-ink)}
+.adm-modal p{margin:7px 0 0;font-size:12.5px;color:var(--nh-muted);line-height:1.6}
+.adm-modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+/* ---- Màn nhỏ ---- */
+@media(max-width:1200px){
+  .adm-split{grid-template-columns:minmax(0,1fr)}
+  .adm-tiles-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .adm-tiles-4,.adm-tiles-3,.adm-tiles-2{grid-template-columns:minmax(0,1fr)}
+}

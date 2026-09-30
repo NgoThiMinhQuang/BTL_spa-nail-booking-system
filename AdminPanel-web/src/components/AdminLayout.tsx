@@ -1,6 +1,9 @@
-/* ===== Khung ứng dụng đồng bộ 100% với ảnh thiết kế NAIL STUDIO ===== */
+/* ===== Khung ứng dụng của KHU VỰC QUẢN TRỊ =====
+   Dùng đúng bộ class của app nhân viên (sidebar, topbar, page-heading, panel)
+   để hai bên nhìn như một sản phẩm: cùng nền kem, sidebar hồng, chữ 11–13px.
+   Khác app nhân viên ở chỗ có thêm nhóm menu và nhãn "Khu vực quản trị". */
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useApp, type ViewName } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
@@ -8,7 +11,7 @@ import { Icon, type IconName } from './Icon';
 import { Avatar } from './Avatar';
 
 interface NavGroup {
-  title?: string;
+  title: string;
   items: { view: ViewName; label: string; icon: IconName }[];
 }
 
@@ -25,9 +28,9 @@ const ADMIN_GROUPS: NavGroup[] = [
       { view: 'admin-bookings', label: 'Lịch hẹn', icon: 'schedule' },
       { view: 'admin-services', label: 'Dịch vụ', icon: 'services' },
       { view: 'admin-staff', label: 'Nhân viên', icon: 'adminStaff' },
-      { view: 'admin-customers', label: 'Khách hàng', icon: 'adminCustomers' },
+      { view: 'admin-customers', label: 'Khách hàng', icon: 'customers' },
       { view: 'admin-work-schedule', label: 'Lịch làm việc', icon: 'clock' },
-      { view: 'admin-payments', label: 'Thanh toán & Doanh thu', icon: 'dollar' },
+      { view: 'admin-payments', label: 'Doanh thu', icon: 'dollar' },
       { view: 'admin-reviews', label: 'Đánh giá', icon: 'star' },
     ],
   },
@@ -39,12 +42,36 @@ const ADMIN_GROUPS: NavGroup[] = [
   },
 ];
 
-export function AdminLayout({ children }: { children: ReactNode; actions?: ReactNode }) {
-  const { state, dispatch, activeNav } = useApp();
+/* Tiêu đề + phụ đề do khung đảm nhiệm, giống hệt app nhân viên — các trang
+   không tự viết lại <h1> nữa. */
+const TITLES: Record<ViewName, [string, string]> = {
+  'admin-dashboard': ['Bảng điều khiển', 'Tổng quan hoạt động của cửa hàng hôm nay.'],
+  'admin-bookings': ['Lịch hẹn', 'Toàn bộ lịch hẹn của cửa hàng, theo dõi và cập nhật trạng thái.'],
+  'admin-services': ['Dịch vụ', 'Danh mục dịch vụ, bảng giá và quy định đặt cọc.'],
+  'admin-staff': ['Nhân viên', 'Quản lý hồ sơ, chuyên môn và ca làm việc của nhân sự.'],
+  'admin-customers': ['Khách hàng', 'Danh sách khách hàng đã và đang sử dụng dịch vụ.'],
+  'admin-work-schedule': ['Lịch làm việc', 'Ca làm việc của toàn bộ nhân viên trong tuần.'],
+  'admin-payments': ['Thanh toán & Doanh thu', 'Theo dõi doanh thu và các giao dịch của cửa hàng.'],
+  'admin-reviews': ['Đánh giá', 'Phản hồi của khách hàng sau mỗi buổi chăm sóc.'],
+  'admin-settings': ['Cài đặt', 'Thông tin cửa hàng và tùy chọn hệ thống.'],
+};
+
+export function AdminLayout({
+  children, actions,
+}: { children: ReactNode; actions?: ReactNode }) {
+  const { state, dispatch, activeNav, reload } = useApp();
   const { goView } = useNavigation();
   const globalSearch = useRef<HTMLInputElement>(null);
 
-  const navGroups = ADMIN_GROUPS;
+  /* Đổi trang thì đưa con trỏ về đầu, nếu không trang mới mở ở giữa nội dung
+     nên nhìn như bị nhảy. */
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [state.view]);
+
+  const [title, subtitle] = TITLES[state.view] ?? TITLES['admin-dashboard'];
 
   const onGlobalSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -52,202 +79,90 @@ export function AdminLayout({ children }: { children: ReactNode; actions?: React
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFC', fontFamily: 'var(--font-sans)' }}>
-      {/* LEFT SIDEBAR: Clean White with Pink Active Pills */}
-      <aside style={{
-        width: '260px',
-        minWidth: '260px',
-        background: '#FFFFFF',
-        borderRight: '1px solid #F1F5F9',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '24px 20px',
-        boxSizing: 'border-box'
-      }}>
-        <div>
-          {/* Logo Section */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px', paddingLeft: '8px' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: '#EC4899',
-              color: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Icon name="flower" />
+    <>
+      <aside className="sidebar">
+        <a className="brand" href="./" aria-label="NailHouse - về bảng điều khiển">
+          <span className="brand-mark"><Icon name="flower" /></span>
+          <span>Nail<span className="rose">House</span><small>BEAUTY NAILS · BETTER YOU</small></span>
+        </a>
+        <div className="nav-label">KHU VỰC QUẢN TRỊ</div>
+        <nav aria-label="Điều hướng quản trị">
+          {ADMIN_GROUPS.map((group) => (
+            <div key={group.title} style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+              <p className="nav-label" style={{ margin: '0 12px' }}>{group.title}</p>
+              {group.items.map((item) => (
+                <button
+                  key={item.view}
+                  className={activeNav === item.view ? 'active' : ''}
+                  onClick={() => goView(item.view)}
+                >
+                  <span><Icon name={item.icon} /></span>{item.label}
+                </button>
+              ))}
             </div>
-            <span style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '0.08em', color: '#0F172A', textTransform: 'uppercase' }}>
-              NAIL STUDIO
-            </span>
-          </div>
-
-          {/* Navigation Groups */}
-          <nav aria-label="Main Navigation">
-            {navGroups.map((group, gIdx) => (
-              <div key={gIdx} style={{ marginBottom: '24px' }}>
-                {group.title && (
-                  <div style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    color: '#94A3B8',
-                    marginBottom: '12px',
-                    paddingLeft: '12px',
-                    textTransform: 'uppercase'
-                  }}>
-                    {group.title}
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {group.items.map((item) => {
-                    const isActive = activeNav === item.view;
-                    return (
-                      <button
-                        key={item.view}
-                        onClick={() => goView(item.view)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          width: '100%',
-                          padding: '10px 14px',
-                          borderRadius: '24px',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: isActive ? 700 : 500,
-                          color: isActive ? '#FFFFFF' : '#64748B',
-                          background: isActive ? 'linear-gradient(90deg, #ec4899 0%, #e11d48 100%)' : 'transparent',
-                          boxShadow: isActive ? '0 4px 14px rgba(236, 72, 153, 0.35)' : 'none',
-                          transition: 'all 0.2s ease',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <span style={{ display: 'flex', alignItems: 'center' }}>
-                          <Icon name={item.icon} />
-                        </span>
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </nav>
-        </div>
-
-        {/* Studio Status Bottom Card */}
-        <div style={{
-          background: '#FFF0F5',
-          borderRadius: '16px',
-          padding: '16px',
-          marginTop: 'auto'
-        }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
-            Cửa hàng đang mở
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748B' }}>
-            Hôm nay · 09:00 - 20:00
-          </div>
+          ))}
+        </nav>
+        <div className="sidebar-note"><span>♥</span><p>Làm đẹp<br />Mỗi ngày<br />Là một niềm vui!</p></div>
+        <div className="sidebar-footer">
+          <p>“Những bàn tay xinh đẹp<br />Tạo nên những ngày hạnh phúc”</p>
+          <span>— &nbsp; NailHouse &nbsp; —</span>
         </div>
       </aside>
 
-      {/* RIGHT WORKSPACE AREA */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* TOP HEADER BAR */}
-        <header style={{
-          height: '76px',
-          background: '#F8FAFC',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 36px',
-          boxSizing: 'border-box'
-        }}>
-          {/* Rounded Global Search Input */}
-          <form onSubmit={onGlobalSearch} style={{ flex: 1, maxWidth: '420px', position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }}>
-              ⌕
-            </span>
+      <div className="workspace">
+        <header className="topbar">
+          <form className="global-search" onSubmit={onGlobalSearch}>
+            <span aria-hidden="true">⌕</span>
             <input
               ref={globalSearch}
-              placeholder="Tìm kiếm lịch hẹn, khách hàng, dịch vụ..."
-              style={{
-                width: '100%',
-                padding: '10px 16px 10px 42px',
-                borderRadius: '24px',
-                border: '1px solid #E2E8F0',
-                background: '#FFFFFF',
-                fontSize: '13px',
-                color: '#0F172A',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
+              aria-label="Tìm kiếm lịch hẹn, khách hàng"
+              placeholder="Tìm kiếm lịch hẹn, khách hàng…"
             />
+            <button type="submit" aria-label="Tìm kiếm">↵</button>
           </form>
-
-          {/* Right Controls: Bell, Admin Info, Logout */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* Notification Bell */}
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: '#FFFFFF',
-              border: '1px solid #E2E8F0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#64748B',
-              cursor: 'pointer'
-            }}>
-              <Icon name="bell" />
-            </div>
-
-            {/* Profile Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#FFFFFF', padding: '6px 14px', borderRadius: '24px', border: '1px solid #E2E8F0' }}>
-              <Avatar name={state.user?.name || 'Admin'} url={state.user?.avatar || null} size={32} />
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', lineHeight: 1.2 }}>
-                  {state.user?.name || 'Quản lý Admin'}
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  Quản lý Cửa hàng
-                </span>
-              </div>
-              <button
-                onClick={() => dispatch({ type: 'logout' })}
-                title="Đăng xuất"
-                style={{
-                  background: '#FEE2E2',
-                  color: '#DC2626',
-                  border: 'none',
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  marginLeft: '4px'
-                }}
-              >
-                Đăng xuất
-              </button>
-            </div>
+          {/* Khối tài khoản xếp theo thứ tự ngược: reference.css đặt
+              .account{flex-direction:row-reverse}, nên khai báo DOM ngược lại
+              để hiển thị ra là avatar — tên — đăng xuất. */}
+          <div className="account">
+            <button className="text-button" onClick={() => dispatch({ type: 'logout' })}>
+              Đăng xuất
+            </button>
+            <select id="admin-name" aria-label="Tài khoản đang đăng nhập" defaultValue="admin">
+              <option value="admin">{state.user?.name ?? 'Quản lý NailHouse'}</option>
+            </select>
+            <label htmlFor="admin-name">Quản trị viên</label>
+            <span className="account-avatar">
+              <Avatar name={state.user?.name ?? 'Quản lý'} url={state.user?.avatar ?? null} size={36} />
+            </span>
           </div>
         </header>
 
-        {/* MAIN BODY CONTENT */}
-        <main style={{ flex: 1, padding: '0 36px 36px', boxSizing: 'border-box', overflowY: 'auto', maxWidth: 'none', margin: 0 }}>
-          <div id="feedback" role="status" aria-live="polite">{state.feedback}</div>
-          <div id="content" aria-busy={state.loading}>
-            {children}
+        <main>
+          <div className="page-heading">
+            <div>
+              <p className="eyebrow">MỖI NGÀY, MỘT CHÚT CHĂM CHÚT</p>
+              <h1 id="page-title">{title}</h1>
+              <p className="subtitle" id="page-subtitle">{subtitle}</p>
+            </div>
+            <div className="page-heading-actions">
+              {actions}
+              <button
+                id="refresh"
+                aria-label="Làm mới dữ liệu"
+                className="button secondary"
+                onClick={reload}
+              >
+                ↻ <span>Làm mới dữ liệu</span>
+              </button>
+            </div>
           </div>
+          <div id="feedback" role="status" aria-live="polite">{state.feedback}</div>
+          <div id="content" aria-busy={state.loading}>{children}</div>
+          <footer>
+            NailHouse Studio <span>Khu vực quản trị — cùng một cửa hàng.</span>
+          </footer>
         </main>
       </div>
-    </div>
+    </>
   );
 }
