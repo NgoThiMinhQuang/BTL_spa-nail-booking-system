@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { formatVND } from '../lib/utils';
-import { Icon } from '../components/Icon';
+import { formatVND } from '../../lib/utils';
+import { Icon } from '../../components/Icon';
 
 const MOCK_SERVICES = [
   { 

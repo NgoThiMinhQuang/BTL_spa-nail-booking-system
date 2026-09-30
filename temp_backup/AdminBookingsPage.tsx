@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../components/Icon';
+import { Icon } from '../../components/Icon';
 
 type Status = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 

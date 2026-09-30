@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useApp } from '../store';
-import { Icon } from '../components/Icon';
-import { formatVND } from '../lib/utils';
+import { useApp } from '../../store';
+import { Icon } from '../../components/Icon';
+import { formatVND } from '../../lib/utils';
 
 export function AdminDashboardPage() {
   const { state, dispatch } = useApp();
@@ -14,8 +14,8 @@ export function AdminDashboardPage() {
   // -- Dynamic Data Preparation --
   const pendingCount = bookings.filter(b => b.status === 'PENDING').length;
   const noShowCount = bookings.filter(b => b.status === 'NO_SHOW').length;
-  // const confirmedCount = bookings.filter(b => b.status === 'CONFIRMED').length;
-  // const processingCount = bookings.filter(b => b.status === 'PROCESSING').length;
+  const confirmedCount = bookings.filter(b => b.status === 'CONFIRMED').length;
+  const processingCount = bookings.filter(b => b.status === 'PROCESSING').length;
 
   const todayBookings = [...bookings]
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
@@ -191,10 +191,7 @@ export function AdminDashboardPage() {
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#332D2D', position: 'relative', display: 'inline-block' }}>
-              Doanh thu theo thời gian
-              <span style={{ position: 'absolute', bottom: '2px', right: '-4px', width: '60px', height: '10px', background: '#FCE7F3', zIndex: -1, borderRadius: '4px' }}></span>
-            </h2>
+            <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#332D2D' }}>Doanh thu theo thời gian</h2>
             <div style={{ display: 'flex', gap: '8px', background: '#FAFAFA', padding: '4px', borderRadius: '12px', border: '1px solid #F1F5F9' }}>
               <button style={{ padding: '6px 12px', border: 'none', background: 'transparent', color: '#94A3B8', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>7 ngày</button>
               <button style={{ padding: '6px 12px', border: 'none', background: '#793A4C', color: '#FFF', fontSize: '12px', fontWeight: 600, borderRadius: '8px', cursor: 'pointer' }}>30 ngày</button>
@@ -298,16 +295,16 @@ export function AdminDashboardPage() {
           <h2 style={{ margin: '0 0 24px', fontSize: '16px', fontWeight: 700, color: '#332D2D' }}>Việc cần xử lý</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flex: 1 }}>
             {[
-              { num: pendingCount, label: 'Lịch chờ xác nhận', icon: <Icon name="adminBookings" /> },
-              { num: 2, label: 'Khách đến muộn', icon: <Icon name="clock" /> },
-              { num: noShowCount, label: 'Khách không đến', icon: <Icon name="user" /> },
-              { num: 3, label: 'Thanh toán chưa hoàn tất', icon: <Icon name="card" /> }
+              { num: pendingCount, label: 'Lịch chờ xác nhận', icon: '📋' },
+              { num: confirmedCount, label: 'Lịch đã xác nhận', icon: '✅' },
+              { num: processingCount, label: 'Khách đang làm', icon: '💅' },
+              { num: noShowCount, label: 'Khách không đến', icon: '🚫' }
             ].map((task, idx) => (
               <div key={idx} style={{
                 background: '#FDF8F9', borderRadius: '16px', padding: '20px', display: 'flex', alignItems: 'flex-start', gap: '12px'
               }}>
                 <div style={{
-                  width: '40px', height: '40px', borderRadius: '50%', background: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#793A4C', flexShrink: 0
+                  width: '40px', height: '40px', borderRadius: '50%', background: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#793A4C', flexShrink: 0
                 }}>
                   {task.icon}
                 </div>
@@ -330,10 +327,7 @@ export function AdminDashboardPage() {
           gap: '24px'
         }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <h2 style={{ margin: '0 0 24px', fontSize: '16px', fontWeight: 700, color: '#332D2D', position: 'relative', display: 'inline-block' }}>
-              Doanh thu theo loại dịch vụ
-              <span style={{ position: 'absolute', bottom: '2px', right: '-4px', width: '120px', height: '10px', background: '#FCE7F3', zIndex: -1, borderRadius: '4px' }}></span>
-            </h2>
+            <h2 style={{ margin: '0 0 24px', fontSize: '16px', fontWeight: 700, color: '#332D2D' }}>Doanh thu theo loại dịch vụ</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
               {displayServices.map((srv, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -354,9 +348,9 @@ export function AdminDashboardPage() {
             overflow: 'hidden',
             position: 'relative'
           }}>
-            <img src="https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=300&q=80" alt="Nails" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src="https://images.unsplash.com/photo-1519014816548-bf5fe059e98b?auto=format&fit=crop&w=300&q=80" alt="Nails" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div style={{ position: 'absolute', bottom: '12px', left: '12px', color: '#FFF', fontSize: '11px', fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-              Favorite French<br/>Happy flow ♥
+              French Style<br/>Móng vuông
             </div>
           </div>
         </div>

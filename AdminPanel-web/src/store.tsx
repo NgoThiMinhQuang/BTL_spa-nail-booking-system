@@ -33,6 +33,9 @@ export interface AdminBooking {
   id: number | string;
   status: string;
   price?: number;
+  startsAt: string;
+  customerName: string;
+  serviceName: string;
 }
 
 export interface AppState {

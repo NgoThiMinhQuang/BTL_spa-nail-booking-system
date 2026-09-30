@@ -18,6 +18,8 @@ import { AdminServicesPage } from './pages/AdminServicesPage';
 import { AdminBookingsPage } from './pages/AdminBookingsPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
 import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
+import { AdminReviewsPage } from './pages/AdminReviewsPage';
+import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
 
 function Routes() {
   const { state } = useApp();
@@ -32,6 +34,8 @@ function Routes() {
   else if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-work-schedule') page = <AdminWorkSchedulePage />;
+  else if (view === 'admin-reviews') page = <AdminReviewsPage />;
+  else if (view === 'admin-payments') page = <AdminPaymentsPage />;
   else page = <AdminDashboardPage />;
 
   return <div id="nailhouse"><AdminLayout>{page}</AdminLayout></div>;
