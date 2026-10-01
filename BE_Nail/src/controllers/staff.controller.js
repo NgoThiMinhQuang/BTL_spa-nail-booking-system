@@ -71,10 +71,11 @@ export async function getStaff(req, res, next) {
         LEFT JOIN service_images si ON si.service_id = s.service_id
         WHERE ss.staff_id = ? AND s.status = 'ACTIVE' AND COALESCE(si.image_url, s.image) IS NOT NULL
         ORDER BY s.service_name LIMIT 8`, [staffId]),
-      pool.query(`SELECT r.review_id AS id, u.full_name AS customerName, u.avatar AS customerAvatarUrl,
+      pool.query(`SELECT r.review_id AS id,
+          COALESCE(u.full_name, b.guest_name) AS customerName, u.avatar AS customerAvatarUrl,
           r.rating, r.comment, r.image AS imageUrl, r.created_at AS createdAt
         FROM booking b JOIN review r ON r.booking_id = b.booking_id
-        JOIN customer c ON c.customer_id = b.customer_id JOIN users u ON u.user_id = c.user_id
+        LEFT JOIN customer c ON c.customer_id = b.customer_id LEFT JOIN users u ON u.user_id = c.user_id
         WHERE b.staff_id = ? ORDER BY r.created_at DESC LIMIT 10`, [staffId]),
     ]);
 

@@ -25,6 +25,11 @@ import {
   removeAddon,
   removeImage,
 } from '../controllers/booking-admin.controller.js';
+import {
+  listEligibleStaff,
+  lookupCustomer,
+  walkInSlots,
+} from '../controllers/walkin.controller.js';
 
 const router = Router();
 
@@ -47,6 +52,12 @@ router.get('/bookings/availability', getAvailableStaff);
 router.get('/bookings/free-slots', getFreeSlots);
 router.post('/bookings/availability', postAvailability);
 router.post('/bookings', createBooking);
+
+/* ---- Tạo lịch khách walk-in ----
+   Đặt trước /bookings/:id để các đường con không bị ":id" nuốt. */
+router.get('/walkin/customer', lookupCustomer);
+router.get('/walkin/staff', listEligibleStaff);
+router.get('/walkin/slots', walkInSlots);
 
 router.get('/bookings/:id', getBooking);
 router.patch('/bookings/:id', patchBooking);

@@ -30,6 +30,115 @@
 }
 
 /* ==========================================================================
+   HỘP TẠO LỊCH KHÁCH WALK-IN
+   Bốn khối theo đúng thứ tự người dùng điền: khách → dịch vụ → nhân viên
+   và giờ → ghi chú và xác nhận. Mỗi khối một đường viền, không gộp thành
+   một cột ô dài, để biết mình đang ở đâu khi cuộn.
+   ========================================================================== */
+
+.adm-walkin{display:grid;gap:14px}
+.adm-walkin-block{display:grid;gap:10px;padding:14px 15px;border:1px solid var(--nh-line);
+  border-radius:13px;background:#fff}
+.adm-walkin-block>h3{display:flex;align-items:center;gap:7px;margin:0;font-size:var(--adm-td-sub);
+  font-weight:600;letter-spacing:1px;color:var(--nh-muted);text-transform:uppercase}
+.adm-walkin-block>h3::before{content:"";width:3px;height:13px;border-radius:2px;
+  background:var(--nh-primary)}
+
+/* ---- Khách đã có hồ sơ ---- */
+.adm-walkin-found{display:grid;gap:8px;padding:11px 12px;border-radius:11px;
+  background:var(--nh-sage-soft);border:1px solid #DDECE7}
+.adm-walkin-found-title{display:flex;align-items:center;gap:6px;margin:0;font-size:var(--adm-td-sub);
+  font-weight:600;color:#3D6656}
+.adm-walkin-found-title svg{width:14px;height:14px;flex:0 0 14px}
+.adm-walkin-found-body{display:flex;align-items:center;gap:11px}
+.adm-walkin-found-copy{display:grid;gap:1px;min-width:0;flex:1}
+.adm-walkin-found-copy strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-walkin-found-copy small{font-size:var(--adm-td-sub);color:#3D6656;opacity:.85;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-walkin-found-body code{flex:0 0 auto;padding:3px 8px;border-radius:7px;background:#fff;
+  border:1px solid #DDECE7;font-size:var(--adm-block);color:#3D6656;font-weight:600;
+  font-variant-numeric:tabular-nums}
+.adm-walkin-found-link{justify-self:start;display:inline-block}
+
+/* ---- Khách chưa có hồ sơ ---- */
+.adm-walkin-none{display:grid;gap:10px;padding:11px 12px;border-radius:11px;
+  background:#FDF9FA;border:1px solid var(--nh-line)}
+.adm-walkin-none>p{margin:0;font-size:var(--adm-td-sub);color:var(--nh-muted);line-height:1.6}
+
+/* ---- Thẻ dịch vụ vừa chọn ---- */
+.adm-walkin-svc{display:grid;gap:2px;padding:11px 12px;border-radius:11px;
+  background:#FDF9FA;border:1px solid var(--nh-line)}
+.adm-walkin-svc strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink)}
+.adm-walkin-svc span{font-size:var(--adm-block);color:var(--nh-muted)}
+
+/* ---- Nhân viên vừa chọn ---- */
+.adm-walkin-staff{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;
+  background:#FDF9FA;border:1px solid var(--nh-line)}
+.adm-walkin-staff>div{display:grid;gap:1px;min-width:0}
+.adm-walkin-staff strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-walkin-staff small{font-size:var(--adm-block);color:var(--nh-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- Khung giờ: lưới ô nút thay cho danh sách thả xuống ----
+   Bốn ô mỗi hàng trên desktop, ba ô trên máy tính bảng. */
+.adm-walkin-slots{display:grid;gap:10px}
+.adm-walkin-slots-label{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-walkin-group{display:grid;gap:6px}
+.adm-walkin-group-label{font-size:var(--adm-block);color:var(--nh-muted);letter-spacing:.4px}
+.adm-walkin-slot-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.adm-walkin-slot-grid button{padding:9px 4px;border-radius:9px;background:#fff;
+  border:1px solid var(--nh-line);color:var(--nh-ink);font-size:var(--adm-td);
+  font-variant-numeric:tabular-nums;transition:background .14s,border-color .14s}
+.adm-walkin-slot-grid button:hover{border-color:#E7C4CF;background:var(--nh-blush)}
+.adm-walkin-slot-grid button.is-on{background:var(--nh-primary);border-color:var(--nh-primary);
+  color:#fff;font-weight:600}
+
+/* ---- Khung giờ hết ---- */
+.adm-walkin-empty{display:grid;gap:6px;padding:13px 14px;border-radius:11px;
+  background:#FDF9FA;border:1px solid var(--nh-line)}
+.adm-walkin-empty strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink)}
+.adm-walkin-empty p{margin:0;font-size:var(--adm-block);color:var(--nh-muted);line-height:1.6}
+.adm-walkin-empty-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:3px}
+.adm-walkin-empty-actions .button{padding:6px 11px;font-size:var(--adm-block)}
+
+/* ---- Mốc thời gian dự kiến ---- */
+.adm-walkin-when{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;
+  background:var(--nh-sage-soft);border:1px solid #DDECE7;font-size:var(--adm-block);
+  color:#3D6656;font-variant-numeric:tabular-nums}
+.adm-walkin-when svg{width:15px;height:15px;flex:0 0 15px}
+
+/* ---- Tóm tắt lịch hẹn ---- */
+.adm-walkin-sum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;
+  padding:0;overflow:hidden;border:1px solid var(--nh-line);border-radius:11px;background:var(--nh-line)}
+.adm-walkin-sum>div{display:grid;gap:1px;padding:9px 11px;background:#FDF9FA;min-width:0}
+.adm-walkin-sum dt{font-size:var(--adm-block);color:var(--nh-muted)}
+.adm-walkin-sum dd{margin:0;font-size:var(--adm-td);font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.adm-walkin-note{margin:0;padding:9px 11px;border-radius:10px;background:#F6F5F8;
+  font-size:var(--adm-block);color:var(--nh-muted);line-height:1.6}
+.adm-walkin-note strong{color:var(--nh-ink)}
+
+/* ---- Cảnh báo khung giờ vừa bị lấy ---- */
+.adm-walkin-alert{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;
+  border-radius:11px;background:#FBE8ED;border:1px solid #F1C9D4;color:#A34360;
+  font-size:var(--adm-block);line-height:1.6}
+.adm-walkin-alert svg{width:15px;height:15px;flex:0 0 15px;margin-top:1px}
+
+@media(max-width:900px){
+  /* Bảng bám sát mép phải hơn nên ô khung giờ phải hẹp lại. */
+  .adm-walkin-slot-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .adm-walkin-block{padding:12px 13px}
+  .adm-walkin-sum{grid-template-columns:minmax(0,1fr)}
+  .adm-walkin-found-body{flex-wrap:wrap}
+  .adm-walkin-found-body code{order:3}
+}
+
+/* ==========================================================================
    KHUNG CHI TIẾT TRƯỢT TỪ BÊN PHẢI
    Danh sách vẫn nằm nguyên phía sau và bị làm mờ, khung chi tiết trượt ra
    từ mép phải — kiểu người dùng đã quen: bấm dòng xem chi tiết mà không

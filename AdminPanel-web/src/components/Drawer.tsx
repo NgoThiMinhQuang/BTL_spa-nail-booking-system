@@ -22,6 +22,7 @@ export function Drawer({
   children: ReactNode;
   /** Thanh nút cố định ở đáy khung; không truyền thì không có. */
   footer?: ReactNode;
+  /** Bề rộng trên màn hình rộng. Hẹp hơn thì tự co theo màn hình. */
   width?: number;
 }) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -53,7 +54,10 @@ export function Drawer({
       <div className="adm-drawer-mask" onClick={onClose} />
       <div
         className="adm-drawer"
-        style={{ width }}
+        /* min() thay vì width cố định: trên máy tính bảng khung bám sát mép
+           phải thay vì chiếm gần hết màn hình, còn trên điện thoại thì tràn
+           hết chiều ngang — đúng như cách các ứng dụng di động hay làm. */
+        style={{ width: `min(${width}px, 86vw)` }}
         role="dialog"
         aria-modal="true"
         aria-label={title}

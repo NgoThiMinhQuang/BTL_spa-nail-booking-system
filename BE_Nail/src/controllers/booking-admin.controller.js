@@ -12,9 +12,10 @@ import {
   bookingCode, clockOf, dayOf,
 } from '../lib/booking-labels.js';
 import {
-  checkStaffAvailable, freeSlotsForStaff, listAvailableStaff,
+  checkStaffAvailable, freeSlotsForStaff, listAvailableStaff, pickStaffForSlot,
 } from '../lib/staff-availability.js';
 import { logEvent, listEvents } from '../lib/booking-events.js';
+import { normalisePhone, isPastDay } from './walkin.controller.js';
 
 const clock = clockOf;
 
@@ -60,8 +61,13 @@ export async function listBookings(req, res, next) {
       if (payment !== 'NONE') params.push(payment);
     }
 
+    /* Tìm theo cả tên và số điện thoại nằm ngay trên lịch, không chỉ trong hồ sơ
+       khách — nếu không thì lịch khách vãng lai không bao giờ tìm ra được,
+       dù Admin nhìn thấy tên rõ ràng ngay trên bảng. */
     if (term) {
-      where.push('(u.full_name LIKE ? OR u.phone LIKE ? OR s.service_name LIKE ? OR b.booking_id = ?)');
+      where.push(`(COALESCE(u.full_name, b.guest_name) LIKE ?
+        OR COALESCE(u.phone, b.guest_phone) LIKE ?
+        OR s.service_name LIKE ? OR b.booking_id = ?)`);
       params.push(`%${term}%`, `%${term}%`, `%${term}%`, Number(term) || -1);
     }
 
@@ -73,7 +79,13 @@ export async function listBookings(req, res, next) {
         b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
         s.service_id AS serviceId, s.service_name AS serviceName,
         s.duration, s.price,
-        c.customer_id AS customerId, u.full_name AS customerName, u.phone AS customerPhone,
+        b.guest_name, b.guest_phone,
+        c.customer_id AS customerId,
+        /* Lịch khách vãng lai không có hồ sơ: tên và số điện thoại nằm
+           ngay trên lịch. COALESCE để bảng và mọi bộ lọc đều thấy một
+           nguồn tên duy nhất, không phải xử lý riêng ở từng chỗ. */
+        COALESCE(u.full_name, b.guest_name) AS customerName,
+        COALESCE(u.phone, b.guest_phone) AS customerPhone,
         u.avatar AS customerAvatarUrl,
         st.staff_id AS staffId, su.full_name AS staffName, su.avatar AS staffAvatarUrl,
         pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
@@ -82,8 +94,8 @@ export async function listBookings(req, res, next) {
         COALESCE(addon.count, 0) AS addonCount
       FROM booking b
       JOIN services s ON s.service_id = b.service_id
-      JOIN customer c ON c.customer_id = b.customer_id
-      JOIN users u ON u.user_id = c.user_id
+      LEFT JOIN customer c ON c.customer_id = b.customer_id
+      LEFT JOIN users u ON u.user_id = c.user_id
       LEFT JOIN staff st ON st.staff_id = b.staff_id
       LEFT JOIN users su ON su.user_id = st.user_id
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
@@ -167,6 +179,7 @@ export async function getBooking(req, res, next) {
         b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
         b.status, b.note, b.source, b.created_at AS createdAt,
         b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
+        b.guest_name, b.guest_phone,
         COALESCE(b.service_price, s.price) AS price,
         COALESCE(b.service_duration, s.duration) AS duration,
         COALESCE(b.buffer_time, s.buffer_time) AS bufferTime,
@@ -174,8 +187,9 @@ export async function getBooking(req, res, next) {
         s.image AS serviceImage, s.status AS serviceStatus,
         s.description AS serviceDescription,
         cat.category_name AS serviceCategory,
-        c.customer_id AS customerId, u.full_name AS customerName,
-        u.phone AS customerPhone, u.email AS customerEmail,
+        c.customer_id AS customerId,
+        COALESCE(u.full_name, b.guest_name) AS customerName,
+        COALESCE(u.phone, b.guest_phone) AS customerPhone, u.email AS customerEmail,
         u.avatar AS customerAvatarUrl, u.status AS customerStatus,
         st.staff_id AS staffId, su.full_name AS staffName,
         su.avatar AS staffAvatarUrl, su.status AS staffStatus,
@@ -561,8 +575,6 @@ export async function createBooking(req, res, next) {
     const day = String(req.body.day ?? '').trim();
     const time = String(req.body.time ?? '').trim();
     const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
-    const staffId = req.body.staffId === null || req.body.staffId === ''
-      ? null : Number(req.body.staffId);
 
     if (!Number.isInteger(serviceId) || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) {
       return res.status(400).json({ message: 'Thiếu dịch vụ, ngày hoặc giờ.' });
@@ -570,37 +582,65 @@ export async function createBooking(req, res, next) {
 
     await connection.beginTransaction();
 
+    /* ---- Khách ----
+       Có customerId thì dùng lại hồ sơ đã có. Không có thì đây là khách
+       walk-in chưa có tài khoản: KHÔNG tạo tài khoản, KHÔNG tạo mật khẩu,
+       mà lưu tên và số điện thoại ngay trên lịch. */
     let customerId = Number(req.body.customerId) || null;
-    if (!customerId && req.body.newCustomer) {
-      const { name, phone } = req.body.newCustomer;
-      if (!String(name ?? '').trim() || !String(phone ?? '').trim()) {
-        await connection.rollback();
-        return res.status(400).json({ message: 'Khách mới cần có tên và số điện thoại.' });
-      }
-      const [[found]] = await connection.query('SELECT customer_id FROM customer WHERE user_id = (SELECT user_id FROM users WHERE phone = ?) LIMIT 1', [phone]);
-      if (found) {
-        customerId = found.customer_id;
-      } else {
-        const [user] = await connection.query(
-          `INSERT INTO users (full_name, phone, password, role, status) VALUES (?,?,?,'CUSTOMER','ACTIVE')`,
-          [String(name).trim().slice(0, 100), String(phone).trim(), String(phone).trim()]);
-        const [cust] = await connection.query(
-          'INSERT INTO customer (user_id) VALUES (?)', [user.insertId]);
-        customerId = cust.insertId;
-      }
-    }
+    let guestName = null;
+    let guestPhone = null;
+
     if (!customerId) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Vui lòng chọn khách hàng.' });
+      guestName = String(req.body.guestName ?? '').trim().slice(0, 100);
+      guestPhone = normalisePhone(req.body.guestPhone);
+      if (!guestName) {
+        await connection.rollback();
+        return res.status(400).json({
+          message: 'Khách chưa có tài khoản thì cần nhập tên khách.',
+        });
+      }
+      if (!guestPhone) {
+        await connection.rollback();
+        return res.status(400).json({ message: 'Cần nhập số điện thoại khách.' });
+      }
+
+      /* Số điện thoại đã có hồ sơ thì hỏi lại thay vì tạo trùng: tạo thêm
+         một hồ sơ cùng số điện thoại sẽ làm vỡ lịch sử khách. */
+      const [[existing]] = await connection.query(
+        'SELECT customer_id FROM customer WHERE user_id = (SELECT user_id FROM users WHERE phone = ?) LIMIT 1',
+        [guestPhone]);
+      if (existing) {
+        customerId = existing.customer_id;
+        guestName = null;
+        guestPhone = null;
+      }
     }
 
     const [[svc]] = await connection.query(
-      `SELECT duration, buffer_time AS bufferTime, price
+      `SELECT duration, buffer_time AS bufferTime, price, status
          FROM services WHERE service_id = ? LIMIT 1`, [serviceId]);
     if (!svc) {
       await connection.rollback();
       return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
     }
+    if (svc.status !== 'ACTIVE') {
+      await connection.rollback();
+      return res.status(409).json({ message: 'Dịch vụ này đã ngừng hoạt động.' });
+    }
+
+    /* Không nhận ngày đã qua: khách walk-in đang đứng tại quầy. */
+    if (isPastDay(day)) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Không thể đặt lịch cho ngày đã qua.' });
+    }
+
+    /* ---- Bất kỳ nhân viên phù hợp ----
+       Admin có thể bỏ trống nhân viên, khi đó backend tự chọn người. Việc
+       chọn phải nằm ở đây chứ không ở giao diện: hai bên cùng đọc một bộ
+       luật khả dụng thì mới không có chuyện giao diện hứa rồi backend từ
+       chối. */
+    let staffId = Number(req.body.staffId) || null;
+    let pickedStaffName = null;
 
     const [hour, minute] = time.split(':').map(Number);
     const [year, month, date] = day.split('-').map(Number);
@@ -608,28 +648,55 @@ export async function createBooking(req, res, next) {
     const endsAt = new Date(
       startsAt.getTime() + (Number(svc.duration) + Number(svc.bufferTime ?? 0)) * 60000);
 
-    if (staffId) {
-      const check = await checkStaffAvailable({ staffId, serviceId, startsAt, endsAt });
-      if (!check.ok) {
+    if (!staffId) {
+      const picked = await pickStaffForSlot({ serviceId, startsAt, endsAt });
+      if (!picked.ok) {
         await connection.rollback();
-        return res.status(409).json({ message: `Không thể tạo lịch: ${check.reason}`, reason: check.reason });
+        return res.status(409).json({ message: picked.reason, reason: picked.reason });
       }
+      staffId = picked.staffId;
+      pickedStaffName = picked.staffName;
+    }
+
+    /* ---- Chống đặt trùng ----
+       Không tin lời giao diện: trong lúc Admin đang chọn khung giờ thì một
+       khách đặt từ ứng dụng có thể vừa giữ mất chỗ đó. Kiểm tra lại ngay
+       trong giao dịch, và khoá dòng lịch của nhân viên để hai request cùng
+       lúc không cùng nhận một khung giờ. */
+    await connection.query(
+      `SELECT booking_id FROM booking
+        WHERE staff_id = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
+          AND start_time < ? AND end_time > ?
+        LIMIT 1 FOR UPDATE`,
+      [staffId, endsAt, startsAt]);
+
+    const check = await checkStaffAvailable({ staffId, serviceId, startsAt, endsAt });
+    if (!check.ok) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Khung giờ vừa được đặt. ${check.reason}`,
+        reason: check.reason,
+      });
     }
 
     /* Chụp lại giá, thời gian và buffer ngay lúc đặt. Sau này Admin đổi giá
        dịch vụ thì lịch này vẫn hiện đúng số tiền khách đã trả. */
     const [result] = await connection.query(
       `INSERT INTO booking
-         (customer_id, staff_id, service_id, service_price, service_duration, buffer_time,
+         (customer_id, guest_name, guest_phone, staff_id, service_id,
+          service_price, service_duration, buffer_time,
           start_time, end_time, status, note, source)
-       VALUES (?,?,?,?,?,?,?,?,'PENDING',?,'WALK_IN')`,
-      [customerId, staffId, serviceId, svc.price, svc.duration, svc.bufferTime ?? 0,
+       VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING',?,'WALK_IN')`,
+      [customerId, guestName, guestPhone, staffId, serviceId,
+        svc.price, svc.duration, svc.bufferTime ?? 0,
         startsAt, endsAt, note]);
 
     await logEvent({
       bookingId: result.insertId,
       type: 'CREATED',
-      detail: 'Lịch được tạo tại quầy.',
+      detail: `${customerId
+        ? 'Khách tạo lịch tại quầy.'
+        : `Khách vãng lai tạo lịch tại quầy: ${guestName}.`} Nhân viên: ${pickedStaffName ?? check.staffName}.`,
       actorRole: 'ADMIN',
       actorName: String(req.body.actorName ?? 'Quản trị viên'),
       connection,
@@ -637,7 +704,15 @@ export async function createBooking(req, res, next) {
 
     await connection.commit();
 
-    res.status(201).json({ data: { id: String(result.insertId), code: bookingCode(result.insertId) } });
+    res.status(201).json({
+      data: {
+        id: String(result.insertId),
+        code: bookingCode(result.insertId),
+        /* Khách có hồ sơ thì lưu tên vào đúng hồ sơ, không sinh tài khoản. */
+        customerId: customerId ? String(customerId) : null,
+        guestName,
+      },
+    });
   } catch (error) {
     await connection.rollback();
     next(error);

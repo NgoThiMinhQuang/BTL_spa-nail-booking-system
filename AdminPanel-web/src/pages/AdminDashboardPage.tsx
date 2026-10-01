@@ -17,7 +17,7 @@ import {
   fmtDate, fmtDay, fmtRating, fmtTime, formatVND, moneyShort, weekdayShort,
 } from '../lib/utils';
 import { DonutChart, LineChart } from '../components/Charts';
-import { WalkInDialog } from '../components/WalkInDialog';
+import { WalkInDrawer } from '../components/WalkInDrawer';
 import { ReviewPanel } from '../components/ReviewPanel';
 
 /** Thẻ KPI bấm được: bấm để sang trang tương ứng, đã lọc sẵn. */
@@ -121,7 +121,7 @@ export function AdminDashboardPage() {
         <div className="adm-hero-side">
           <span className="adm-today">Hôm nay: {fmtDate(new Date().toISOString())}</span>
           <button className="button adm-primary" onClick={() => setWalkIn(true)}>
-            <Icon name="plus" /> Tạo lịch hẹn
+            <Icon name="plus" /> Tạo lịch Walk-in
           </button>
         </div>
       </div>
@@ -383,7 +383,11 @@ export function AdminDashboardPage() {
       {loading && <p className="app-note">Đang cập nhật số liệu…</p>}
 
       {walkIn && (
-        <WalkInDialog onClose={() => setWalkIn(false)} onDone={() => { setWalkIn(false); reload(); }} />
+        <WalkInDrawer
+          actorName={user?.name ?? 'Quản trị viên'}
+          onClose={() => setWalkIn(false)}
+          onDone={() => { setWalkIn(false); reload(); }}
+        />
       )}
     </>
   );

@@ -62,11 +62,15 @@ export async function checkStaffAvailable({
      khỏi điều kiện để lịch đang xét không tự đụng độ với chính nó. */
   const [[clash]] = await pool.query(
     `SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-            s.service_name AS serviceName, u.full_name AS customerName
+            s.service_name AS serviceName,
+            COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName
        FROM booking b
        JOIN services s ON s.service_id = b.service_id
-       JOIN customer c ON c.customer_id = b.customer_id
-       JOIN users u ON u.user_id = c.user_id
+       /* LEFT JOIN: lịch khách vãng lai không có customer_id. Dùng JOIN
+         thường thì lịch đó biến mất khỏi kết quả và ta cho hai khách
+         trùng giờ — đúng thứ mà phần "chống đặt trùng" sinh ra để chặn. */
+       LEFT JOIN customer c ON c.customer_id = b.customer_id
+       LEFT JOIN users u ON u.user_id = c.user_id
       WHERE b.staff_id = ?
         AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
         AND b.start_time < ? AND b.end_time > ?
@@ -175,4 +179,81 @@ export async function freeSlotsForStaff({ staffId, serviceId, day, stepMinutes =
   }
 
   return slots;
+}
+
+/** Những người thỏa cả ba điều kiện: còn làm việc, làm được dịch vụ này,
+    và có ca trong ngày. Đây là danh sách ứng viên cho lựa chọn "Bất kỳ
+    nhân viên phù hợp" — cùng một bộ luật với `listAvailableStaff`. */
+export async function eligibleStaffIds({ serviceId, day }) {
+  const [rows] = await pool.query(
+    `SELECT st.staff_id AS id
+       FROM staff st
+       JOIN users u ON u.user_id = st.user_id
+       JOIN staff_service ss ON ss.staff_id = st.staff_id AND ss.service_id = ?
+       JOIN staff_schedule sc ON sc.staff_id = st.staff_id
+                           AND sc.work_date = ? AND sc.status = 'AVAILABLE'
+      WHERE u.status = 'ACTIVE'
+      ORDER BY u.full_name`, [serviceId, day]);
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Chọn một nhân viên phù hợp cho khung giờ, dùng khi Admin không chỉ định
+ * người ("Bất kỳ nhân viên phù hợp").
+ *
+ * Cố tình gọi lại `checkStaffAvailable` cho từng người thay vì viết một
+ * cách xếp khác: nếu hai nơi có hai bộ luật riêng thì sớm muộn chúng lệch
+ * nhau, và lịch sẽ bị cho vào chỗ tưởng còn trống rồi mới báo lỗi.
+ *
+ * Ưu tiên người ít lịch hơn trong ngày để lịch không dồn về một người.
+ */
+export async function pickStaffForSlot({ serviceId, startsAt, endsAt }) {
+  const day = dayOf(startsAt);
+  const ids = await eligibleStaffIds({ serviceId, day });
+  if (!ids.length) return { ok: false, reason: 'Không có nhân viên nào làm được dịch vụ này trong ngày đã chọn.' };
+
+  const [busy] = await pool.query(
+    `SELECT staff_id, COUNT(*) AS n FROM booking
+      WHERE DATE(start_time) = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
+      GROUP BY staff_id`, [day]);
+  const load = new Map(busy.map((row) => [row.staff_id, Number(row.n)]));
+
+  const ranked = [...ids].sort((a, b) => (load.get(a) ?? 0) - (load.get(b) ?? 0) || a - b);
+  for (const id of ranked) {
+    const check = await checkStaffAvailable({ staffId: id, serviceId, startsAt, endsAt });
+    if (check.ok) return { ...check, staffId: id };
+  }
+  return { ok: false, reason: 'Khung giờ này không còn nhân viên phù hợp nào nhận được.' };
+}
+
+/**
+ * Khung giờ còn trống mà BẤT KỲ ứng viên nào cũng nhận được.
+ *
+ * Trả về hai danh sách: `slots` là các giờ còn ai đó nhận được, và `byStaff`
+ * là ứng viên còn trống để backend tự chọn. Giao diện chỉ hiện `slots`;
+ * người được chọn thật sự quyết định lúc tạo lịch, không phải lúc bấm chuột.
+ */
+export async function freeSlotsForAnyStaff({ serviceId, day, stepMinutes = 30 }) {
+  const ids = await eligibleStaffIds({ serviceId, day });
+  const perStaff = await Promise.all(ids.map(async (id) => ({
+    id,
+    slots: await freeSlotsForStaff({ staffId: id, serviceId, day, stepMinutes }),
+  })));
+
+  /* Giờ mà càng nhiều người nhận được thì càng chắc chắn còn nhận được. */
+  const order = new Map();
+  for (const person of perStaff) {
+    for (const slot of person.slots) {
+      if (!order.has(slot)) order.set(slot, []);
+      order.get(slot).push(person.id);
+    }
+  }
+
+  return {
+    slots: [...order.keys()].sort(),
+    byStaff: Object.fromEntries(
+      perStaff.filter((person) => person.slots.length).map((person) => [person.id, person.slots]),
+    ),
+    staffCount: perStaff.filter((person) => person.slots.length).length,
+  };
 }

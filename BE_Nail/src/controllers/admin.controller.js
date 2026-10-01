@@ -45,8 +45,11 @@ function mapBooking(row) {
 const BOOKING_COLUMNS = `b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
         b.status, b.note, b.source,
         b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
+        b.guest_name, b.guest_phone,
         s.service_id AS serviceId, s.service_name AS serviceName, s.duration, s.price,
-        c.customer_id AS customerId, u.full_name AS customerName, u.phone AS customerPhone,
+        c.customer_id AS customerId,
+        COALESCE(u.full_name, b.guest_name) AS customerName,
+        COALESCE(u.phone, b.guest_phone) AS customerPhone,
         u.avatar AS customerAvatarUrl,
         st.staff_id AS staffId, su.full_name AS staffName, su.avatar AS staffAvatarUrl,
         pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
@@ -56,8 +59,8 @@ const BOOKING_COLUMNS = `b.booking_id AS id, b.start_time AS startsAt, b.end_tim
 
 const BOOKING_JOINS = `FROM booking b
       JOIN services s ON s.service_id = b.service_id
-      JOIN customer c ON c.customer_id = b.customer_id
-      JOIN users u ON u.user_id = c.user_id
+      LEFT JOIN customer c ON c.customer_id = b.customer_id
+      LEFT JOIN users u ON u.user_id = c.user_id
       LEFT JOIN staff st ON st.staff_id = b.staff_id
       LEFT JOIN users su ON su.user_id = st.user_id
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
@@ -763,8 +766,8 @@ export async function listPayments(req, res, next) {
       FROM payment pay
       JOIN booking b ON b.booking_id = pay.booking_id
       JOIN services s ON s.service_id = b.service_id
-      JOIN customer c ON c.customer_id = b.customer_id
-      JOIN users u ON u.user_id = c.user_id
+      LEFT JOIN customer c ON c.customer_id = b.customer_id
+      LEFT JOIN users u ON u.user_id = c.user_id
       LEFT JOIN staff st ON st.staff_id = b.staff_id
       LEFT JOIN users su ON su.user_id = st.user_id
       ORDER BY COALESCE(pay.payment_date, b.start_time) DESC

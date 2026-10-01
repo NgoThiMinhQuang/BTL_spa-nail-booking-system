@@ -19,7 +19,7 @@ import {
   RescheduleDialog, sendBookingRequest,
 } from '../components/BookingDialogs';
 import { BookingCalendar } from '../components/BookingCalendar';
-import { WalkInDialog } from '../components/WalkInDialog';
+import { WalkInDrawer } from '../components/WalkInDrawer';
 import { useApp, type Booking, type BookingScope } from '../store';
 import { fmtDate, fmtTime, formatVND } from '../lib/utils';
 
@@ -183,7 +183,7 @@ export function AdminBookingsPage() {
         </div>
 
         <button className="button adm-primary" onClick={() => setWalkIn(true)}>
-          <Icon name="plus" /> Tạo lịch khách trực tiếp
+          <Icon name="plus" /> Tạo lịch Walk-in
         </button>
       </div>
 
@@ -316,7 +316,7 @@ export function AdminBookingsPage() {
                   })}>Đặt lại bộ lọc</button>
                 ) : (
                   <button className="button" onClick={() => setWalkIn(true)}>
-                    <Icon name="plus" /> Tạo lịch khách trực tiếp
+                    <Icon name="plus" /> Tạo lịch Walk-in
                   </button>
                 )}
               </EmptyState>
@@ -488,7 +488,18 @@ export function AdminBookingsPage() {
       )}
 
       {walkIn && (
-        <WalkInDialog onClose={() => setWalkIn(false)} onDone={() => { setWalkIn(false); reload(); }} />
+        <WalkInDrawer
+          actorName={state.user?.name ?? 'Quản trị viên'}
+          onClose={() => setWalkIn(false)}
+          onDone={(result) => {
+            setWalkIn(false);
+            reload();
+            /* Đưa Admin thẳng tới lịch vừa tạo để xác nhận, thay vì để họ
+               phải tự lần trong danh sách. */
+            setFlash(`Đã tạo lịch ${result.code}.`);
+            openBookingDetail(result.id);
+          }}
+        />
       )}
     </>
   );
