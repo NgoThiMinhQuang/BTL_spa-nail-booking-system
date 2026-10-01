@@ -52,11 +52,12 @@ function Routes() {
   else page = <AdminDashboardPage />;
 
   /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị.
-     Mở trang chi tiết thì breadcrumb kéo dài thêm một bậc. */
+     Mở trang chi tiết thì breadcrumb kéo dài thêm mã lịch để người dùng
+     biết đang xem lịch nào. */
   const breadcrumb = view === 'admin-dashboard'
     ? ['Trang chủ', 'Tổng quan']
     : bookingDetailId
-      ? ['Trang chủ', 'Lịch hẹn', 'Chi tiết']
+      ? ['Trang chủ', 'Lịch hẹn', `BK${String(bookingDetailId).padStart(5, '0')}`]
       : undefined;
 
   const onDetail = Boolean(bookingDetailId);

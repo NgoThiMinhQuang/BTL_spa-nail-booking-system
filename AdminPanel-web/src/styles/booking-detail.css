@@ -17,22 +17,48 @@
 .adm-bd-head{margin-bottom:16px}
 .adm-bd-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;
   flex-wrap:wrap}
-.adm-bd-title h1{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;
+.adm-bd-title h1{display:flex;align-items:center;gap:12px;margin:0 0 6px;
   font-size:var(--adm-h1);letter-spacing:-.6px}
-.adm-bd-title h1 em{font-style:normal;font-size:var(--adm-h2-sub);
-  color:var(--nh-primary-dark);font-weight:600;font-variant-numeric:tabular-nums}
+.adm-bd-title h1 em{display:inline-flex;align-items:center;gap:8px;font-style:normal;
+  font-size:var(--adm-h2-sub);color:var(--nh-primary-dark);font-weight:600;
+  font-variant-numeric:tabular-nums}
+.adm-bd-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  flex-shrink:0}
+.adm-bd-head-actions .button{white-space:nowrap}
+.adm-bd-head-actions .button svg{width:16px;height:16px}
 .adm-bd-created{display:block;margin-top:6px;font-size:var(--adm-td-sub);
   color:var(--nh-muted)}
 .adm-bd-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .adm-bd-head-right .button svg{width:16px;height:16px}
 
-/* ---- Khung hai cột ---- */
-.adm-bd-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;
+/* ---- Khối hai cột ---- */
+.adm-bd-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;
   align-items:start}
 .adm-bd-main{display:grid;gap:14px;min-width:0}
 .adm-bd-side{display:grid;gap:14px;position:sticky;top:14px}
 .adm-bd-card .adm-bd-body{padding:13px 16px 15px}
 .adm-bd-card.is-alert{border-color:#F1C9D4}
+
+/* ---- Tổng tiền trong thẻ tóm tắt: con số quan trọng nhất bên phải ---- */
+.adm-bd-total{display:grid;gap:3px;margin-top:12px;padding:12px 13px;
+  border-radius:12px;background:#FBF3F6;border:1px solid #F3DDE4}
+.adm-bd-total small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-bd-total strong{font-size:var(--adm-num);font-weight:600;
+  color:var(--nh-primary-dark);font-variant-numeric:tabular-nums}
+
+/* ---- Tiêu đề nhỏ trong thẻ ---- */
+.adm-bd-sub{margin:0 0 6px;font-size:var(--adm-block);font-weight:600;
+  letter-spacing:.5px;color:var(--nh-muted);text-transform:uppercase}
+.adm-bd-card .adm-bd-sub:not(:first-child){margin-top:16px}
+
+/* ---- Bảng dịch vụ phát sinh ---- */
+.adm-bd-addon-table{margin:0 -4px}
+.adm-bd-addon-table table{min-width:0}
+
+/* ---- Tổng tiền cuối bảng phát sinh ---- */
+.adm-bd-sum{margin-top:12px;padding-top:10px;border-top:1px solid var(--nh-line)}
+.adm-bd-sum .adm-bd-row:last-child dd{font-size:var(--adm-td);font-weight:600;
+  color:var(--nh-primary-dark)}
 
 /* ---- Cảnh báo ---- */
 .adm-bd-warn{margin:0}
@@ -188,14 +214,17 @@
 
 /* ---- Màn hình hẹp: xếp chồng, giữ đúng thứ tự đọc của trang ---- */
 @media(max-width:1250px){
-  .adm-bd-grid{grid-template-columns:minmax(0,1fr) 320px}
+  .adm-bd-grid{grid-template-columns:minmax(0,1fr) 340px}
   .adm-bd-row{grid-template-columns:104px minmax(0,1fr)}
+}
+@media(max-width:1100px){
+  /* Cột phải hẹp lại nhưng vẫn giữ tỉ lệ khoảng 60/40. */
+  .adm-bd-grid{grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr)}
 }
 @media(max-width:1000px){
   .adm-bd-grid{grid-template-columns:minmax(0,1fr)}
   .adm-bd-side{position:static}
   .adm-bd-title{flex-direction:column;align-items:stretch;gap:12px}
-  .adm-bd-head-right{flex-wrap:wrap}
   .adm-bd-service-img{width:84px;height:84px;flex:0 0 84px}
 }
 @media(max-width:620px){

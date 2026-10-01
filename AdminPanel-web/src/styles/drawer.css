@@ -1,4 +1,35 @@
 /* ==========================================================================
+   HỘP ĐIỀU CHỈNH LỊCH HẸN
+   ========================================================================== */
+
+.adm-adj{display:grid;gap:13px}
+.adm-adj-now{margin:0;padding:11px 12px;border-radius:11px;background:#FCF8FA;
+  border:1px solid var(--nh-line);font-size:var(--adm-td-sub);color:var(--nh-muted)}
+
+/* Số liệu chỉ đọc: gom thành lưới hai cột để dễ đối chiếu */
+.adm-adj-read{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.adm-adj-read>div{display:grid;gap:2px;padding:10px 12px;border-radius:11px;
+  background:#FBF8FA;border:1px solid var(--nh-line)}
+.adm-adj-read small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-adj-read strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink);
+  font-variant-numeric:tabular-nums}
+
+/* Kết quả kiểm tra khung giờ */
+.adm-adj-check{display:flex;align-items:center;gap:8px;padding:10px 12px;
+  border-radius:11px;background:#F6F5F8;font-size:var(--adm-td-sub);
+  color:var(--nh-muted)}
+.adm-adj-check svg{width:16px;height:16px;flex:0 0 16px}
+.adm-adj-check.is-ok{background:var(--nh-sage-soft);color:#3D6656}
+.adm-adj-check.is-no{background:#FBE8ED;color:#A34360}
+
+.adm-adj input[readonly],.adm-adj input:disabled{background:#F4F1F4;
+  color:var(--nh-muted);cursor:not-allowed}
+
+@media(max-width:620px){
+  .adm-adj-read{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ==========================================================================
    KHUNG CHI TIẾT TRƯỢT TỪ BÊN PHẢI
    Danh sách vẫn nằm nguyên phía sau và bị làm mờ, khung chi tiết trượt ra
    từ mép phải — kiểu người dùng đã quen: bấm dòng xem chi tiết mà không

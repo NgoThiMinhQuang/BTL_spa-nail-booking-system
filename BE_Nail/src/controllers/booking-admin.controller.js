@@ -259,6 +259,11 @@ export async function getBooking(req, res, next) {
         price: Number(row.price),
         /* Tổng thời gian khách phải ngồi: dịch vụ + khoảng nghỉ giữa lịch. */
         totalMinutes: Number(row.duration) + Number(row.bufferTime ?? 0),
+        /* Phân biệt hai mốc: dịch vụ kết thúc lúc nào, và nhân viên bị
+           chiếm lịch đến lúc nào. end_time trong database đã cộng cả buffer
+           vào, nên mốc kết thúc dịch vụ phải trừ lại buffer. */
+        serviceEndsAt: new Date(new Date(row.endsAt).getTime()
+          - Number(row.bufferTime ?? 0) * 60000),
         paidAmount: row.paidAmount == null ? null : Number(row.paidAmount),
         addonTotal,
         total: Number(row.price) + addonTotal,
@@ -315,6 +320,19 @@ export async function patchBooking(req, res, next) {
       const allowed = ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
       if (!allowed.includes(status)) {
         return res.status(400).json({ message: 'Trạng thái lịch hẹn không hợp lệ.' });
+      }
+
+      /* Hai bước này thuộc về nhân viên thực hiện, không phải việc của
+         quản trị: nhân viên mới là người bấm "bắt đầu" và "hoàn thành".
+         Chặn ở backend để không chỉ ẩn nút ở giao diện. Nhân viên gọi
+         PATCH /api/bookings/:id/status riêng của app nhân viên. */
+      if ((current.status === 'CONFIRMED' && status === 'PROCESSING')
+        || (current.status === 'PROCESSING' && status === 'COMPLETED')) {
+        return res.status(403).json({
+          message: 'Chuyển sang "'
+            + `${STATUS_TEXT[status]}" `
+            + 'do nhân viên thực hiện lúc phục vụ, không phải thao tác của quản trị.',
+        });
       }
 
       /* Đã bắt đầu rồi thì không được quay ngược hay bỏ hủy. */

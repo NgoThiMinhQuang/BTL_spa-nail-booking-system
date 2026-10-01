@@ -1,5 +1,6 @@
 /* ===== Trang chi tiết lịch hẹn (kèm hóa đơn khi đã hoàn thành) ===== */
 
+import { useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Badge, EmptyState } from '../components/Primitives';
 import { Icon } from '../components/Icon';
@@ -21,9 +22,34 @@ function heading(icon: 'customers' | 'schedule' | 'services' | 'clock' | 'flower
 }
 
 export function BookingPage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { goView, openBooking } = useNavigation();
   const { profile, services } = state.data!;
+
+  /* Hai bước bắt đầu và hoàn thành thuộc về nhân viên đang phục vụ, nên
+     khu quản trị cố tình không có. Chỉ lịch được phân công cho mình mới
+     cập nhật được, và backend cũng kiểm lại điều này. */
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function advance(nextStatus: 'PROCESSING' | 'COMPLETED') {
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/bookings/${b?.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: profile.id, status: nextStatus }),
+      });
+      const payload = await response.json();
+      if (!response.ok) setError(payload.message ?? 'Không cập nhật được trạng thái.');
+      else reload();
+    } catch {
+      setError('Mất kết nối tới máy chủ.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const b = [...state.data!.bookings, ...state.rangeBookings]
     .find((item) => String(item.id) === String(state.selected));
@@ -169,13 +195,34 @@ export function BookingPage() {
           <section className="booking-card">
             {heading('services', 'Thao tác nhanh')}
             <div className="booking-actions">
-              <button className="booking-primary" disabled>▷ Bắt đầu thực hiện</button>
-              <button className="booking-soft" disabled>✓ Hoàn thành dịch vụ</button>
+              <button
+                className="booking-primary"
+                disabled={busy || b.status !== 'CONFIRMED'}
+                onClick={() => advance('PROCESSING')}
+              >
+                ▷ Bắt đầu thực hiện
+              </button>
+              <button
+                className="booking-soft"
+                disabled={busy || b.status !== 'PROCESSING'}
+                onClick={() => advance('COMPLETED')}
+              >
+                ✓ Hoàn thành dịch vụ
+              </button>
               <button className="booking-soft" disabled>▦ Thay đổi lịch hẹn</button>
               <button className="booking-soft" disabled>× Hủy lịch hẹn</button>
               <a href={`tel:${b.phone}`}>☎ Liên hệ khách hàng</a>
             </div>
-            <p className="booking-action-note">Chức năng cập nhật lịch hẹn sắp được hỗ trợ.</p>
+            {error
+              ? <p className="booking-action-note is-error">{error}</p>
+              : <p className="booking-action-note">
+                {b.status === 'CONFIRMED'
+                  ? 'Bấm "Bắt đầu thực hiện" khi bắt đầu phục vụ khách.'
+                  : b.status === 'PROCESSING'
+                    ? 'Bấm "Hoàn thành dịch vụ" khi làm xong.'
+                    : 'Chỉ nhân viên được phân công mới cập nhật được tiến trình.'}
+                {' '}Đổi lịch hoặc hủy lịch thì liên hệ quản trị viên.
+              </p>}
           </section>
 
           <section className="booking-card">

@@ -55,6 +55,7 @@
 .booking-actions a{border-color:#dba6b5;color:var(--nh-primary-dark);font-weight:500}
 .booking-actions a:hover{background:var(--nh-blush)}
 .booking-action-note{font-size:12px;line-height:1.5;color:var(--nh-muted);margin:10px 0 0}
+.booking-action-note.is-error{color:#B4455E}
 .booking-next-heading{display:flex;align-items:start;justify-content:space-between;gap:8px;flex-wrap:wrap}
 #nailhouse .booking-next-heading .booking-card-title{margin-bottom:10px}
 .booking-next-heading>button{border:0;background:none;color:var(--nh-primary-dark);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;padding:3px 0}

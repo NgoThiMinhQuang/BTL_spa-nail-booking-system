@@ -1,4 +1,5 @@
 import { pool } from '../config/database.js';
+import { logEvent } from '../lib/booking-events.js';
 
 const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING'];
 
@@ -128,4 +129,73 @@ export async function createBooking(req, res, next) {
     await connection.commit();
     res.status(201).json({ data: { id: String(result.insertId), customerId: String(customerId), serviceId: String(serviceId), staffId: String(staffId), startsAt: startsAt.toISOString(), endsAt: endAt.toISOString(), status: 'pending', note } });
   } catch (error) { await connection.rollback(); next(error); } finally { connection.release(); }
+}
+
+/* ================================================================
+   Nhân viên cập nhật tiến trình phục vụ
+   ---------------------------------------------------------------
+   Hai bước CONFIRMED → PROCESSING và PROCESSING → COMPLETED là việc của
+   nhân viên đang phục vụ, nên API khu quản trị cố tình không cho gọi. Ở đây
+   chỉ nhận đúng hai bước đó và chỉ với lịch được phân công cho mình.
+
+   Lưu ý: dự án chưa có lớp xác thực, nên staffId lấy từ body và được
+   đối chiếu với lịch trong database. Khi làm đăng nhập thật thì thay
+   chỗ này bằng staffId từ token. */
+const STAFF_TRANSITIONS = {
+  PROCESSING: 'Bắt đầu thực hiện dịch vụ.',
+  COMPLETED: 'Hoàn thành dịch vụ.',
+};
+
+export async function updateBookingStatus(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const staffId = Number(req.body.staffId);
+    const next2 = String(req.body.status ?? '').toUpperCase();
+
+    if (!Number.isInteger(id) || !Number.isInteger(staffId)) {
+      return res.status(400).json({ message: 'Thiếu mã lịch hoặc mã nhân viên.' });
+    }
+    if (!STAFF_TRANSITIONS[next2]) {
+      return res.status(400).json({
+        message: 'Nhân viên chỉ được cập nhật sang "Đang thực hiện" hoặc "Hoàn thành".',
+      });
+    }
+
+    const [[booking]] = await pool.query(
+      `SELECT b.booking_id, b.status, b.staff_id AS staffId, su.full_name AS staffName,
+              b.service_id AS serviceId, s.service_name AS serviceName
+         FROM booking b
+         JOIN services s ON s.service_id = b.service_id
+         LEFT JOIN staff st ON st.staff_id = b.staff_id
+         LEFT JOIN users su ON su.user_id = st.user_id
+        WHERE b.booking_id = ? LIMIT 1`, [id]);
+    if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+
+    if (booking.staffId !== staffId) {
+      return res.status(403).json({ message: 'Lịch hẹn này không được phân công cho bạn.' });
+    }
+
+    /* Bước phải đi đúng thứ tự: đã xác nhận mới bắt đầu được, đang thực
+       hiện mới hoàn thành được. */
+    const expected = next2 === 'PROCESSING' ? 'CONFIRMED' : 'PROCESSING';
+    if (booking.status !== expected) {
+      return res.status(409).json({
+        message: `Chỉ cập nhật được khi lịch đang ở trạng thái phù hợp, `
+          + `hiện là "${booking.status}".`,
+      });
+    }
+
+    await pool.query('UPDATE booking SET status = ? WHERE booking_id = ?', [next2, id]);
+    await logEvent({
+      bookingId: id,
+      type: next2 === 'PROCESSING' ? 'SERVICE_STARTED' : 'SERVICE_COMPLETED',
+      detail: `${STAFF_TRANSITIONS[next2]} Dịch vụ: ${booking.serviceName}.`,
+      actorRole: 'STAFF',
+      actorName: booking.staffName ?? 'Nhân viên',
+    });
+
+    res.json({ data: { id: String(id), status: next2 } });
+  } catch (error) {
+    next(error);
+  }
 }

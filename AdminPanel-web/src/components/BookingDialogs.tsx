@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
-import { fmtDate, fmtRating, fmtTime, formatVND } from '../lib/utils';
+import { fmtDate, fmtRating, fmtTime } from '../lib/utils';
 import type { Booking } from '../store';
 
 /* ------------------------------------------------------------------ */
@@ -109,16 +109,12 @@ export function ConfirmDialog({
 
   return (
     <Modal title="Xác nhận lịch hẹn" icon="calendarCheck" onClose={onClose}>
-      <dl className="adm-bk-list">
-        <Row label="Khách hàng">{booking.customerName}</Row>
-        <Row label="Dịch vụ">{booking.serviceName}</Row>
-        <Row label="Nhân viên">{booking.staffName ?? 'Chưa phân công'}</Row>
-        <Row label="Ngày">{fmtDate(booking.startsAt)}</Row>
-        <Row label="Thời gian">
-          {fmtTime(booking.startsAt)} – {fmtTime(booking.endsAt)}
-        </Row>
-        <Row label="Giá">{formatVND(booking.total)}</Row>
-      </dl>
+      <p className="adm-bk-lead">
+        Xác nhận lịch <strong>{booking.code}</strong> cho khách{' '}
+        <strong>{booking.customerName}</strong> vào lúc{' '}
+        <strong>{fmtTime(booking.startsAt)}</strong> ngày{' '}
+        <strong>{fmtDate(booking.startsAt)}</strong>?
+      </p>
 
       {blocked && (
         <div className="adm-warn">
@@ -385,12 +381,14 @@ export function CancelDialog({
   return (
     <Modal title="Hủy lịch hẹn" icon="ban" onClose={onClose}>
       <p className="adm-bk-lead">
-        Bạn có chắc muốn hủy lịch này?
+        Bạn có chắc chắn muốn hủy lịch <strong>{booking.code}</strong>?
       </p>
       <dl className="adm-bk-list">
         <Row label="Khách hàng">{booking.customerName}</Row>
-        <Row label="Lịch">
-          {fmtDate(booking.startsAt)} · {fmtTime(booking.startsAt)}
+        <Row label="Dịch vụ">{booking.serviceName}</Row>
+        <Row label="Thời gian">
+          {fmtDate(booking.startsAt)} · {fmtTime(booking.startsAt)} –{' '}
+          {fmtTime(booking.endsAt)}
         </Row>
       </dl>
 
@@ -406,7 +404,7 @@ export function CancelDialog({
       {error && <p className="login-admin-error" role="alert">{error}</p>}
 
       <div className="adm-modal-foot">
-        <button className="button secondary" onClick={onClose}>Quay lại</button>
+        <button className="button secondary" onClick={onClose}>Không</button>
         <button className="button is-danger" disabled={busy} onClick={apply}>
           {busy ? 'Đang hủy…' : 'Xác nhận hủy'}
         </button>
@@ -437,25 +435,26 @@ export function NoShowDialog({
   }
 
   return (
-    <Modal title="Đánh dấu khách không đến" icon="ban" onClose={onClose}>
+    <Modal title="Xác nhận khách không đến" icon="ban" onClose={onClose}>
       <p className="adm-bk-lead">
-        Xác nhận khách hàng không đến lịch hẹn này?
+        Xác nhận khách không đến? Lịch <strong>{booking.code}</strong> sẽ được
+        chuyển sang trạng thái <strong>Không đến</strong>.
       </p>
       <dl className="adm-bk-list">
-        <Row label="Khách">{booking.customerName}</Row>
-        <Row label="Lịch">
+        <Row label="Khách hàng">{booking.customerName}</Row>
+        <Row label="Thời gian">
           {fmtDate(booking.startsAt)} · {fmtTime(booking.startsAt)}
         </Row>
       </dl>
       <p className="adm-field-note">
-        Lịch sẽ chuyển sang trạng thái “Không đến” và được tính vào thống kê vắng mặt.
+        Lịch sẽ được tính vào thống kê khách không đến.
       </p>
       {error && <p className="login-admin-error" role="alert">{error}</p>}
 
       <div className="adm-modal-foot">
         <button className="button secondary" onClick={onClose}>Quay lại</button>
         <button className="button is-danger" disabled={busy} onClick={apply}>
-          {busy ? 'Đang đánh dấu…' : 'Đánh dấu Không đến'}
+          {busy ? 'Đang đánh dấu…' : 'Xác nhận vắng mặt'}
         </button>
       </div>
     </Modal>
