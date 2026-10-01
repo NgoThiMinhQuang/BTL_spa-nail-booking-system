@@ -15,6 +15,8 @@ import { fmtTime, minutesOfDay, minutesToTime, timeToMinutes } from '../lib/util
 const SLOT_PX = 44;
 const PX_PER_MIN = SLOT_PX / 30;
 
+
+
 const TONE: Record<string, string> = {
   PENDING: 'is-pending',
   CONFIRMED: 'is-confirmed',
@@ -62,16 +64,36 @@ export function BookingCalendar({
       min = Math.min(min, item.from);
       max = Math.max(max, item.to);
     }
-    if (!Number.isFinite(min)) { min = 8 * 60; max = 20 * 60; }
-
-    const hours: number[] = [];
-    for (let h = Math.floor(min / 60); h <= Math.ceil(max / 60); h += 1) hours.push(h * 60);
-
     const byBooking = new Map<string, Booking[]>();
     for (const booking of bookings) {
       const key = booking.staffId ?? '__none__';
       if (!byBooking.has(key)) byBooking.set(key, []);
       byBooking.get(key)!.push(booking);
+    }
+    
+    for (const ownBookings of byBooking.values()) {
+      const sorted = [...ownBookings].sort((a, b) => minutesOfDay(a.startsAt) - minutesOfDay(b.startsAt));
+      let nextAvailableMinute = 0;
+      for (const booking of sorted) {
+        const originalStart = minutesOfDay(booking.startsAt);
+        let span = booking.duration;
+        if (!span || span <= 0) span = minutesOfDay(booking.endsAt) - originalStart;
+        span = Math.max(span, 30);
+        
+        const start = Math.max(originalStart, nextAvailableMinute);
+        const end = start + span;
+        nextAvailableMinute = end;
+        
+        min = Math.min(min, start);
+        max = Math.max(max, end);
+      }
+    }
+    
+    if (!Number.isFinite(min)) { min = 8 * 60; max = 20 * 60; }
+
+    const hours: number[] = [];
+    for (let m = Math.floor(min / 30) * 30; m <= Math.ceil(max / 30) * 30; m += 30) {
+      hours.push(m);
     }
 
     return { byStaff, byBooking, min, max, hours };
@@ -95,7 +117,29 @@ export function BookingCalendar({
   const unassigned = plan.byBooking.get('__none__') ?? [];
 
   return (
-    <div className="adm-cal">
+    <>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px', padding: '14px 16px', background: '#FCF8FA', borderRadius: '12px', border: '1px solid var(--nh-line)', alignItems: 'center', width: 'fit-content' }}>
+        <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: 'var(--nh-ink)', marginRight: '8px' }}>
+          <Icon name="tag" /> Phân loại màu sắc:
+        </strong>
+        <div style={{ padding: '5px 12px', borderRadius: '8px', background: 'var(--nh-gold-soft)', border: '1px solid var(--nh-gold)', color: '#8A6A24', fontSize: '11.5px', fontWeight: 600 }}>
+          Chờ xác nhận
+        </div>
+        <div style={{ padding: '5px 12px', borderRadius: '8px', background: 'var(--nh-lavender-soft)', border: '1px solid var(--nh-lavender)', color: '#5D4770', fontSize: '11.5px', fontWeight: 600 }}>
+          Đã xác nhận
+        </div>
+        <div style={{ padding: '5px 12px', borderRadius: '8px', background: '#FBE8ED', border: '1px solid var(--nh-primary)', color: '#8A4E60', fontSize: '11.5px', fontWeight: 600 }}>
+          Đang phục vụ
+        </div>
+        <div style={{ padding: '5px 12px', borderRadius: '8px', background: 'var(--nh-sage-soft)', border: '1px solid var(--nh-sage)', color: '#3D6656', fontSize: '11.5px', fontWeight: 600 }}>
+          Đã hoàn thành
+        </div>
+        <div style={{ padding: '5px 12px', borderRadius: '8px', background: '#F2EEEF', border: '1px solid #B6A3AB', color: '#8A7B80', fontSize: '11.5px', fontWeight: 600 }}>
+          Đã hủy / Vắng mặt
+        </div>
+      </div>
+
+      <div className="adm-cal">
       <div className="adm-cal-head">
         <span className="adm-cal-corner" />
         {columns.map((person) => (
@@ -141,20 +185,36 @@ export function BookingCalendar({
                 )}
                 {shift?.off && <div className="adm-cal-off">Nghỉ</div>}
 
-                {own.map((booking) => {
-                  const start = minutesOfDay(booking.startsAt);
-                  const end = minutesOfDay(booking.endsAt);
-                  const span = Math.max(end - start, 30);
-                  return (
-                    <div key={booking.id}
-                      className={`adm-cal-block ${TONE[booking.status] ?? ''}`}
-                      style={{ top: topOf(start), height: span * PX_PER_MIN - 3 }}
-                      title={`${booking.code} · ${booking.customerName} · ${booking.serviceName}`}>
-                      <strong>{booking.customerName}</strong>
-                      <span>{fmtTime(booking.startsAt)} · {booking.serviceName}</span>
-                    </div>
-                  );
-                })}
+                {(() => {
+                  const sorted = [...own].sort((a, b) => minutesOfDay(a.startsAt) - minutesOfDay(b.startsAt));
+                  let nextAvailableMinute = 0;
+
+                  return sorted.map((booking) => {
+                    const originalStart = minutesOfDay(booking.startsAt);
+                    let span = booking.duration;
+                    if (!span || span <= 0) span = minutesOfDay(booking.endsAt) - minutesOfDay(booking.startsAt);
+                    span = Math.max(span, 30);
+                    
+                    const start = Math.max(originalStart, nextAvailableMinute);
+                    nextAvailableMinute = start + span;
+                    
+                    return (
+                      <div key={booking.id}
+                        className={`adm-cal-block ${TONE[booking.status] ?? ''}`}
+                        style={{
+                          top: topOf(start),
+                          height: span * PX_PER_MIN - 3,
+                          left: '7px',
+                          right: '7px',
+                          zIndex: 1,
+                        }}
+                        title={`${booking.code} · ${booking.customerName} · ${booking.serviceName}`}>
+                        <strong>{booking.customerName}</strong>
+                        <span>{fmtTime(booking.startsAt)} · {booking.serviceName}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             );
           })}
@@ -162,28 +222,44 @@ export function BookingCalendar({
           {/* Cột chưa phân công */}
           {unassigned.length > 0 && (
             <div className="adm-cal-col is-unassigned" style={{ height }}>
-              {unassigned.map((booking) => {
-                const start = minutesOfDay(booking.startsAt);
-                const end = minutesOfDay(booking.endsAt);
-                const span = Math.max(end - start, 30);
-                return (
-                  <div key={booking.id} className={`adm-cal-block ${TONE[booking.status] ?? ''}`}
-                    style={{ top: topOf(start), height: span * PX_PER_MIN - 3 }}
-                    title={`${booking.code} · ${booking.customerName}`}>
-                    <strong>{booking.customerName}</strong>
-                    <span><Icon name="ban" /> Chưa có nhân viên</span>
-                  </div>
-                );
-              })}
+              {(() => {
+                const sorted = [...unassigned].sort((a, b) => minutesOfDay(a.startsAt) - minutesOfDay(b.startsAt));
+                let nextAvailableMinute = 0;
+
+                return sorted.map((booking) => {
+                  const originalStart = minutesOfDay(booking.startsAt);
+                  let span = booking.duration;
+                  if (!span || span <= 0) span = minutesOfDay(booking.endsAt) - minutesOfDay(booking.startsAt);
+                  span = Math.max(span, 30);
+                  
+                  const start = Math.max(originalStart, nextAvailableMinute);
+                  nextAvailableMinute = start + span;
+                  
+                  return (
+                    <div key={booking.id} className={`adm-cal-block ${TONE[booking.status] ?? ''}`}
+                      style={{
+                        top: topOf(start),
+                        height: span * PX_PER_MIN - 3,
+                        left: '7px',
+                        right: '7px',
+                        zIndex: 1,
+                      }}
+                      title={`${booking.code} · ${booking.customerName}`}>
+                      <strong>{booking.customerName}</strong>
+                      <span><Icon name="ban" /> Chưa có nhân viên</span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           )}
         </div>
       </div>
 
-      <p className="app-note">
-        <Icon name="info" /> Vùng xám là ca làm việc, khối màu là lịch khách đã đặt.
-        Lịch chưa phân công nằm ở cột cuối cùng.
+      <p className="app-note" style={{ marginTop: '12px' }}>
+        <Icon name="info" /> Vùng xám trên lịch là ca làm việc. Lịch chưa phân công nằm ở cột cuối cùng.
       </p>
     </div>
+    </>
   );
 }

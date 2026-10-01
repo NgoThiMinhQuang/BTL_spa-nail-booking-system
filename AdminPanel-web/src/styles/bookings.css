@@ -100,7 +100,7 @@
   border-bottom:1px solid var(--nh-line)}
 .adm-cal-corner{flex:0 0 56px;border-right:1px solid var(--nh-line)}
 .adm-cal-name{flex:1;min-width:170px;padding:10px 12px;border-right:1px solid var(--nh-line);
-  display:grid;gap:2px}
+  display:grid;gap:2px;justify-content:center;text-align:center}
 .adm-cal-name strong{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
 .adm-cal-name small{font-size:10.5px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
 .adm-cal-name.is-unassigned strong{color:var(--nh-gold)}

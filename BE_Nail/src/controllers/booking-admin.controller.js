@@ -564,8 +564,8 @@ export async function createBooking(req, res, next) {
         customerId = found.customer_id;
       } else {
         const [user] = await connection.query(
-          `INSERT INTO users (full_name, phone, role, status) VALUES (?,?,'CUSTOMER','ACTIVE')`,
-          [String(name).trim().slice(0, 100), String(phone).trim()]);
+          `INSERT INTO users (full_name, phone, password, role, status) VALUES (?,?,?,'CUSTOMER','ACTIVE')`,
+          [String(name).trim().slice(0, 100), String(phone).trim(), String(phone).trim()]);
         const [cust] = await connection.query(
           'INSERT INTO customer (user_id) VALUES (?)', [user.insertId]);
         customerId = cust.insertId;
