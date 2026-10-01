@@ -1,179 +1,245 @@
 /* ===== Trang Khách hàng của quản trị =====
-   Danh sách khách thật kèm lịch sử: số lần đặt, tổng chi tiêu, số lần vắng mặt
-   và lần ghé gần nhất. Bấm một dòng để xem các dịch vụ khách đó đã dùng. */
 
-import { useState } from 'react';
+   Nguyên tắc nghiệp vụ ràng buộc bố cục trang này:
+     - Chỉ có khách ĐÃ CÓ TÀI KHOẢN. Khách walk-in tại quầy không tự biến
+       thành khách hàng.
+     - Tổng chi tiêu chỉ cộng payment có PAID. Lịch chưa thanh toán không
+       được tính vào, và số này lấy từ database chứ không đọc cột cache
+       customer.total_spending.
+     - Không xóa khách chỉ vì họ không còn dùng dịch vụ.
+     - Trạng thái tài khoản (Active/Inactive) khác hẳn trạng thái lịch và
+       trạng thái thanh toán — ba thứ này không trộn vào nhau.
+
+   Bảng không có cột "Đánh giá" của khách: trong hệ thống review là khách
+   đánh giá dịch vụ và nhân viên sau khi hoàn thành lịch, không phải cửa
+   hàng đánh giá khách. */
+
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
-import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
+import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
-import { fmtDate, fmtNum, fmtRating, formatVND, moneyShort } from '../lib/utils';
+import { fmtNum, formatVND, moneyShort } from '../lib/utils';
 
-type SortKey = 'visits' | 'spend' | 'name';
+type SortKey = 'newest' | 'spend' | 'bookings' | 'noshow';
 
 const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'visits', label: 'Nhiều lượt nhất' },
-  { key: 'spend', label: 'Chi nhiều nhất' },
-  { key: 'name', label: 'Tên A → Z' },
+  { key: 'newest', label: 'Mới nhất' },
+  { key: 'spend', label: 'Tổng chi tiêu cao nhất' },
+  { key: 'bookings', label: 'Nhiều lịch nhất' },
+  { key: 'noshow', label: 'No-show nhiều nhất' },
 ];
 
+const SIZES = [10, 20, 50];
+
 export function AdminCustomersPage() {
-  const { state } = useApp();
-  const { customers, bookings } = state;
+  const { state, openCustomerDetail } = useApp();
+  const { customers, customerStats } = state;
 
   const [term, setTerm] = useState('');
-  const [sort, setSort] = useState<SortKey>('visits');
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [status, setStatus] = useState('');
+  const [sort, setSort] = useState<SortKey>('newest');
+  const [size, setSize] = useState(10);
+  const [page, setPage] = useState(1);
 
-  const rows = customers
-    .filter((customer) =>
-      customer.name.toLowerCase().includes(term.toLowerCase())
-      || customer.phone.includes(term))
-    .sort((a, b) => {
-      if (sort === 'spend') return b.totalSpending - a.totalSpending;
-      if (sort === 'name') return a.name.localeCompare(b.name, 'vi');
-      return b.bookingCount - a.bookingCount;
-    });
+  const filtering = Boolean(term.trim() || status);
 
-  const totalSpending = customers.reduce((sum, customer) => sum + customer.totalSpending, 0);
-  const totalNoShow = customers.reduce((sum, customer) => sum + customer.noShowCount, 0);
-  const loyal = customers.filter((customer) => customer.noShowCount === 0).length;
-  const avgVisits = customers.length
-    ? fmtRating(customers.reduce((sum, customer) => sum + customer.bookingCount, 0) / customers.length)
-    : '0';
+  /* Nút "Đặt lại" chỉ có tác dụng khi đang lọc, nên chỉ cho bấm lúc đó. */
+  useEffect(() => { setPage(1); }, [term, status, sort, size]);
 
-  const detail = customers.find((customer) => customer.id === detailId);
-  const detailBookings = detail
-    ? bookings
-        .filter((booking) => booking.customerId === detail.id)
-        .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
-        .slice(0, 8)
-    : [];
+  const rows = useMemo(() => {
+    const keyword = term.trim().toLowerCase();
+    return customers
+      .filter((customer) => {
+        if (status && customer.status !== status) return false;
+        if (!keyword) return true;
+        return customer.name.toLowerCase().includes(keyword)
+          || customer.phone.includes(keyword)
+          || (customer.email ?? '').toLowerCase().includes(keyword);
+      })
+      .sort((a, b) => {
+        if (sort === 'spend') return b.totalSpending - a.totalSpending
+          || b.paidCount - a.paidCount;
+        if (sort === 'bookings') return b.bookingCount - a.bookingCount;
+        if (sort === 'noshow') return b.noShowCount - a.noShowCount
+          || b.bookingCount - a.bookingCount;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+  }, [customers, term, status, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / size));
+  const shown = rows.slice((page - 1) * size, page * size);
+
+  function reset() {
+    setTerm('');
+    setStatus('');
+  }
 
   return (
     <>
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="customers" label="Khách hàng" value={customers.length} note="đang phục vụ" />
-        <StatTile tone="sage" icon="card" label="Tổng chi tiêu" value={moneyShort(totalSpending)} note="tích luỹ toàn hệ thống" />
-        <StatTile tone="gold" icon="ban" label="Lượt vắng mặt" value={totalNoShow} note="cần nhắc nhở" />
-        <StatTile tone="lavender" icon="schedule" label="Lượt ghé TB" value={avgVisits}
-          note={`${loyal} khách chưa vắng`} />
+        <StatTile tone="rose" icon="customers" label="Tổng khách hàng"
+          value={fmtNum(customerStats.total)} note="Khách hàng có tài khoản" />
+        <StatTile tone="sage" icon="card" label="Tổng chi tiêu"
+          value={moneyShort(customerStats.totalSpending)} note="Tổng giá trị đã thanh toán" />
+        <StatTile tone="gold" icon="ban" label="Lượt vắng mặt"
+          value={fmtNum(customerStats.noShowCount)} note="Tổng số lịch khách không đến" />
+        <StatTile tone="lavender" icon="schedule" label="Lịch hoàn thành"
+          value={fmtNum(customerStats.completedCount)} note="Dịch vụ đã hoàn thành" />
       </div>
 
       <Panel>
         <SectionHeading
           icon={<Icon name="customers" />}
           title="Danh sách khách hàng"
-          subtitle={`${rows.length} trong ${customers.length} khách hàng`}
+          subtitle={filtering || sort !== 'newest'
+            ? `Hiển thị ${rows.length} trong tổng số ${customers.length} khách hàng`
+            : `${rows.length} khách hàng`}
         />
 
-        <div className="adm-tools">
+        <div className="adm-tools adm-cs-tools">
           <div className="search">
             <span aria-hidden="true">⌕</span>
             <input
               aria-label="Tìm khách hàng"
-              placeholder="Tìm theo tên hoặc số điện thoại…"
+              placeholder="Tìm theo tên, số điện thoại hoặc email…"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
             />
           </div>
-          <select aria-label="Sắp xếp" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+
+          <select aria-label="Lọc trạng thái tài khoản" value={status}
+            onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+
+          <select aria-label="Sắp xếp" value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}>
             {SORTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
+
+          <button className="button secondary" disabled={!filtering} onClick={reset}>
+            <Icon name="refresh" /> Đặt lại
+          </button>
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState title="Không tìm thấy khách hàng" detail="Thử một từ khoá khác." />
+          <EmptyState title="Không tìm thấy khách hàng"
+            detail={filtering
+              ? 'Không có khách nào khớp với điều kiện đang lọc.'
+              : 'Chưa có khách hàng nào trong hệ thống.'}>
+            {filtering && <button className="button secondary" onClick={reset}>Đặt lại bộ lọc</button>}
+          </EmptyState>
         ) : (
-          <div className="table-scroll">
-            <table className="adm-table adm-table-wide">
-              <thead>
-                <tr>
-                  <th>Khách hàng</th>
-                  <th>Số điện thoại</th>
-                  <th>Lượt ghé</th>
-                  <th>Lần cuối</th>
-                  <th>Vắng mặt</th>
-                  <th>Tổng chi tiêu</th>
-                  <th>Đánh giá</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((customer) => (
-                  <tr key={customer.id} style={{ cursor: 'pointer' }}
-                    onClick={() => setDetailId(customer.id)}>
-                    <td>
-                      <span className="adm-cell-name">
-                        <Avatar name={customer.name} url={customer.avatarUrl} size={34} />
-                        <span style={{ minWidth: 0 }}>
-                          <strong>{customer.name}</strong>
-                          {customer.address && <small>{customer.address}</small>}
-                        </span>
-                      </span>
-                    </td>
-                    <td>{customer.phone}</td>
-                    <td><strong>{fmtNum(customer.bookingCount)}</strong></td>
-                    <td>{customer.lastVisit ? fmtDate(customer.lastVisit) : <span className="adm-none">Chưa đến</span>}</td>
-                    <td>
-                      <span className={`badge ${customer.noShowCount > 0 ? 'cancelled' : 'completed'}`}>
-                        <i />{customer.noShowCount}
-                      </span>
-                    </td>
-                    <td><strong>{formatVND(customer.totalSpending)}</strong></td>
-                    <td>
-                      {customer.reviewCount > 0
-                        ? <span className="adm-rating"><Icon name="star" /> {fmtRating(customer.rating)}
-                          <small>{customer.reviewCount}</small></span>
-                        : <span className="adm-none">—</span>}
-                    </td>
+          <>
+            <div className="table-scroll">
+              <table className="adm-table adm-table-customer">
+                <thead>
+                  <tr>
+                    <th className="adm-cs-stt">STT</th>
+                    <th>Khách hàng</th>
+                    <th>Liên hệ</th>
+                    <th className="adm-cs-num">Tổng lịch</th>
+                    <th className="adm-cs-num">Hoàn thành</th>
+                    <th className="adm-cs-num">Đã hủy</th>
+                    <th className="adm-cs-num">No-show</th>
+                    <th className="adm-cs-num">Tổng chi tiêu</th>
+                    <th>Trạng thái</th>
+                    <th>Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+                </thead>
+                <tbody>
+                  {shown.map((customer, index) => (
+                    <tr key={customer.id} className="adm-cs-row"
+                      onClick={() => openCustomerDetail(customer.id)}>
+                      <td className="adm-cs-stt">{(page - 1) * size + index + 1}</td>
 
-      {detail && (
-        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
-          onClick={() => setDetailId(null)}>
-          <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="adm-detail-head">
-              <Avatar name={detail.name} url={detail.avatarUrl} size={56} />
-              <div style={{ minWidth: 0 }}>
-                <h3>{detail.name}</h3>
-                <p className="adm-detail-price">
-                  {detail.phone}{detail.email ? ` · ${detail.email}` : ''}
-                </p>
-                <div className="adm-cell-meta" style={{ marginTop: 6 }}>
-                  <span className="adm-tag">{fmtNum(detail.bookingCount)} lượt ghé</span>
-                  <span className="adm-tag">Tổng chi {formatVND(detail.totalSpending)}</span>
-                  {detail.noShowCount > 0 && <span className="adm-tag">{detail.noShowCount} lần vắng</span>}
-                </div>
+                      <td>
+                        <span className="adm-cell-name">
+                          <Avatar name={customer.name} url={customer.avatarUrl} size={32} />
+                          <span style={{ minWidth: 0 }}>
+                            <strong>{customer.name}</strong>
+                            <small>{customer.code}</small>
+                          </span>
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong>{customer.phone}</strong>
+                        <small>{customer.email ?? '—'}</small>
+                      </td>
+
+                      <td className="adm-cs-num">{fmtNum(customer.bookingCount)}</td>
+                      <td className="adm-cs-num">{fmtNum(customer.completedCount)}</td>
+                      <td className="adm-cs-num">{fmtNum(customer.cancelledCount)}</td>
+                      <td className="adm-cs-num">
+                        {customer.noShowCount > 0
+                          ? <span className="badge cancelled"><i />{customer.noShowCount}</span>
+                          : <span className="adm-none">0</span>}
+                      </td>
+
+                      <td className="adm-cs-num">
+                        <strong>{formatVND(customer.totalSpending)}</strong>
+                        {customer.paidCount > 0 && (
+                          <small>{customer.paidCount} giao dịch đã trả</small>
+                        )}
+                      </td>
+
+                      <td>
+                        <span className={`badge ${customer.status === 'ACTIVE' ? 'completed' : 'cancelled'}`}>
+                          <i />{customer.status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+
+                      <td>
+                        {/* Menu chỉ có "Xem chi tiết": không cho xóa khách,
+                            và không có nút thêm khách vì khách tự đăng ký. */}
+                        <button className="adm-icon-btn" aria-label={`Xem chi tiết ${customer.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openCustomerDetail(customer.id);
+                          }}>
+                          <Icon name="settings" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="adm-cs-foot">
+              <span>
+                {rows.length === 0
+                  ? '0 khách hàng'
+                  : `${(page - 1) * size + 1}–${Math.min(page * size, rows.length)} trong ${rows.length} khách hàng`}
+              </span>
+
+              <div className="adm-cs-pager">
+                <select aria-label="Số dòng mỗi trang" value={size}
+                  onChange={(e) => setSize(Number(e.target.value))}>
+                  {SIZES.map((n) => <option key={n} value={n}>{n} / trang</option>)}
+                </select>
+
+                <button className="adm-icon-btn" disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)} aria-label="Trang trước">‹</button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  <button key={n} className={n === page ? 'is-on' : ''}
+                    onClick={() => setPage(n)} aria-current={n === page ? 'page' : undefined}>
+                    {n}
+                  </button>
+                ))}
+
+                <button className="adm-icon-btn" disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)} aria-label="Trang sau">›</button>
               </div>
             </div>
-
-            <h4 className="adm-detail-title">Lịch sử gần đây</h4>
-            {detailBookings.length === 0 ? (
-              <p className="adm-detail-text">Khách này chưa có lịch hẹn nào trong khoảng dữ liệu hiện tại.</p>
-            ) : (
-              <ul className="adm-history">
-                {detailBookings.map((booking) => (
-                  <li key={booking.id}>
-                    <span className="adm-history-when">{fmtDate(booking.startsAt)}</span>
-                    <span className="adm-history-what">{booking.serviceName}</span>
-                    <StatusBadge status={booking.status} />
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="adm-modal-foot">
-              <button className="button secondary" onClick={() => setDetailId(null)}>Đóng</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Panel>
     </>
   );
 }

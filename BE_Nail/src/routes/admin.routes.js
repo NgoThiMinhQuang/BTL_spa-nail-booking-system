@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  getCustomer,
   getOverview,
   getReports,
   listCustomers,
@@ -31,6 +32,8 @@ router.get('/overview', getOverview);
 router.get('/services', listServices);
 router.get('/staff', listStaff);
 router.get('/customers', listCustomers);
+/* Đặt sau /customers để "customers" không bị ":id" nuốt mất. */
+router.get('/customers/:id', getCustomer);
 router.get('/schedule', listSchedule);
 router.get('/leave', listLeaveRequests);
 router.get('/reviews', listReviews);

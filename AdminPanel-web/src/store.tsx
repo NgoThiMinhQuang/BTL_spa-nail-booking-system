@@ -29,10 +29,17 @@ export type ChartRange = '7' | '30' | 'month';
    hoạt động như bình thường. */
 
 export const bookingHash = (id: string) => `#/bookings/${id}`;
+export const customerHash = (id: string) => `#/customers/${id}`;
 
 /** Đọc mã lịch từ hash, trả về null nếu không ở trang chi tiết. */
 export function bookingIdFromHash(hash: string): string | null {
   const match = /^#\/bookings\/(\d+)/.exec(hash);
+  return match ? match[1] : null;
+}
+
+/** Đọc mã khách hàng từ hash. */
+export function customerIdFromHash(hash: string): string | null {
+  const match = /^#\/customers\/(\d+)/.exec(hash);
   return match ? match[1] : null;
 }
 
@@ -157,10 +164,25 @@ export interface StaffItem {
 }
 
 export interface CustomerItem {
-  id: string; name: string; phone: string; email: string | null;
-  avatarUrl: string | null; address: string | null;
-  totalSpending: number; noShowCount: number; bookingCount: number;
-  lastVisit: string | null; rating: number | null; reviewCount: number;
+  id: string;
+  /** Mã hiển thị dựng từ id, ví dụ CUS0010. */
+  code: string;
+  name: string; phone: string; email: string | null;
+  avatarUrl: string | null; address: string | null; birthday: string | null;
+  /** ACTIVE | INACTIVE — trạng thái tài khoản, khác hẳn trạng thái lịch hẹn. */
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+  /* Các chỉ số đều tính trực tiếp từ booking và payment:
+     totalSpending chỉ cộng payment có PAID, không đọc cột cache. */
+  totalSpending: number; paidCount: number;
+  bookingCount: number; completedCount: number;
+  cancelledCount: number; noShowCount: number;
+  lastVisit: string | null;
+}
+
+/** Tổng số liệu của cả danh sách khách, trả về kèm từ API khách hàng. */
+export interface CustomerStats {
+  total: number; totalSpending: number; noShowCount: number; completedCount: number;
 }
 
 export interface ShiftItem {
@@ -200,6 +222,8 @@ export interface AdminState {
   view: ViewName;
   /** Mã lịch đang mở trang chi tiết; null nghĩa là đang ở trang danh sách. */
   bookingDetailId: string | null;
+  /** Mã khách đang mở trang chi tiết; null nghĩa là đang ở trang danh sách. */
+  customerDetailId: string | null;
   loading: boolean;
   feedback: string;
   overview: Overview | null;
@@ -210,6 +234,8 @@ export interface AdminState {
   bookingQuery: BookingQuery;
   staff: StaffItem[];
   customers: CustomerItem[];
+  /** Tổng số liệu toàn danh sách, để bốn thẻ thống kê không phải cộng lại. */
+  customerStats: CustomerStats;
   shifts: ShiftItem[];
   leave: LeaveItem[];
   reviews: ReviewItem[];
@@ -232,6 +258,7 @@ function getStoredUser(): AuthUser | null {
 
 const initialUser = getStoredUser();
 const initialBookingId = bookingIdFromHash(window.location.hash);
+const initialCustomerId = customerIdFromHash(window.location.hash);
 
 export const initialState: AdminState = {
   user: initialUser,
@@ -239,7 +266,8 @@ export const initialState: AdminState = {
   /* Mở thẳng một URL dạng #/bookings/125 thì phải đứng ở mục Lịch hẹn ngay từ
      đầu, không phải Tổng quan — nếu không sidebar và breadcrumb sẽ chỉ sai. */
   bookingDetailId: initialBookingId,
-  view: initialBookingId ? 'admin-bookings' : 'admin-dashboard',
+  customerDetailId: initialCustomerId,
+  view: initialBookingId ? 'admin-bookings' : initialCustomerId ? 'admin-customers' : 'admin-dashboard',
   loading: false,
   feedback: '',
   overview: null,
@@ -253,6 +281,7 @@ export const initialState: AdminState = {
   },
   staff: [],
   customers: [],
+  customerStats: { total: 0, totalSpending: 0, noShowCount: 0, completedCount: 0 },
   shifts: [],
   leave: [],
   reviews: [],
@@ -269,6 +298,7 @@ export type Action =
   | { type: 'logout' }
   | { type: 'view'; view: ViewName }
   | { type: 'bookingDetail'; id: string | null }
+  | { type: 'customerDetail'; id: string | null }
   | { type: 'loadStart' }
   | { type: 'loadError'; message: string }
   | { type: 'loaded'; payload: Partial<AdminState> }
@@ -290,16 +320,25 @@ export function reducer(state: AdminState, action: Action): AdminState {
       return { ...initialState };
 
     case 'view':
-      /* Chuyển sang trang khác thì đóng trang chi tiết lịch hẹn. */
-      return { ...state, view: action.view, bookingDetailId: null };
+      /* Chuyển sang trang khác thì đóng các trang chi tiết đang mở. */
+      return { ...state, view: action.view, bookingDetailId: null, customerDetailId: null };
 
     case 'bookingDetail':
       return {
         ...state,
         bookingDetailId: action.id,
+        customerDetailId: null,
         /* Mở chi tiết thì chuyển sang trang lịch hẹn để sidebar và breadcrumb
            khớp với nơi đang xem. */
         view: action.id ? 'admin-bookings' : state.view,
+      };
+
+    case 'customerDetail':
+      return {
+        ...state,
+        customerDetailId: action.id,
+        bookingDetailId: null,
+        view: action.id ? 'admin-customers' : state.view,
       };
 
     case 'bookingQuery':
@@ -337,6 +376,9 @@ interface AppContextValue {
   /** Mở / đóng trang chi tiết một lịch hẹn; đồng bộ với hash của trình duyệt. */
   openBookingDetail: (id: string) => void;
   closeBookingDetail: () => void;
+  /** Mở / đóng trang chi tiết một khách hàng. */
+  openCustomerDetail: (id: string) => void;
+  closeCustomerDetail: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -365,7 +407,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           await Promise.all([
             getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/services'),
             getJson<{ data: StaffItem[] }>('/staff'),
-            getJson<{ data: CustomerItem[] }>('/customers'),
+            getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
             getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
             getJson<{ data: LeaveItem[] }>('/leave'),
             getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
@@ -384,6 +426,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             categories: services.meta.categories,
             staff: staff.data,
             customers: customers.data,
+      customerStats: customers.meta,
             shifts: shifts.data,
             leave: leave.data,
             reviews: reviews.data,
@@ -478,10 +521,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.location.hash = '#/bookings';
   }, []);
 
+  const openCustomerDetail = useCallback((id: string) => {
+    window.location.hash = customerHash(id);
+  }, []);
+
+  const closeCustomerDetail = useCallback(() => {
+    window.location.hash = '#/customers';
+  }, []);
+
+  /* Đồng bộ hai chiều giữa hash và trạng thái: bấm vào khách thì hash đổi,
+     người dùng bấm nút Back hoặc dán URL thì trang mở đúng khách đó. */
   useEffect(() => {
     const sync = () => {
-      const id = bookingIdFromHash(window.location.hash);
-      dispatch({ type: 'bookingDetail', id });
+      const bookingId = bookingIdFromHash(window.location.hash);
+      if (bookingId) {
+        dispatch({ type: 'bookingDetail', id: bookingId });
+      } else {
+        dispatch({ type: 'bookingDetail', id: null });
+        const customerId = customerIdFromHash(window.location.hash);
+        dispatch({ type: 'customerDetail', id: customerId });
+      }
     };
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
@@ -499,7 +558,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setBookingQuery,
     openBookingDetail,
     closeBookingDetail,
-  }), [state, reload, anchorDate, chartRange, setBookingQuery, openBookingDetail, closeBookingDetail]);
+    openCustomerDetail,
+    closeCustomerDetail,
+  }), [state, reload, anchorDate, chartRange, setBookingQuery,
+    openBookingDetail, closeBookingDetail, openCustomerDetail, closeCustomerDetail]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

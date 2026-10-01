@@ -396,36 +396,205 @@ export async function listStaff(req, res, next) {
 /* ================================================================
    Khách hàng
    ================================================================ */
+/* ================================================================
+   Khách hàng
+   ---------------------------------------------------------------
+   Mọi chỉ số đều tính trực tiếp từ booking và payment, KHÔNG đọc cột
+   cache customer.total_spending / no_show_count: hai cột đó không được
+   cập nhật khi lịch hủy hoặc khi khách thanh toán, nên đọc vào sẽ ra số
+   lệch với tiền thật khách đã trả.
+   ================================================================ */
+
+/** Mã hiển thị dạng CUS0001, dựng từ customer_id. */
+const customerCode = (id) => `CUS${String(id).padStart(4, '0')}`;
+
 export async function listCustomers(req, res, next) {
   try {
+    const q = String(req.query.q ?? '').trim();
+    const status = String(req.query.status ?? '').trim().toUpperCase();
+    const sort = ['newest', 'spend', 'bookings', 'noshow'].includes(String(req.query.sort))
+      ? String(req.query.sort) : 'newest';
+
+    const where = [];
+    const params = [];
+    if (q) {
+      where.push('(u.full_name LIKE ? OR u.phone LIKE ? OR u.email LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    if (status === 'ACTIVE' || status === 'INACTIVE') {
+      where.push('u.status = ?');
+      params.push(status);
+    }
+
+    /* Chỉ số gộp theo khách rồi mới nối bảng customer, để một khách có
+       nhiều lịch không bị nhân bản số liệu lên nhiều dòng. */
     const [rows] = await pool.query(`SELECT
-        c.customer_id AS id,
-        u.full_name AS name,
-        u.phone,
-        u.email,
-        u.avatar AS avatarUrl,
-        c.total_spending AS totalSpending,
-        c.no_show_count AS noShowCount,
+        c.customer_id,
         c.address,
-        (SELECT COUNT(*) FROM booking b WHERE b.customer_id = c.customer_id) AS bookingCount,
-        (SELECT MAX(b2.start_time) FROM booking b2 WHERE b2.customer_id = c.customer_id) AS lastVisit,
-        (SELECT ROUND(AVG(r.rating), 1) FROM review r WHERE r.customer_id = c.customer_id) AS rating,
-        (SELECT COUNT(*) FROM review r2 WHERE r2.customer_id = c.customer_id) AS reviewCount
+        c.birthday,
+        u.full_name AS name,
+        u.phone, u.email, u.avatar, u.status, u.created_at AS createdAt,
+        COUNT(b.booking_id) AS bookingCount,
+        COALESCE(SUM(b.status = 'COMPLETED'), 0) AS completedCount,
+        COALESCE(SUM(b.status = 'CANCELLED'), 0) AS cancelledCount,
+        COALESCE(SUM(b.status = 'NO_SHOW'), 0) AS noShowCount,
+        MAX(b.start_time) AS lastVisit,
+        COALESCE(paid.totalPaid, 0) AS totalSpending,
+        COALESCE(paid.paidCount, 0) AS paidCount
       FROM customer c
       JOIN users u ON u.user_id = c.user_id
-      ORDER BY bookingCount DESC, u.full_name ASC`);
+      LEFT JOIN booking b ON b.customer_id = c.customer_id
+      LEFT JOIN (
+        SELECT b2.customer_id, SUM(p.amount) AS totalPaid, COUNT(*) AS paidCount
+          FROM payment p JOIN booking b2 ON b2.booking_id = p.booking_id
+         WHERE p.payment_status = 'PAID'
+         GROUP BY b2.customer_id
+      ) paid ON paid.customer_id = c.customer_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      GROUP BY c.customer_id, c.address, c.birthday,
+               u.full_name, u.phone, u.email, u.avatar, u.status, u.created_at,
+               paid.totalPaid, paid.paidCount
+      ORDER BY ${sort === 'spend' ? 'totalSpending DESC, name ASC'
+        : sort === 'bookings' ? 'bookingCount DESC, name ASC'
+        : sort === 'noshow' ? 'noShowCount DESC, bookingCount DESC'
+        : 'u.created_at DESC, name ASC'}`, params);
+
+    /* Tổng chi tiêu chỉ tính payment PAID — cùng một định nghĩa với từng
+       khách, nên cộng lại từ danh sách là ra tổng cửa hàng. */
+    const data = rows.map((row) => ({
+      id: String(row.customer_id),
+      code: customerCode(row.customer_id),
+      name: row.name,
+      phone: row.phone,
+      email: row.email,
+      avatarUrl: imageUrl(req, row.avatar),
+      address: row.address,
+      birthday: row.birthday,
+      status: row.status,
+      createdAt: row.createdAt,
+      bookingCount: Number(row.bookingCount),
+      completedCount: Number(row.completedCount),
+      cancelledCount: Number(row.cancelledCount),
+      noShowCount: Number(row.noShowCount),
+      lastVisit: row.lastVisit,
+      totalSpending: Number(row.totalSpending),
+      paidCount: Number(row.paidCount),
+    }));
 
     res.json({
-      data: rows.map((row) => ({
-        ...row,
-        id: String(row.id),
-        avatarUrl: imageUrl(req, row.avatarUrl),
-        totalSpending: Number(row.totalSpending ?? 0),
-        noShowCount: Number(row.noShowCount ?? 0),
+      data,
+      meta: {
+        total: data.length,
+        totalSpending: data.reduce((sum, row) => sum + row.totalSpending, 0),
+        noShowCount: data.reduce((sum, row) => sum + row.noShowCount, 0),
+        completedCount: data.reduce((sum, row) => sum + row.completedCount, 0),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Chi tiết một khách: hồ sơ, chỉ số, toàn bộ lịch hẹn và các khoản thanh toán. */
+export async function getCustomer(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã khách hàng không hợp lệ.' });
+
+    const [[row]] = await pool.query(`SELECT
+        c.customer_id, c.address, c.birthday,
+        u.full_name AS name, u.phone, u.email, u.avatar, u.status,
+        u.created_at AS createdAt,
+        COUNT(b.booking_id) AS bookingCount,
+        COALESCE(SUM(b.status = 'COMPLETED'), 0) AS completedCount,
+        COALESCE(SUM(b.status = 'CANCELLED'), 0) AS cancelledCount,
+        COALESCE(SUM(b.status = 'NO_SHOW'), 0) AS noShowCount,
+        MAX(b.start_time) AS lastVisit,
+        COALESCE((SELECT SUM(p.amount) FROM payment p
+                    JOIN booking b3 ON b3.booking_id = p.booking_id
+                   WHERE b3.customer_id = c.customer_id
+                     AND p.payment_status = 'PAID'), 0) AS totalSpending
+      FROM customer c
+      JOIN users u ON u.user_id = c.user_id
+      LEFT JOIN booking b ON b.customer_id = c.customer_id
+      WHERE c.customer_id = ? LIMIT 1`, [id]);
+
+    /* Câu này có hàm tổng hợp mà không GROUP BY, nên khi không khớp khách
+       nào MySQL vẫn trả về đúng một dòng toàn NULL. Phải kiểm tra chính
+       khoá chứ không chỉ kiểm tra dòng có tồn tại hay không. */
+    if (!row || row.customer_id == null) {
+      return res.status(404).json({ message: 'Không tìm thấy khách hàng.' });
+    }
+
+    const [bookings] = await pool.query(`SELECT
+        b.booking_id AS id,
+        b.start_time AS startsAt, b.end_time AS endsAt,
+        b.status, b.source,
+        s.service_name AS serviceName,
+        su.full_name AS staffName,
+        pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
+        pay.amount AS paidAmount,
+        COALESCE(b.service_price, s.price) AS price,
+        COALESCE(addon.total, 0) AS addonTotal
+      FROM booking b
+      JOIN services s ON s.service_id = b.service_id
+      LEFT JOIN staff st ON st.staff_id = b.staff_id
+      LEFT JOIN users su ON su.user_id = st.user_id
+      LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+      LEFT JOIN (
+        SELECT booking_id, SUM(price) AS total FROM booking_addon GROUP BY booking_id
+      ) addon ON addon.booking_id = b.booking_id
+      WHERE b.customer_id = ?
+      ORDER BY b.start_time DESC`, [id]);
+
+    const [payments] = await pool.query(`SELECT
+        p.payment_id AS id, p.booking_id AS bookingId, p.amount,
+        p.payment_method AS method, p.payment_status AS status, p.payment_date AS paidAt
+      FROM payment p JOIN booking b ON b.booking_id = p.booking_id
+      WHERE b.customer_id = ?
+      ORDER BY p.payment_date DESC, p.payment_id DESC`, [id]);
+
+    res.json({
+      data: {
+        id: String(row.customer_id),
+        code: customerCode(row.customer_id),
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+        avatarUrl: imageUrl(req, row.avatar),
+        address: row.address,
+        birthday: row.birthday,
+        status: row.status,
+        createdAt: row.createdAt,
         bookingCount: Number(row.bookingCount),
-        reviewCount: Number(row.reviewCount),
-        rating: row.rating == null ? null : Number(row.rating),
-      })),
+        completedCount: Number(row.completedCount),
+        cancelledCount: Number(row.cancelledCount),
+        noShowCount: Number(row.noShowCount),
+        lastVisit: row.lastVisit,
+        totalSpending: Number(row.totalSpending),
+        bookings: bookings.map((b) => ({
+          ...b,
+          id: String(b.id),
+          code: bookingCode(b.id),
+          bookingId: String(b.bookingId ?? b.id),
+          statusText: STATUS_TEXT[b.status] ?? b.status,
+          sourceText: SOURCE_TEXT[b.source] ?? b.source,
+          paymentText: b.paymentStatus ? PAYMENT_TEXT[b.paymentStatus] : null,
+          methodText: b.paymentMethod ? METHOD_TEXT[b.paymentMethod] : null,
+          price: Number(b.price),
+          addonTotal: Number(b.addonTotal),
+          total: Number(b.price) + Number(b.addonTotal),
+          paidAmount: b.paidAmount == null ? null : Number(b.paidAmount),
+        })),
+        payments: payments.map((p) => ({
+          ...p,
+          id: String(p.id),
+          bookingId: String(p.bookingId),
+          amount: Number(p.amount),
+          methodText: METHOD_TEXT[p.method] ?? p.method,
+          statusText: PAYMENT_TEXT[p.status] ?? p.status,
+        })),
+      },
     });
   } catch (error) {
     next(error);

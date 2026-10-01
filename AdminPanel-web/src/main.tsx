@@ -16,6 +16,7 @@ import { AdminBookingsPage } from './pages/AdminBookingsPage';
 import { AdminBookingDetailPage } from './pages/AdminBookingDetailPage';
 import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
+import { AdminCustomerDetailPage } from './pages/AdminCustomerDetailPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminLeavePage } from './pages/AdminLeavePage';
 import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
@@ -28,15 +29,16 @@ import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
 
 function Routes() {
   const { state } = useApp();
-  const { view, bookingDetailId } = state;
+  const { view, bookingDetailId, customerDetailId } = state;
 
   /* Màn đăng nhập nằm ngoài khung ứng dụng nên không cần bọc #nailhouse. */
   if (!state.user) return <LoginPage />;
 
   let page: React.ReactNode;
-  /* Trang chi tiết đè lên trang danh sách khi đang mở một lịch, nhờ vậy quay
-     lại chỉ cần bỏ mã lịch khỏi URL. */
+  /* Các trang chi tiết đè lên trang danh sách tương ứng, nhờ vậy quay lại
+     chỉ cần bỏ mã khỏi URL. */
   if (bookingDetailId) page = <AdminBookingDetailPage />;
+  else if (customerDetailId) page = <AdminCustomerDetailPage />;
   else if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-services') page = <AdminServicesPage />;
@@ -51,18 +53,22 @@ function Routes() {
   else page = <AdminDashboardPage />;
 
   /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị.
-     Mở chi tiết lịch hẹn thì breadcrumb kéo dài thêm một bậc. */
+     Mở trang chi tiết thì breadcrumb kéo dài thêm một bậc. */
   const breadcrumb = view === 'admin-dashboard'
     ? ['Trang chủ', 'Tổng quan']
     : bookingDetailId
       ? ['Trang chủ', 'Lịch hẹn', 'Chi tiết']
-      : undefined;
+      : customerDetailId
+        ? ['Trang chủ', 'Khách hàng', 'Chi tiết']
+        : undefined;
+
+  const onDetail = Boolean(bookingDetailId || customerDetailId);
 
   return (
     <div id="nailhouse">
       <AdminLayout
         breadcrumb={breadcrumb}
-        hideHeading={Boolean(bookingDetailId)}
+        hideHeading={onDetail}
       >
         {page}
       </AdminLayout>
