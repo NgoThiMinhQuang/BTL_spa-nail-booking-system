@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
+import { CustomerDrawer } from '../components/CustomerDrawer';
 import { useApp } from '../store';
 import { fmtNum, formatVND, moneyShort } from '../lib/utils';
 
@@ -33,8 +34,8 @@ const SORTS: { key: SortKey; label: string }[] = [
 const SIZES = [10, 20, 50];
 
 export function AdminCustomersPage() {
-  const { state, openCustomerDetail } = useApp();
-  const { customers, customerStats } = state;
+  const { state, openCustomerDetail, closeCustomerDetail } = useApp();
+  const { customers, customerStats, customerDetailId } = state;
 
   const [term, setTerm] = useState('');
   const [status, setStatus] = useState('');
@@ -240,6 +241,13 @@ export function AdminCustomersPage() {
           </>
         )}
       </Panel>
+
+      {/* Bấm vào một dòng thì khung chi tiết trượt ra từ bên phải, danh sách
+          vẫn còn nguyên phía sau. Mã khách cũng được đẩy vào URL nên copy
+          link là mở đúng khách, và nút Back của trình duyệt đóng được. */}
+      {customerDetailId && (
+        <CustomerDrawer customerId={customerDetailId} onClose={closeCustomerDetail} />
+      )}
     </>
   );
 }

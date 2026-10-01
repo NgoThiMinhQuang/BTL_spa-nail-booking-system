@@ -1,0 +1,128 @@
+/* ==========================================================================
+   KHUNG CHI TIẾT TRƯỢT TỪ BÊN PHẢI
+   Danh sách vẫn nằm nguyên phía sau và bị làm mờ, khung chi tiết trượt ra
+   từ mép phải — kiểu người dùng đã quen: bấm dòng xem chi tiết mà không
+   mất danh sách.
+   ========================================================================== */
+
+.adm-drawer-root{position:fixed;inset:0;z-index:60}
+
+/* Lớp làm mờ: tối nhẹ để vẫn đọc được tiêu đề trang phía sau */
+.adm-drawer-mask{position:absolute;inset:0;background:rgba(45,36,48,.34);
+  animation:adm-fade .18s ease}
+
+.adm-drawer{position:absolute;top:0;right:0;bottom:0;max-width:100vw;
+  display:flex;flex-direction:column;background:#fff;
+  box-shadow:-18px 0 46px -22px rgba(45,36,48,.42);
+  animation:adm-slide .22s cubic-bezier(.22,.61,.36,1)}
+
+@keyframes adm-fade{from{opacity:0}to{opacity:1}}
+@keyframes adm-slide{from{transform:translateX(100%)}to{transform:translateX(0)}}
+
+/* ---- Đầu khung ---- */
+.adm-drawer-head{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:14px;padding:18px 20px 14px;border-bottom:1px solid var(--nh-line);flex:0 0 auto}
+.adm-drawer-head h2{margin:0;font-size:17px;font-weight:600}
+.adm-drawer-head p{margin:5px 0 0;font-size:12px;color:var(--nh-muted)}
+.adm-drawer-x{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;
+  background:#F6F2F5;color:var(--nh-muted);flex:0 0 30px}
+.adm-drawer-x:hover{background:#F2E5EA;color:var(--nh-primary-dark)}
+.adm-drawer-x svg{width:16px;height:16px}
+
+/* ---- Thân khung: cuộn riêng, đầu và chân khung luôn đứng yên ---- */
+.adm-drawer-body{flex:1 1 auto;overflow-y:auto;padding:16px 20px 20px;
+  display:grid;gap:14px;align-content:start}
+.adm-drawer-foot{flex:0 0 auto;padding:12px 20px;border-top:1px solid var(--nh-line);
+  background:#FDFBFC}
+.adm-drawer-actions{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px}
+.adm-drawer-actions .button{justify-content:center}
+.adm-drawer-actions .button svg{width:15px;height:15px}
+
+/* ---- Hồ sơ ---- */
+.adm-dprofile{display:flex;align-items:center;gap:14px;padding:14px 15px;
+  border:1px solid var(--nh-line);border-radius:14px;background:#FDF9FA}
+.adm-dprofile-copy{min-width:0;flex:1}
+.adm-dprofile-copy h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-.3px}
+.adm-dprofile-copy p{margin:4px 0 0;font-size:12px;color:var(--nh-muted)}
+.adm-dprofile-tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+
+/* ---- Dải số liệu ---- */
+.adm-dstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.adm-dstat{display:grid;gap:3px;padding:12px 13px;border-radius:13px;
+  border:1px solid transparent;position:relative}
+.adm-dstat>svg{width:17px;height:17px;position:absolute;top:11px;right:12px;opacity:.5}
+.adm-dstat strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;
+  line-height:1.15;word-break:break-word}
+.adm-dstat small{font-size:11px;color:var(--nh-muted)}
+.adm-dstat.is-rose{background:#FDEFF3;border-color:#F7DCE5;color:#9E3A5B}
+.adm-dstat.is-gold{background:#FFF6E2;border-color:#F5E4BF;color:#8A6A24}
+.adm-dstat.is-sage{background:#EDF6F2;border-color:#D7E9E1;color:#3D6656}
+.adm-dstat small{color:inherit;opacity:.75}
+
+/* ---- Khối nội dung ---- */
+.adm-dblock{display:grid;gap:9px}
+.adm-dblock h4{display:flex;align-items:baseline;gap:8px;margin:0;font-size:11px;
+  font-weight:600;letter-spacing:1px;color:var(--nh-muted);text-transform:uppercase}
+.adm-dblock h4 em{font-style:normal;letter-spacing:0;text-transform:none;font-weight:400}
+
+/* ---- Thông tin liên hệ: biểu tượng + nhãn nhỏ + giá trị lớn ---- */
+.adm-dinfo{border:1px solid var(--nh-line);border-radius:13px;overflow:hidden}
+.adm-di-row{display:flex;align-items:center;gap:12px;padding:11px 14px;
+  border-bottom:1px solid var(--nh-line)}
+.adm-di-row:last-child{border-bottom:0}
+.adm-di-icon{width:28px;height:28px;display:grid;place-items:center;flex:0 0 28px;
+  border-radius:8px;background:#F8F3F5;color:var(--nh-primary-dark)}
+.adm-di-icon svg{width:14px;height:14px}
+.adm-di-row>span:last-child{display:grid;gap:2px;min-width:0}
+.adm-di-row small{font-size:10.5px;color:var(--nh-muted)}
+.adm-di-row strong{font-size:13px;font-weight:600;color:var(--nh-ink);
+  word-break:break-word}
+
+/* ---- Phân bổ trạng thái ---- */
+.adm-dspread{display:flex;gap:8px;flex-wrap:wrap}
+.adm-dspread span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;
+  border-radius:8px;font-size:11.5px;font-weight:600;background:#F6F5F8;
+  color:var(--nh-muted)}
+.adm-dspread i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.adm-dspread .is-ok{background:var(--nh-sage-soft);color:#3D6656}
+.adm-dspread .is-bad{background:#FBE8ED;color:#B4455E}
+.adm-dspread .is-mute{background:#F0EDF0;color:#8A7B90}
+
+/* ---- Lịch sử đặt dịch vụ ---- */
+.adm-dtabs{display:flex;gap:4px;padding:3px;background:#F6F4F7;border-radius:10px}
+.adm-dtabs button{flex:1;padding:7px 8px;border-radius:8px;font-size:11.5px;
+  color:var(--nh-muted)}
+.adm-dtabs button:hover{color:var(--nh-ink)}
+.adm-dtabs button.is-on{background:#fff;color:var(--nh-primary-dark);font-weight:600;
+  box-shadow:0 1px 3px rgba(45,36,48,.08)}
+
+.adm-dlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.adm-dlist li>button{display:grid;gap:9px;width:100%;text-align:left;padding:11px 13px;
+  border:1px solid var(--nh-line);border-radius:12px;background:#fff;
+  grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+.adm-dlist li>button:hover{background:var(--nh-blush);border-color:#F0DCE3}
+.adm-dlist li>button:has(.badge){grid-template-columns:auto minmax(0,1fr) auto auto}
+.adm-dlist-when,.adm-dlist-what,.adm-dlist-sum{display:grid;gap:2px;min-width:0}
+.adm-dlist-when strong{font-size:12.5px;font-weight:600;white-space:nowrap}
+.adm-dlist-what strong{font-size:12.5px;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm-dlist small{font-size:10.5px;color:var(--nh-muted);white-space:nowrap}
+.adm-dlist-sum{text-align:right}
+.adm-dlist-sum strong{font-size:12.5px;font-weight:600;white-space:nowrap}
+.adm-dlist-sum small.is-ok{color:#3D6656}
+.adm-dlist-sum small.is-warn{color:var(--nh-gold)}
+
+.adm-ds{display:grid;gap:12px}
+
+/* ---- Khung chật trên màn hình nhỏ ---- */
+@media(max-width:620px){
+  .adm-drawer-head{padding:14px 16px 12px}
+  .adm-drawer-body{padding:14px 16px 18px}
+  .adm-drawer-actions{grid-template-columns:minmax(0,1fr)}
+  .adm-dstats{grid-template-columns:minmax(0,1fr)}
+}
+
+/* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+@media(prefers-reduced-motion:reduce){
+  .adm-drawer,.adm-drawer-mask{animation:none}
+}

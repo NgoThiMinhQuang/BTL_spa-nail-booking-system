@@ -16,7 +16,6 @@ import { AdminBookingsPage } from './pages/AdminBookingsPage';
 import { AdminBookingDetailPage } from './pages/AdminBookingDetailPage';
 import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
-import { AdminCustomerDetailPage } from './pages/AdminCustomerDetailPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminLeavePage } from './pages/AdminLeavePage';
 import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
@@ -29,16 +28,16 @@ import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
 
 function Routes() {
   const { state } = useApp();
-  const { view, bookingDetailId, customerDetailId } = state;
+  const { view, bookingDetailId } = state;
 
   /* Màn đăng nhập nằm ngoài khung ứng dụng nên không cần bọc #nailhouse. */
   if (!state.user) return <LoginPage />;
 
   let page: React.ReactNode;
-  /* Các trang chi tiết đè lên trang danh sách tương ứng, nhờ vậy quay lại
-     chỉ cần bỏ mã khỏi URL. */
+  /* Trang chi tiết lịch hẹn đè lên trang danh sách. Khách hàng thì khác:
+     bấm vào dòng mở khung trượt bên phải ngay trong trang danh sách nên
+     danh sách vẫn còn nguyên phía sau. */
   if (bookingDetailId) page = <AdminBookingDetailPage />;
-  else if (customerDetailId) page = <AdminCustomerDetailPage />;
   else if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-services') page = <AdminServicesPage />;
@@ -58,11 +57,9 @@ function Routes() {
     ? ['Trang chủ', 'Tổng quan']
     : bookingDetailId
       ? ['Trang chủ', 'Lịch hẹn', 'Chi tiết']
-      : customerDetailId
-        ? ['Trang chủ', 'Khách hàng', 'Chi tiết']
-        : undefined;
+      : undefined;
 
-  const onDetail = Boolean(bookingDetailId || customerDetailId);
+  const onDetail = Boolean(bookingDetailId);
 
   return (
     <div id="nailhouse">

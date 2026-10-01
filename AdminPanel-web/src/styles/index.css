@@ -22,9 +22,11 @@
 @import './bookings.css';
 /* 8. Trang Chi tiết lịch hẹn: hai cột, dòng thời gian, luồng trạng thái */
 @import './booking-detail.css';
-/* 9. Trang Khách hàng và trang chi tiết khách hàng */
+/* 9. Trang Khách hàng */
 @import './customers.css';
-/* 10. Màn đăng nhập quản trị */
+/* 10. Khung chi tiết trượt từ bên phải (dùng chung) */
+@import './drawer.css';
+/* 11. Màn đăng nhập quản trị */
 @import './login.css';
-/* 11. Tương phản WCAG AA — đặt sau tất cả để ghi đè màu chữ khi cần */
+/* 12. Tương phản WCAG AA — đặt sau tất cả để ghi đè màu chữ khi cần */
 @import './a11y-fixes.css';
