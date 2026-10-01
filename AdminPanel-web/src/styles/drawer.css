@@ -22,8 +22,8 @@
 /* ---- Đầu khung ---- */
 .adm-drawer-head{display:flex;align-items:flex-start;justify-content:space-between;
   gap:14px;padding:18px 20px 14px;border-bottom:1px solid var(--nh-line);flex:0 0 auto}
-.adm-drawer-head h2{margin:0;font-size:17px;font-weight:600}
-.adm-drawer-head p{margin:5px 0 0;font-size:12px;color:var(--nh-muted)}
+.adm-drawer-head h2{margin:0;font-size:var(--adm-num);font-weight:600}
+.adm-drawer-head p{margin:5px 0 0;font-size:var(--adm-td);color:var(--nh-muted)}
 .adm-drawer-x{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;
   background:#F6F2F5;color:var(--nh-muted);flex:0 0 30px}
 .adm-drawer-x:hover{background:#F2E5EA;color:var(--nh-primary-dark)}
@@ -42,8 +42,8 @@
 .adm-dprofile{display:flex;align-items:center;gap:14px;padding:14px 15px;
   border:1px solid var(--nh-line);border-radius:14px;background:#FDF9FA}
 .adm-dprofile-copy{min-width:0;flex:1}
-.adm-dprofile-copy h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-.3px}
-.adm-dprofile-copy p{margin:4px 0 0;font-size:12px;color:var(--nh-muted)}
+.adm-dprofile-copy h3{margin:0;font-size:var(--adm-h2);font-weight:600;letter-spacing:-.3px}
+.adm-dprofile-copy p{margin:4px 0 0;font-size:var(--adm-td);color:var(--nh-muted)}
 .adm-dprofile-tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
 
 /* ---- Dải số liệu ---- */
@@ -51,9 +51,9 @@
 .adm-dstat{display:grid;gap:3px;padding:12px 13px;border-radius:13px;
   border:1px solid transparent;position:relative}
 .adm-dstat>svg{width:17px;height:17px;position:absolute;top:11px;right:12px;opacity:.5}
-.adm-dstat strong{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;
+.adm-dstat strong{font-size:var(--adm-num);font-weight:600;font-variant-numeric:tabular-nums;
   line-height:1.15;word-break:break-word}
-.adm-dstat small{font-size:11px;color:var(--nh-muted)}
+.adm-dstat small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
 .adm-dstat.is-rose{background:#FDEFF3;border-color:#F7DCE5;color:#9E3A5B}
 .adm-dstat.is-gold{background:#FFF6E2;border-color:#F5E4BF;color:#8A6A24}
 .adm-dstat.is-sage{background:#EDF6F2;border-color:#D7E9E1;color:#3D6656}
@@ -61,7 +61,7 @@
 
 /* ---- Khối nội dung ---- */
 .adm-dblock{display:grid;gap:9px}
-.adm-dblock h4{display:flex;align-items:baseline;gap:8px;margin:0;font-size:11px;
+.adm-dblock h4{display:flex;align-items:baseline;gap:8px;margin:0;font-size:var(--adm-td-sub);
   font-weight:600;letter-spacing:1px;color:var(--nh-muted);text-transform:uppercase}
 .adm-dblock h4 em{font-style:normal;letter-spacing:0;text-transform:none;font-weight:400}
 
@@ -74,14 +74,14 @@
   border-radius:8px;background:#F8F3F5;color:var(--nh-primary-dark)}
 .adm-di-icon svg{width:14px;height:14px}
 .adm-di-row>span:last-child{display:grid;gap:2px;min-width:0}
-.adm-di-row small{font-size:10.5px;color:var(--nh-muted)}
-.adm-di-row strong{font-size:13px;font-weight:600;color:var(--nh-ink);
+.adm-di-row small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-di-row strong{font-size:var(--adm-td);font-weight:600;color:var(--nh-ink);
   word-break:break-word}
 
 /* ---- Phân bổ trạng thái ---- */
 .adm-dspread{display:flex;gap:8px;flex-wrap:wrap}
 .adm-dspread span{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;
-  border-radius:8px;font-size:11.5px;font-weight:600;background:#F6F5F8;
+  border-radius:8px;font-size:var(--adm-td-sub);font-weight:600;background:#F6F5F8;
   color:var(--nh-muted)}
 .adm-dspread i{width:6px;height:6px;border-radius:50%;background:currentColor}
 .adm-dspread .is-ok{background:var(--nh-sage-soft);color:#3D6656}
@@ -90,7 +90,7 @@
 
 /* ---- Lịch sử đặt dịch vụ ---- */
 .adm-dtabs{display:flex;gap:4px;padding:3px;background:#F6F4F7;border-radius:10px}
-.adm-dtabs button{flex:1;padding:7px 8px;border-radius:8px;font-size:11.5px;
+.adm-dtabs button{flex:1;padding:7px 8px;border-radius:8px;font-size:var(--adm-td-sub);
   color:var(--nh-muted)}
 .adm-dtabs button:hover{color:var(--nh-ink)}
 .adm-dtabs button.is-on{background:#fff;color:var(--nh-primary-dark);font-weight:600;
@@ -103,12 +103,12 @@
 .adm-dlist li>button:hover{background:var(--nh-blush);border-color:#F0DCE3}
 .adm-dlist li>button:has(.badge){grid-template-columns:auto minmax(0,1fr) auto auto}
 .adm-dlist-when,.adm-dlist-what,.adm-dlist-sum{display:grid;gap:2px;min-width:0}
-.adm-dlist-when strong{font-size:12.5px;font-weight:600;white-space:nowrap}
-.adm-dlist-what strong{font-size:12.5px;font-weight:600;
+.adm-dlist-when strong{font-size:var(--adm-td);font-weight:600;white-space:nowrap}
+.adm-dlist-what strong{font-size:var(--adm-td);font-weight:600;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.adm-dlist small{font-size:10.5px;color:var(--nh-muted);white-space:nowrap}
+.adm-dlist small{font-size:var(--adm-td-sub);color:var(--nh-muted);white-space:nowrap}
 .adm-dlist-sum{text-align:right}
-.adm-dlist-sum strong{font-size:12.5px;font-weight:600;white-space:nowrap}
+.adm-dlist-sum strong{font-size:var(--adm-td);font-weight:600;white-space:nowrap}
 .adm-dlist-sum small.is-ok{color:#3D6656}
 .adm-dlist-sum small.is-warn{color:var(--nh-gold)}
 

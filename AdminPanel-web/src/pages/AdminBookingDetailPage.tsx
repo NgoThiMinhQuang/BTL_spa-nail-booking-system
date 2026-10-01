@@ -270,22 +270,26 @@ export function AdminBookingDetailPage() {
             </div>
           )}
 
-          {/* Thông tin lịch */}
+          {/* Thông tin lịch — các số liệu ngắn nên xếp hai cột cho đỡ
+              khoảng trắng ngang và gọn chiều cao khối. */}
           <Card title="Thông tin lịch" icon="calendar">
-            <dl className="adm-bk-list adm-bd-list">
+            <dl className="adm-bk-list adm-bd-facts">
               <Row label="Mã lịch">{data.code}</Row>
+              <Row label="Ngày hẹn">{fmtDate(data.startsAt)}</Row>
               <Row label="Nguồn">
                 {data.source === 'WALK_IN'
                   ? <span className="badge pending"><i />Khách trực tiếp</span>
                   : <span className="badge confirmed"><i />Ứng dụng Mobile</span>}
               </Row>
-              <Row label="Ngày hẹn">{fmtDate(data.startsAt)}</Row>
               <Row label="Giờ">
                 {fmtTime(data.startsAt)} – {fmtTime(data.endsAt)}
               </Row>
+              <Row label="Ngày tạo">{fmtDate(data.createdAt)}</Row>
               <Row label="Thời gian dịch vụ">{data.duration} phút</Row>
               <Row label="Buffer">{data.bufferTime} phút</Row>
-              <Row label="Tổng thời gian">{data.totalMinutes} phút</Row>
+              <Row label="Tổng thời gian">
+                <strong>{data.totalMinutes} phút</strong>
+              </Row>
             </dl>
           </Card>
 
@@ -332,13 +336,13 @@ export function AdminBookingDetailPage() {
               )}
               <div>
                 <strong>{data.serviceName}</strong>
-                <dl className="adm-bk-list adm-bd-list">
+                <dl className="adm-bk-list adm-bd-facts">
                   <Row label="Danh mục">{data.serviceCategory ?? '—'}</Row>
+                  <Row label="Thời gian">
+                    {data.duration}′ + {data.bufferTime}′ buffer
+                  </Row>
                   <Row label="Giá tại lúc đặt">
                     <strong>{formatVND(data.price)}</strong>
-                  </Row>
-                  <Row label="Thời gian">
-                    {data.duration} phút + {data.bufferTime} phút buffer
                   </Row>
                   <Row label="Trạng thái">
                     <span className={`badge ${data.serviceStatus === 'ACTIVE' ? 'completed' : 'cancelled'}`}>
@@ -566,7 +570,7 @@ export function AdminBookingDetailPage() {
           <Panel className="adm-bd-card">
             <SectionHeading icon={<Icon name="dollar" />} title="Tóm tắt thanh toán" />
             <div className="adm-bd-body">
-              <dl className="adm-bk-list adm-bd-list">
+              <dl className="adm-bk-list adm-bd-facts">
                 <Row label="Dịch vụ chính">{formatVND(data.price)}</Row>
                 <Row label="Phát sinh">{formatVND(data.addonTotal)}</Row>
                 <Row label="Tổng cộng"><strong>{formatVND(data.total)}</strong></Row>

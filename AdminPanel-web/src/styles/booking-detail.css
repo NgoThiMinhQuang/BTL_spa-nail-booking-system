@@ -1,115 +1,131 @@
 /* ==========================================================================
    TRANG CHI TIẾT LỊCH HẸN
-   Cột trái 2/3 là thông tin, cột phải 1/3 là trạng thái và thao tác. Trên
-   màn hình hẹp hai cột xếp chồng, thao tác lên trên vì đó là phần Admin
-   cần tới đầu tiên.
+   Cột trái 2/3 là thông tin, cột phải 1/3 là trạng thái và thao tác.
+
+   Mọi cỡ chữ ở đây lấy từ thang chữ chung của khu quản trị
+   (--adm-td, --adm-td-sub, --adm-num...) chứ không ghim số px. Nhờ vậy
+   bảy trang này phóng to theo màn hình y hệt các trang còn lại, thay vì
+   chữ nhỏ lại trên màn rộng.
    ========================================================================== */
 
 /* ---- Đầu trang ---- */
 .adm-back{display:inline-flex;align-items:center;gap:7px;background:transparent;
-  color:var(--nh-muted);font-size:12px;padding:0 0 12px;cursor:pointer}
+  color:var(--nh-muted);font-size:var(--adm-td);padding:0 0 12px;cursor:pointer}
 .adm-back:hover{color:var(--nh-primary-dark)}
 .adm-back svg{width:15px;height:15px;transform:rotate(90deg)}
 
-.adm-bd-head{margin-bottom:18px}
-.adm-bd-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
-.adm-bd-title h1{display:flex;align-items:baseline;gap:9px;margin:0 0 5px}
-.adm-bd-title h1 em{font-style:normal;font-size:16px;color:var(--nh-primary-dark);
-  font-weight:600;font-variant-numeric:tabular-nums}
-.adm-bd-created{display:block;margin-top:5px;font-size:11px;color:var(--nh-muted)}
+.adm-bd-head{margin-bottom:16px}
+.adm-bd-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;
+  flex-wrap:wrap}
+.adm-bd-title h1{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;
+  font-size:var(--adm-h1);letter-spacing:-.6px}
+.adm-bd-title h1 em{font-style:normal;font-size:var(--adm-h2-sub);
+  color:var(--nh-primary-dark);font-weight:600;font-variant-numeric:tabular-nums}
+.adm-bd-created{display:block;margin-top:6px;font-size:var(--adm-td-sub);
+  color:var(--nh-muted)}
 .adm-bd-head-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.adm-bd-head-right .button svg{width:15px;height:15px}
+.adm-bd-head-right .button svg{width:16px;height:16px}
 
 /* ---- Khung hai cột ---- */
-.adm-bd-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;
+.adm-bd-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;
   align-items:start}
-/* Thứ tự đọc khi xếp chồng: thông tin trước, thao tác sau — đúng như lúc
-   Admin lần đầu đọc trang này. */
 .adm-bd-main{display:grid;gap:14px;min-width:0}
 .adm-bd-side{display:grid;gap:14px;position:sticky;top:14px}
-.adm-bd-card .adm-bd-body{padding:14px 16px 16px}
+.adm-bd-card .adm-bd-body{padding:13px 16px 15px}
 .adm-bd-card.is-alert{border-color:#F1C9D4}
 
 /* ---- Cảnh báo ---- */
 .adm-bd-warn{margin:0}
 .adm-bd-warn .button{margin-top:9px}
-.adm-bd-warn svg{width:17px;height:17px;flex:0 0 17px}
+.adm-bd-warn svg{width:18px;height:18px;flex:0 0 18px}
 
-/* ---- Danh sách nhãn / giá trị ---- */
-.adm-bd-list{margin-top:0}
-.adm-bd-row{display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px;
+/* ---- Danh sách nhãn / giá trị ----
+   Dòng gọn, nhãn và giá trị dồn sát nhau: trước đây cột nhãn rộng và giá
+   trị đẩy ra xa nên giữa dòng trống trơn, đọc rất mệt. */
+.adm-bd-list{margin-top:0;gap:0}
+.adm-bd-row{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;
   align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--nh-line)}
 .adm-bd-row:last-child{border-bottom:0}
-.adm-bd-row dt{font-size:11.5px;color:var(--nh-muted)}
-.adm-bd-row dd{margin:0;text-align:left;font-size:12.5px;color:var(--nh-ink);
+.adm-bd-row dt{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-bd-row dd{margin:0;text-align:left;font-size:var(--adm-td);color:var(--nh-ink);
   min-width:0;word-break:break-word}
 
+/* Khối thông tin rộng: xếp hai cặp nhãn/giá trị cạnh nhau để hết khoảng
+   trống ngang trên màn hình lớn. */
+@media(min-width:1251px){
+  .adm-bd-facts{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px}
+}
+
 /* ---- Người: khách, nhân viên ---- */
-.adm-bd-person{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.adm-bd-person{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
 /* Bỏ qua thẻ avatar: nó cũng là span con trực tiếp, nếu không loại trừ thì
    flex:1 sẽ kéo dài nó thành hình bầu dục. */
 .adm-bd-person>span:not(.avatar){display:grid;gap:2px;min-width:0;flex:1}
-.adm-bd-person strong{font-size:14px;font-weight:600}
-.adm-bd-person small{font-size:11.5px;color:var(--nh-muted)}
+.adm-bd-person strong{font-size:var(--adm-h2-sub);font-weight:600}
+.adm-bd-person small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
 .adm-bd-person .button{margin-left:auto}
 .adm-bd-person>.badge{margin-left:auto}
 
-.adm-bd-ok{display:flex;align-items:center;gap:6px;margin:12px 0 0;font-size:12px;
-  color:#3D6656}
-.adm-bd-ok svg{width:14px;height:14px;flex:0 0 14px}
+.adm-bd-ok{display:flex;align-items:center;gap:6px;margin:11px 0 0;
+  font-size:var(--adm-td-sub);color:#3D6656}
+.adm-bd-ok svg{width:15px;height:15px;flex:0 0 15px}
 
 .adm-bd-unassigned{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:12px;border-radius:12px;background:#FFF7EC;border:1px solid #F3DFBC}
-.adm-bd-unassigned>svg{width:20px;height:20px;flex:0 0 20px;color:var(--nh-gold)}
-.adm-bd-unassigned>span{display:grid;gap:2px;flex:1;min-width:0;font-size:12px;
-  color:#6B5518;line-height:1.6}
-.adm-bd-unassigned strong{font-size:13px;font-weight:600;display:block}
+.adm-bd-unassigned>svg{width:21px;height:21px;flex:0 0 21px;color:var(--nh-gold)}
+.adm-bd-unassigned>span{display:grid;gap:2px;flex:1;min-width:0;
+  font-size:var(--adm-td-sub);color:#6B5518;line-height:1.6}
+.adm-bd-unassigned strong{font-size:var(--adm-td);font-weight:600;display:block}
 
 /* ---- Dịch vụ ---- */
 .adm-bd-service{display:flex;gap:14px}
-.adm-bd-service-img{width:104px;height:104px;object-fit:cover;border-radius:12px;
-  flex:0 0 104px;background:#F1EEF0}
+.adm-bd-service-img{width:108px;height:108px;object-fit:cover;border-radius:12px;
+  flex:0 0 108px;background:#F1EEF0}
 .adm-bd-service>div{min-width:0;flex:1}
-.adm-bd-service>div>strong{display:block;font-size:15px;font-weight:600;margin-bottom:6px}
-.adm-bd-card .adm-field-note{margin-top:11px}
+.adm-bd-service>div>strong{display:block;font-size:var(--adm-h2-sub);font-weight:600;
+  margin-bottom:4px}
+.adm-bd-card .adm-field-note{margin-top:10px}
 
 /* ---- Ghi chú ---- */
 .adm-bd-note{margin:0;padding:12px 13px;border-radius:12px;background:#FCF8FA;
-  border:1px solid var(--nh-line);font-size:12.5px;line-height:1.75;color:var(--nh-ink)}
+  border:1px solid var(--nh-line);font-size:var(--adm-td);line-height:1.7;
+  color:var(--nh-ink)}
 
 /* ---- Dòng tiền của dịch vụ chính và phát sinh ---- */
-.adm-bd-lines{display:grid;gap:2px}
+.adm-bd-lines{display:grid;gap:5px}
 .adm-bd-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;
-  align-items:center;padding:10px 12px;border-radius:11px;border:1px solid var(--nh-line)}
+  align-items:center;padding:10px 12px;border-radius:11px;
+  border:1px solid var(--nh-line)}
 .adm-bd-line.is-main{background:#FBF8FA;border-color:#F0E4E8}
 .adm-bd-line>span{display:grid;gap:2px;min-width:0}
-.adm-bd-line>span:nth-child(2){text-align:right;font-size:12.5px;
+.adm-bd-line>span:nth-child(2){text-align:right;font-size:var(--adm-td);
   font-variant-numeric:tabular-nums}
-.adm-bd-line strong{font-size:12.5px;font-weight:600}
-.adm-bd-line small{font-size:10.5px;color:var(--nh-muted)}
-.adm-bd-line .adm-icon-btn{width:26px;height:26px}
+.adm-bd-line strong{font-size:var(--adm-td);font-weight:600}
+.adm-bd-line small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-bd-line .adm-icon-btn{width:28px;height:28px}
 
 .adm-bd-addon-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;
-  align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid var(--nh-line)}
+  align-items:end;margin-top:11px;padding-top:11px;border-top:1px solid var(--nh-line)}
 .adm-bd-addon-form .button{white-space:nowrap}
-.adm-bd-addon-form .button svg{width:14px;height:14px}
+.adm-bd-addon-form .button svg{width:15px;height:15px}
 
-/* ---- Luồng trạng thái ---- */
-.adm-flow{list-style:none;margin:0;padding:0;display:grid;gap:0}
-.adm-flow li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;
-  align-items:center;position:relative;padding:7px 0;font-size:12.5px;
-  color:#B6AFB2}
-.adm-flow li:not(:last-child)::before{content:'';position:absolute;left:12px;top:30px;
-  bottom:-4px;width:2px;background:#EFE7EA}
+/* ---- Luồng trạng thái: gọn lại để bốn bước gọn trong thẻ bên phải ---- */
+.adm-flow{list-style:none;margin:0;padding:0;display:grid}
+.adm-flow li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;
+  align-items:center;position:relative;padding:5px 0;
+  font-size:var(--adm-td);color:#B6AFB2}
+.adm-flow li:not(:last-child)::before{content:'';position:absolute;left:11px;
+  top:26px;bottom:-3px;width:2px;background:#EFE7EA}
 .adm-flow li.is-done:not(:last-child)::before{background:var(--nh-primary)}
 .adm-flow li.is-done{color:var(--nh-ink)}
 .adm-flow li.is-now{color:var(--nh-ink);font-weight:600}
 .adm-flow li.is-stop{color:#B4455E;font-weight:600}
-.adm-flow li>span:last-child small{display:block;font-weight:400;font-size:11px;
-  color:var(--nh-muted);margin-top:2px}
+.adm-flow li>span:last-child small{display:block;font-weight:400;
+  font-size:var(--adm-td-sub);color:var(--nh-muted);margin-top:1px}
 
-.adm-flow-dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
-  background:#F2EEF0;color:#B6AFB2;font-size:11px;font-weight:600;z-index:1}
+.adm-flow-dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  background:#F2EEF0;color:#B6AFB2;font-size:var(--adm-td-sub);font-weight:600;
+  z-index:1}
 .adm-flow-dot svg{width:13px;height:13px}
 .adm-flow-dot i{font-style:normal}
 .adm-flow li.is-done .adm-flow-dot{background:var(--nh-primary);color:#fff}
@@ -118,26 +134,27 @@
 .adm-flow li.is-stop .adm-flow-dot{background:#FBE8ED;color:#B4455E}
 
 /* ---- Lịch sử hoạt động ---- */
-.adm-timeline{display:grid;gap:14px}
-.adm-timeline h5{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.6px;
-  color:var(--nh-muted);text-transform:uppercase}
-.adm-timeline ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.adm-timeline{display:grid;gap:13px}
+.adm-timeline h5{margin:0 0 7px;font-size:var(--adm-block);font-weight:600;
+  letter-spacing:.5px;color:var(--nh-muted);text-transform:uppercase}
+.adm-timeline ol{list-style:none;margin:0;padding:0;display:grid}
 .adm-timeline li{display:grid;grid-template-columns:24px minmax(0,1fr);gap:11px;
-  position:relative;padding:6px 0}
+  position:relative;padding:5px 0}
 .adm-timeline li:not(:last-child)::before{content:'';position:absolute;left:11px;
-  top:30px;bottom:-2px;width:2px;background:#EFE7EA}
+  top:26px;bottom:-2px;width:2px;background:#EFE7EA}
 .adm-timeline-dot{width:24px;height:24px;border-radius:50%;display:grid;
   place-items:center;background:#F2EEF0;color:var(--nh-muted);z-index:1}
 .adm-timeline-dot svg{width:12px;height:12px}
-.adm-timeline li.is-ok .adm-timeline-dot{background:var(--nh-sage-soft);color:var(--nh-sage)}
+.adm-timeline li.is-ok .adm-timeline-dot{background:var(--nh-sage-soft);
+  color:var(--nh-sage)}
 .adm-timeline li.is-info .adm-timeline-dot{background:var(--nh-lavender-soft);
   color:var(--nh-lavender)}
 .adm-timeline li.is-gold .adm-timeline-dot{background:var(--nh-gold-soft);
   color:var(--nh-gold)}
 .adm-timeline li.is-bad .adm-timeline-dot{background:#FBE8ED;color:#B4455E}
-.adm-timeline p{margin:0;font-size:12.5px;line-height:1.6;color:var(--nh-ink)}
-.adm-timeline small{display:flex;align-items:center;gap:7px;margin-top:3px;
-  font-size:10.5px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-timeline p{margin:0;font-size:var(--adm-td);line-height:1.55;color:var(--nh-ink)}
+.adm-timeline small{display:flex;align-items:center;gap:7px;margin-top:2px;
+  font-size:var(--adm-td-sub);color:var(--nh-muted);font-variant-numeric:tabular-nums}
 .adm-timeline small em{font-style:normal;background:#F6F2F5;border-radius:4px;
   padding:1px 6px}
 
@@ -146,7 +163,7 @@
 .adm-shots figure{position:relative;margin:0}
 .adm-shots button:not(.adm-icon-btn){display:block;padding:0;border-radius:12px;
   overflow:hidden;border:1px solid var(--nh-line);cursor:zoom-in}
-.adm-shots img{display:block;width:88px;height:88px;object-fit:cover}
+.adm-shots img{display:block;width:92px;height:92px;object-fit:cover}
 .adm-shots-del{position:absolute;top:4px;right:4px;width:22px;height:22px;
   background:#fffffff0;border:1px solid var(--nh-line);color:#B4455E}
 
@@ -154,7 +171,7 @@
   max-width:min(760px,92vw);box-shadow:0 30px 70px -30px rgba(45,36,48,.6)}
 .adm-shot-view img{display:block;max-width:100%;max-height:74vh;border-radius:12px;
   margin:0 auto}
-.adm-shot-view p{margin:11px 0 0;text-align:center;font-size:11.5px;
+.adm-shot-view p{margin:11px 0 0;text-align:center;font-size:var(--adm-td-sub);
   color:var(--nh-muted)}
 .adm-shot-close{position:absolute;top:8px;right:8px}
 .adm-shot-nav{position:absolute;top:50%;transform:translateY(-50%);width:36px;height:36px;
@@ -165,21 +182,21 @@
 /* ---- Thanh thao tác bên phải ---- */
 .adm-bd-actions{display:grid;gap:8px}
 .adm-bd-full{width:100%;justify-content:center}
-.adm-bd-full svg{width:15px;height:15px}
+.adm-bd-full svg{width:16px;height:16px}
 .adm-bd-actions .button{justify-content:flex-start}
 .adm-bd-actions .button.is-danger{margin-top:4px}
 
 /* ---- Màn hình hẹp: xếp chồng, giữ đúng thứ tự đọc của trang ---- */
 @media(max-width:1250px){
-  .adm-bd-grid{grid-template-columns:minmax(0,1fr) 300px}
-  .adm-bd-row{grid-template-columns:112px minmax(0,1fr)}
+  .adm-bd-grid{grid-template-columns:minmax(0,1fr) 320px}
+  .adm-bd-row{grid-template-columns:104px minmax(0,1fr)}
 }
 @media(max-width:1000px){
   .adm-bd-grid{grid-template-columns:minmax(0,1fr)}
   .adm-bd-side{position:static}
   .adm-bd-title{flex-direction:column;align-items:stretch;gap:12px}
   .adm-bd-head-right{flex-wrap:wrap}
-  .adm-bd-service-img{width:78px;height:78px;flex:0 0 78px}
+  .adm-bd-service-img{width:84px;height:84px;flex:0 0 84px}
 }
 @media(max-width:620px){
   .adm-bd-addon-form{grid-template-columns:minmax(0,1fr)}

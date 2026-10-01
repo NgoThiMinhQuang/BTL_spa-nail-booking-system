@@ -435,6 +435,9 @@
   --adm-badge:10.5px;
   --adm-btn:13px;
   --adm-body:14.5px;
+  /* Trang chi tiết và khung trượt: số lớn và tiêu đề khối nhỏ */
+  --adm-num:20px;
+  --adm-block:12px;
   /* Sidebar rộng thêm chút cho chữ lớn lên mà không bị bó chữ */
   --adm-sidebar:248px;
 }
@@ -538,6 +541,8 @@
     --adm-badge:11px;
     --adm-btn:13.5px;
     --adm-body:15px;
+    --adm-num:23px;
+    --adm-block:13px;
     --adm-sidebar:260px;
   }
   #nailhouse .adm-chart-col small{font-size:12.5px}
@@ -567,6 +572,8 @@
     --adm-badge:10px;
     --adm-btn:12.5px;
     --adm-body:14px;
+    --adm-num:18px;
+    --adm-block:11.5px;
     --adm-sidebar:230px;
   }
 }

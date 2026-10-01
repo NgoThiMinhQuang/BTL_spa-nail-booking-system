@@ -22,11 +22,11 @@
 /* ---- Chân bảng: số dòng + phân trang ---- */
 .adm-cs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
   flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--nh-line);
-  font-size:11.5px;color:var(--nh-muted)}
+  font-size:var(--adm-td-sub);color:var(--nh-muted)}
 .adm-cs-pager{display:flex;align-items:center;gap:5px}
 .adm-cs-pager select{margin-right:6px}
 .adm-cs-pager>button:not(.adm-icon-btn){min-width:28px;height:28px;border-radius:7px;
-  background:#F6F5F8;color:var(--nh-ink);font-size:12px;font-variant-numeric:tabular-nums}
+  background:#F6F5F8;color:var(--nh-ink);font-size:var(--adm-td);font-variant-numeric:tabular-nums}
 .adm-cs-pager>button:not(.adm-icon-btn):hover{background:#F7E9EF}
 .adm-cs-pager>button:not(.adm-icon-btn).is-on{background:var(--nh-primary);
   color:#fff;font-weight:600}
@@ -46,14 +46,14 @@
 .adm-cd-stats{display:flex;gap:10px;flex-wrap:wrap;padding:0 20px 18px}
 .adm-cd-stat{flex:1 1 130px;min-width:0;display:grid;gap:3px;padding:11px 13px;
   border:1px solid var(--nh-line);border-radius:12px;background:#FCF8FA}
-.adm-cd-stat strong{font-size:17px;font-weight:600;color:var(--nh-ink);
+.adm-cd-stat strong{font-size:var(--adm-num);font-weight:600;color:var(--nh-ink);
   font-variant-numeric:tabular-nums;word-break:break-word}
-.adm-cd-stat small{font-size:11px;color:var(--nh-muted)}
+.adm-cd-stat small{font-size:var(--adm-td-sub);color:var(--nh-muted)}
 
 /* ---- Tab ---- */
 .adm-cd-tabs{margin-bottom:14px}
 .adm-cd-tabs button{display:flex;align-items:center;gap:7px}
-.adm-cd-tabs button span{font-size:10.5px;color:#9A8B93;
+.adm-cd-tabs button span{font-size:var(--adm-td-sub);color:#9A8B93;
   font-variant-numeric:tabular-nums}
 .adm-cd-tabs button.active span{color:var(--nh-primary-dark)}
 
@@ -65,8 +65,8 @@
 .adm-cd-row{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;
   align-items:baseline;padding:8px 0;border-bottom:1px dashed var(--nh-line)}
 .adm-cd-row:last-child{border-bottom:0}
-.adm-cd-row dt{font-size:11.5px;color:var(--nh-muted)}
-.adm-cd-row dd{margin:0;text-align:left;font-size:12.5px;color:var(--nh-ink);
+.adm-cd-row dt{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-cd-row dd{margin:0;text-align:left;font-size:var(--adm-td);color:var(--nh-ink);
   min-width:0;word-break:break-word}
 
 /* ---- Bảng trong trang chi tiết ---- */
@@ -74,16 +74,16 @@
 
 /* ---- Thanh lọc lịch sử ---- */
 .adm-cs-date{display:grid;gap:4px;flex:0 0 auto}
-.adm-cs-date span{font-size:11px;color:var(--nh-muted)}
-.adm-cs-date input{padding:8px 10px;font-size:12px;border:1px solid var(--nh-line);
+.adm-cs-date span{font-size:var(--adm-td-sub);color:var(--nh-muted)}
+.adm-cs-date input{padding:8px 10px;font-size:var(--adm-td);border:1px solid var(--nh-line);
   border-radius:8px;background:#FCF8FA;color:var(--nh-ink);font-family:inherit}
 
 /* ---- Thẻ tổng đã thanh toán ---- */
 .adm-cd-sum{margin-bottom:14px}
 .adm-cd-sum .adm-bd-body{display:grid;gap:6px}
-.adm-cd-sum-value{font-size:24px;font-weight:600;color:var(--nh-primary-dark);
+.adm-cd-sum-value{font-size:var(--adm-num);font-weight:600;color:var(--nh-primary-dark);
   font-variant-numeric:tabular-nums}
-.adm-cd-sum-note{font-size:11.5px;color:var(--nh-muted)}
+.adm-cd-sum-note{font-size:var(--adm-td-sub);color:var(--nh-muted)}
 
 /* ---- Màn hình hẹp ---- */
 @media(max-width:1000px){
