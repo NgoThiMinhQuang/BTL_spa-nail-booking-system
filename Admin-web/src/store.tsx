@@ -283,9 +283,16 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
     ...options,
     signal: options.signal ?? AbortSignal.timeout(12000),
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.message || 'Không thể tải dữ liệu.');
-  return payload.data as T;
+  const payload = await response.json().catch(() => null) as
+    { message?: string; data?: T } | null;
+
+  /* 401 = token hết hạn hoặc sai vai trò. Báo rõ để giao diện đưa người
+     dùng về màn đăng nhập, thay vì hiện thông báo chung chung. */
+  if (response.status === 401) {
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+  if (!response.ok) throw new Error(payload?.message || 'Không thể tải dữ liệu.');
+  return payload?.data as T;
 }
 
 /** Các ngày cần gọi API theo chế độ xem lịch. */
@@ -343,7 +350,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const first = await apiRequest<Dashboard>(
-          `/api/staff-dashboard/${encodeURIComponent(staffId)}?date=${date}`,
+          `/api/staff/dashboard?date=${date}`,
         );
         let range = first.bookings;
         if (calendarMode !== 'day') {
@@ -355,7 +362,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 d === first.date
                   ? Promise.resolve(first)
                   : apiRequest<Dashboard>(
-                    `/api/staff-dashboard/${encodeURIComponent(staffId)}?date=${d}`,
+                    `/api/staff/dashboard?date=${d}`,
                   )
               )),
             ));

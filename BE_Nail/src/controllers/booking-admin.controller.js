@@ -11,11 +11,13 @@ import {
   METHOD_TEXT, PAYMENT_TEXT, SOURCE_TEXT, STATUS_TEXT,
   bookingCode, clockOf, dayOf,
 } from '../lib/booking-labels.js';
+import { canTransition, SETTLED_STATUSES } from '../lib/booking-state.js';
+import { checkStaffAvailable, freeSlotsForStaff, listAvailableStaff } from '../lib/staff-availability.js';
 import {
-  checkStaffAvailable, freeSlotsForStaff, listAvailableStaff, pickStaffForSlot,
-} from '../lib/staff-availability.js';
+  createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
+} from '../lib/booking-service.js';
 import { logEvent, listEvents } from '../lib/booking-events.js';
-import { normalisePhone, isPastDay } from './walkin.controller.js';
+import { normalisePhone } from './walkin.controller.js';
 
 const clock = clockOf;
 
@@ -100,7 +102,10 @@ export async function listBookings(req, res, next) {
       LEFT JOIN users su ON su.user_id = st.user_id
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
       LEFT JOIN (
-        SELECT booking_id, SUM(price) AS total, COUNT(*) AS count
+        /* price * quantity: dịch vụ phát sinh có số lượng. SUM(price)
+           sẽ tính thiếu khi khách chọn từ 2 món trở lên cùng một dịch
+           vụ — 3 lớp sơn 40.000 là 120.000 chứ không phải 40.000. */
+        SELECT booking_id, SUM(price * quantity) AS total, COUNT(*) AS count
         FROM booking_addon GROUP BY booking_id
       ) addon ON addon.booking_id = b.booking_id
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
@@ -311,18 +316,46 @@ export async function getBooking(req, res, next) {
 
 /* ================================================================
    Sửa lịch: trạng thái / nhân viên / thời gian / lý do hủy
+   ---------------------------------------------------------------
+   Ba luật quan trọng nhất ở đây:
+
+     1. Chuyển trạng thái đi qua `canTransition` — bảng luật duy nhất ở
+        booking-state.js. Trước đây mỗi controller tự liệt kê, nên có cả
+        những đường đi sai như PENDING → COMPLETED.
+
+     2. Đổi giờ dùng THỜI LƯỢNG CHỤP TRÊN LỊCH (booking.service_duration,
+        booking.buffer_time), không đọc services.duration hiện tại. Nếu
+        đọc giá trị hiện tại thì sau khi Admin đổi thời lượng dịch vụ, một
+        lịch cũ đổi giờ sẽ bị kéo dài theo thời lượng mới — khách đã đặt
+        theo 60 phút thì không nên thành 90 phút.
+
+     3. Xác nhận lịch (PENDING → CONFIRMED) phải kiểm tra lại khả dụng
+        ngay lúc xác nhận, không chỉ lúc khách đặt. Giữa hai thời điểm
+        đó nhân viên có thể đã nhận việc khác.
    ================================================================ */
 export async function patchBooking(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã lịch không hợp lệ.' });
 
-    const [[current]] = await pool.query(`SELECT b.start_time AS startsAt, b.end_time AS endsAt,
-        b.status, b.staff_id AS staffId, b.service_id AS serviceId,
-        s.duration, s.buffer_time AS bufferTime
-      FROM booking b JOIN services s ON s.service_id = b.service_id
-      WHERE b.booking_id = ? LIMIT 1`, [id]);
-    if (!current) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    await connection.beginTransaction();
+
+    /* Đọc trong giao dịch kèm khoá dòng: hai Admin sửa cùng một lịch thì
+       người sau phải chờ và thấy trạng thái mới nhất. */
+    const [[current]] = await connection.query(
+      `SELECT b.start_time AS startsAt, b.end_time AS endsAt,
+              b.status, b.staff_id AS staffId, b.service_id AS serviceId,
+              b.customer_id AS customerId,
+              COALESCE(b.service_duration, s.duration) AS duration,
+              COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime
+         FROM booking b JOIN services s ON s.service_id = b.service_id
+        WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [id],
+    );
+    if (!current) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
 
     const body = req.body ?? {};
     const set = [];
@@ -331,65 +364,75 @@ export async function patchBooking(req, res, next) {
     /* ---- Trạng thái ---- */
     if (body.status !== undefined) {
       const status = String(body.status).toUpperCase();
-      const allowed = ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
-      if (!allowed.includes(status)) {
-        return res.status(400).json({ message: 'Trạng thái lịch hẹn không hợp lệ.' });
-      }
 
-      /* Hai bước này thuộc về nhân viên thực hiện, không phải việc của
-         quản trị: nhân viên mới là người bấm "bắt đầu" và "hoàn thành".
-         Chặn ở backend để không chỉ ẩn nút ở giao diện. Nhân viên gọi
-         PATCH /api/bookings/:id/status riêng của app nhân viên. */
+      /* Hai bước CONFIRMED → PROCESSING và PROCESSING → COMPLETED thuộc về
+         nhân viên đang phục vụ, không phải thao tác của quản trị: nhân viên mới
+         là người bấm "bắt đầu" và "hoàn thành". Chặn ở backend chứ không chỉ
+         ẩn nút ở giao diện.
+
+         Kiểm tra quyền TRƯỚC kiểm tra luật chuyển trạng thái: nếu để sau thì
+         PENDING → PROCESSING trả về 409 "không chuyển được" — đúng là đúng,
+         nhưng thông báo sai nguyên nhân, và người đọc không biết mình thiếu
+         quyền hay đi sai bước. */
       if ((current.status === 'CONFIRMED' && status === 'PROCESSING')
         || (current.status === 'PROCESSING' && status === 'COMPLETED')) {
+        await connection.rollback();
         return res.status(403).json({
-          message: 'Chuyển sang "'
-            + `${STATUS_TEXT[status]}" `
-            + 'do nhân viên thực hiện lúc phục vụ, không phải thao tác của quản trị.',
+          message: `Chuyển sang "${STATUS_TEXT[status]}" do nhân viên thực hiện `
+            + 'lúc phục vụ, không phải thao tác của quản trị.',
         });
       }
 
-      /* Đã bắt đầu rồi thì không được quay ngược hay bỏ hủy. */
-      if (current.status === 'PROCESSING'
-        && !['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(status)) {
-        return res.status(409).json({
-          message: 'Dịch vụ đang thực hiện. Chỉ có thể chuyển sang Hoàn thành, Không đến hoặc Hủy.',
-        });
-      }
-      if (['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(current.status)
-        && status !== current.status) {
-        return res.status(409).json({
-          message: `Lịch đã ở trạng thái "${STATUS_TEXT[current.status]}", không chuyển được nữa.`,
-        });
+      const transition = canTransition(current.status, status);
+      if (!transition.ok) {
+        await connection.rollback();
+        return res.status(409).json({ message: transition.reason });
       }
 
-      /* Chuyển sang Confirmed thì bắt buộc phải có nhân viên còn nhận lịch. */
+      /* Xác nhận lịch thì bắt buộc phải có nhân viên. */
       if (status === 'CONFIRMED' && !body.staffId && !current.staffId) {
+        await connection.rollback();
         return res.status(409).json({ message: 'Chưa phân công nhân viên thì không xác nhận được lịch.' });
       }
 
       set.push('b.status = ?'); params.push(status);
       if (status === 'CANCELLED') {
         const reason = String(body.cancelReason ?? '').trim().slice(0, 255);
-        if (!reason) return res.status(400).json({ message: 'Vui lòng nhập lý do hủy lịch.' });
-        set.push('b.cancel_reason = ?', 'b.cancelled_at = NOW()');
+        if (!reason) {
+          await connection.rollback();
+          return res.status(400).json({ message: 'Vui lòng nhập lý do hủy lịch.' });
+        }
+        set.push('b.cancel_reason = ?', 'b.cancelled_at = NOW()', "b.cancelled_by = 'ADMIN'");
         params.push(reason);
+      }
+      if (status === 'NO_SHOW' && current.status === 'CONFIRMED') {
+        /* Số lần khách không đến tăng lên — dùng để đánh giá độ tin cậy
+           của một khách. */
+        await connection.query(
+          'UPDATE customer SET no_show_count = no_show_count + 1 WHERE customer_id = ?',
+          [current.customerId]);
+      }
+      if (status === 'COMPLETED') {
+        set.push('b.actual_duration = ?'); params.push(Number(current.duration));
       }
     }
 
     /* ---- Ai còn được sửa lịch ----
        Lịch đã xong / đã hủy / khách không đến là dữ liệu lịch sử: sửa người
        hoặc giờ của nó sẽ làm sai báo cáo doanh thu và lịch làm việc. Lịch đang
-       thực hiện thì dịch vụ đã bắt đầu, đổi giờ không còn ý nghĩa. Chặn ở
-       backend để không đường nào lọt, không phụ thuộc menu frontend. */
-    const movingSchedule = body.staffId !== undefined || body.date !== undefined || body.time !== undefined;
+       thực hiện thì dịch vụ đã bắt đầu, đổi giờ không còn ý nghĩa. */
+    const movingSchedule = body.staffId !== undefined
+      || body.date !== undefined || body.time !== undefined;
     if (movingSchedule) {
-      if (['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(current.status)) {
+      if (SETTLED_STATUSES.includes(current.status)) {
+        await connection.rollback();
         return res.status(409).json({
-          message: `Lịch đã ở trạng thái "${STATUS_TEXT[current.status]}" nên không đổi được người hoặc giờ.`,
+          message: `Lịch đã ở trạng thái "${STATUS_TEXT[current.status]}" `
+            + 'nên không đổi được người hoặc giờ.',
         });
       }
       if (current.status === 'PROCESSING') {
+        await connection.rollback();
         return res.status(409).json({
           message: 'Dịch vụ đang thực hiện nên không đổi được người hoặc giờ.',
         });
@@ -403,37 +446,43 @@ export async function patchBooking(req, res, next) {
       if (staffId !== null) { set.push('b.staff_id = ?'); params.push(staffId); }
     }
 
-    /* ---- Thời gian ---- */
+    /* ---- Thời gian ----
+       Dùng duration và buffer chụp trên chính lịch này, không đọc
+       services.duration hiện tại: xem ghi chú đầu hàm. */
     let startsAt = current.startsAt;
     let endsAt = current.endsAt;
     if (body.date !== undefined || body.time !== undefined) {
-      const base = toDate(current.startsAt);
-      const [hour, minute] = String(body.time ?? clock(current.startsAt)).split(':').map(Number);
-      const year = body.date ? Number(body.date.slice(0, 4)) : base.getFullYear();
-      const month = body.date ? Number(body.date.slice(5, 7)) : base.getMonth() + 1;
-      const date = body.date ? Number(body.date.slice(8, 10)) : base.getDate();
-      startsAt = new Date(year, month - 1, date, hour, minute, 0);
-      const span = (Number(current.duration) + Number(current.bufferTime ?? 0)) * 60000;
-      endsAt = new Date(startsAt.getTime() + span);
+      const day = body.date ?? dayOf(current.startsAt);
+      const time = String(body.time ?? clock(current.startsAt)).slice(0, 5);
+      startsAt = momentOf(day, time);
+      endsAt = new Date(
+        startsAt.getTime() + (Number(current.duration) + Number(current.bufferTime ?? 0)) * 60000,
+      );
       set.push('b.start_time = ?', 'b.end_time = ?');
       params.push(startsAt, endsAt);
     }
 
     /* ---- Kiểm tra khả dụng trước khi lưu ----
-       Chỉ kiểm tra khi lịch sắp chạy hoặc đã có nhân viên; lịch CANCELLED /
-       NO_SHOW thì không còn ý nghĩa với ca làm việc. */
-    const willRun = !['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(
-      body.status ? String(body.status).toUpperCase() : current.status);
+       Chạy khi lịch còn "sống" (chưa hủy, chưa khách không đến, chưa xong)
+       và đã có nhân viên. Lịch đã kết thúc thì không còn ý nghĩa với ca
+       làm việc nên không kiểm tra.
+
+       Vì đang trong giao dịch nên khoá dòng lịch của nhân viên trước rồi
+       mới hỏi khả dụng — FOR UPDATE chỉ có tác dụng trong giao dịch. */
+    const target = body.status ? String(body.status).toUpperCase() : current.status;
+    const willRun = !SETTLED_STATUSES.includes(target);
 
     if (willRun && staffId) {
-      const check = await checkStaffAvailable({
+      const { check } = await recheckAfterMove(connection, {
         bookingId: id,
         staffId,
         serviceId: current.serviceId,
         startsAt,
-        endsAt,
+        duration: Number(current.duration),
+        bufferTime: Number(current.bufferTime ?? 0),
       });
       if (!check.ok) {
+        await connection.rollback();
         return res.status(409).json({
           message: `Không thể lưu: ${check.reason}`,
           reason: check.reason,
@@ -442,22 +491,25 @@ export async function patchBooking(req, res, next) {
       }
     }
 
-    if (!set.length) return res.json({ data: { id: String(id), unchanged: true } });
+    if (!set.length) {
+      await connection.rollback();
+      return res.json({ data: { id: String(id), unchanged: true } });
+    }
 
     params.push(id);
-    await pool.query(`UPDATE booking b SET ${set.join(', ')} WHERE b.booking_id = ?`, params);
+    await connection.query(`UPDATE booking b SET ${set.join(', ')} WHERE b.booking_id = ?`, params);
 
     /* Ghi lại từng thay đổi vào lịch sử. Chỉ ghi những gì đã thật sự xảy ra,
        và mô tả bằng tiếng Việt có số liệu cụ thể để đọc lại là hiểu ngay. */
-    const actorName = String(req.body.actorName ?? 'Quản trị viên');
+    const actorName = req.user?.name ?? 'Quản trị viên';
     const day = dayOf(startsAt);
     const slot = `${clockOf(startsAt)}–${clockOf(endsAt)}`;
 
     if (body.staffId !== undefined && staffId !== current.staffId) {
-      const [[oldStaff]] = await pool.query(
+      const [[oldStaff]] = await connection.query(
         'SELECT full_name FROM users WHERE user_id = (SELECT user_id FROM staff WHERE staff_id = ?)',
         [current.staffId]);
-      const [[newStaff]] = await pool.query(
+      const [[newStaff]] = await connection.query(
         'SELECT full_name FROM users WHERE user_id = (SELECT user_id FROM staff WHERE staff_id = ?)',
         [staffId]);
       await logEvent({
@@ -465,16 +517,21 @@ export async function patchBooking(req, res, next) {
         type: 'STAFF_CHANGED',
         detail: `Đổi nhân viên từ ${oldStaff?.full_name ?? 'chưa phân công'} `
           + `sang ${newStaff?.full_name ?? 'chưa phân công'}.`,
+        actorRole: 'ADMIN',
         actorName,
+        connection,
       });
     }
 
-    if ((body.date !== undefined || body.time !== undefined) && set.some((s) => s.includes('start_time'))) {
+    if ((body.date !== undefined || body.time !== undefined)
+      && set.some((item) => item.includes('start_time'))) {
       await logEvent({
         bookingId: id,
         type: 'RESCHEDULED',
         detail: `Đổi thời gian sang ${day} ${slot}.`,
+        actorRole: 'ADMIN',
         actorName,
+        connection,
       });
     }
 
@@ -488,13 +545,21 @@ export async function patchBooking(req, res, next) {
         NO_SHOW: ['NO_SHOW', 'Đánh dấu khách không đến.'],
       }[status];
       if (EVENT) {
-        await logEvent({ bookingId: id, type: EVENT[0], detail: EVENT[1], actorName });
+        await logEvent({
+          bookingId: id, type: EVENT[0], detail: EVENT[1], actorRole: 'ADMIN', actorName, connection,
+        });
       }
     }
 
-    res.json({ data: { id: String(id), startsAt, endsAt, staffId: staffId == null ? null : String(staffId) } });
+    await connection.commit();
+    res.json({
+      data: { id: String(id), startsAt, endsAt, staffId: staffId == null ? null : String(staffId) },
+    });
   } catch (error) {
+    await connection.rollback();
     next(error);
+  } finally {
+    connection.release();
   }
 }
 
@@ -547,18 +612,42 @@ export async function getAvailableStaff(req, res, next) {
   }
 }
 
-/** Các khung giờ còn trống, để đổ vào hộp chọn giờ. */
+/**
+ * Các khung giờ còn trống, để đổ vào hộp chọn giờ.
+ *
+ * `bookingId` là lịch đang sửa: độ dài lấy từ snapshot trên chính lịch
+ * đó (service_duration + buffer_time), không đọc services.duration hiện
+ * tại. Nếu không, đổi giờ một lịch cũ sau khi dịch vụ đã đổi thời lượng
+ * sẽ bị kéo theo thời lượng mới.
+ */
 export async function getFreeSlots(req, res, next) {
   try {
     const staffId = Number(req.query.staffId);
     const serviceId = Number(req.query.serviceId);
     const day = String(req.query.day ?? '');
+    const bookingId = req.query.bookingId ? Number(req.query.bookingId) : null;
 
-    if (!Number.isInteger(staffId) || !Number.isInteger(serviceId) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    if (!Number.isInteger(staffId) || !Number.isInteger(serviceId) || !isDate(day)) {
       return res.status(400).json({ message: 'Thiếu nhân viên, dịch vụ hoặc ngày.' });
     }
 
-    const slots = await freeSlotsForStaff({ staffId, serviceId, day });
+    let duration;
+    let bufferTime;
+    if (bookingId) {
+      const [[row]] = await pool.query(
+        `SELECT COALESCE(b.service_duration, s.duration) AS duration,
+                COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime
+           FROM booking b JOIN services s ON s.service_id = b.service_id
+          WHERE b.booking_id = ? LIMIT 1`, [bookingId],
+      );
+      if (!row) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+      duration = Number(row.duration);
+      bufferTime = Number(row.bufferTime ?? 0);
+    }
+
+    const slots = await freeSlotsForStaff({
+      bookingId, staffId, serviceId, day, duration, bufferTime,
+    });
     res.json({ data: slots, meta: { count: slots.length } });
   } catch (error) {
     next(error);
@@ -567,6 +656,15 @@ export async function getFreeSlots(req, res, next) {
 
 /* ================================================================
    Tạo lịch tại quầy cho khách walk-in
+   ---------------------------------------------------------------
+   Khác khách đặt trên Mobile ở đúng một chỗ: đường này không có
+   customer_id bắt buộc. Khách chưa có tài khoản thì KHÔNG tạo tài
+   khoản, KHÔNG tạo mật khẩu, mà lưu tên và số điện thoại ngay trên
+   lịch (guest_name, guest_phone).
+
+   Mọi phần còn lại — chống đặt trùng, kiểm tra ca làm việc, chụp giá —
+   đi qua đúng hàm createBookingRecord mà Mobile dùng, nên không bao
+   giờ có chuyện quầy cho phép cái mà ứng dụng chặn.
    ================================================================ */
 export async function createBooking(req, res, next) {
   const connection = await pool.getConnection();
@@ -576,7 +674,7 @@ export async function createBooking(req, res, next) {
     const time = String(req.body.time ?? '').trim();
     const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
 
-    if (!Number.isInteger(serviceId) || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) {
+    if (!Number.isInteger(serviceId) || !isDate(day) || !/^\d{2}:\d{2}$/.test(time)) {
       return res.status(400).json({ message: 'Thiếu dịch vụ, ngày hoặc giờ.' });
     }
 
@@ -584,8 +682,7 @@ export async function createBooking(req, res, next) {
 
     /* ---- Khách ----
        Có customerId thì dùng lại hồ sơ đã có. Không có thì đây là khách
-       walk-in chưa có tài khoản: KHÔNG tạo tài khoản, KHÔNG tạo mật khẩu,
-       mà lưu tên và số điện thoại ngay trên lịch. */
+       walk-in chưa có tài khoản. */
     let customerId = Number(req.body.customerId) || null;
     let guestName = null;
     let guestPhone = null;
@@ -607,8 +704,8 @@ export async function createBooking(req, res, next) {
       /* Số điện thoại đã có hồ sơ thì hỏi lại thay vì tạo trùng: tạo thêm
          một hồ sơ cùng số điện thoại sẽ làm vỡ lịch sử khách. */
       const [[existing]] = await connection.query(
-        'SELECT customer_id FROM customer WHERE user_id = (SELECT user_id FROM users WHERE phone = ?) LIMIT 1',
-        [guestPhone]);
+        `SELECT c.customer_id FROM customer c JOIN users u ON u.user_id = c.user_id
+          WHERE u.phone = ? LIMIT 1`, [guestPhone]);
       if (existing) {
         customerId = existing.customer_id;
         guestName = null;
@@ -616,106 +713,44 @@ export async function createBooking(req, res, next) {
       }
     }
 
-    const [[svc]] = await connection.query(
-      `SELECT duration, buffer_time AS bufferTime, price, status
-         FROM services WHERE service_id = ? LIMIT 1`, [serviceId]);
-    if (!svc) {
-      await connection.rollback();
-      return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
-    }
-    if (svc.status !== 'ACTIVE') {
-      await connection.rollback();
-      return res.status(409).json({ message: 'Dịch vụ này đã ngừng hoạt động.' });
-    }
+    const service = await loadActiveService(connection, serviceId);
 
-    /* Không nhận ngày đã qua: khách walk-in đang đứng tại quầy. */
-    if (isPastDay(day)) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Không thể đặt lịch cho ngày đã qua.' });
-    }
-
-    /* ---- Bất kỳ nhân viên phù hợp ----
-       Admin có thể bỏ trống nhân viên, khi đó backend tự chọn người. Việc
-       chọn phải nằm ở đây chứ không ở giao diện: hai bên cùng đọc một bộ
-       luật khả dụng thì mới không có chuyện giao diện hứa rồi backend từ
-       chối. */
-    let staffId = Number(req.body.staffId) || null;
-    let pickedStaffName = null;
-
-    const [hour, minute] = time.split(':').map(Number);
-    const [year, month, date] = day.split('-').map(Number);
-    const startsAt = new Date(year, month - 1, date, hour, minute, 0);
-    const endsAt = new Date(
-      startsAt.getTime() + (Number(svc.duration) + Number(svc.bufferTime ?? 0)) * 60000);
-
-    if (!staffId) {
-      const picked = await pickStaffForSlot({ serviceId, startsAt, endsAt });
-      if (!picked.ok) {
-        await connection.rollback();
-        return res.status(409).json({ message: picked.reason, reason: picked.reason });
-      }
-      staffId = picked.staffId;
-      pickedStaffName = picked.staffName;
-    }
-
-    /* ---- Chống đặt trùng ----
-       Không tin lời giao diện: trong lúc Admin đang chọn khung giờ thì một
-       khách đặt từ ứng dụng có thể vừa giữ mất chỗ đó. Kiểm tra lại ngay
-       trong giao dịch, và khoá dòng lịch của nhân viên để hai request cùng
-       lúc không cùng nhận một khung giờ. */
-    await connection.query(
-      `SELECT booking_id FROM booking
-        WHERE staff_id = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
-          AND start_time < ? AND end_time > ?
-        LIMIT 1 FOR UPDATE`,
-      [staffId, endsAt, startsAt]);
-
-    const check = await checkStaffAvailable({ staffId, serviceId, startsAt, endsAt });
-    if (!check.ok) {
-      await connection.rollback();
-      return res.status(409).json({
-        message: `Khung giờ vừa được đặt. ${check.reason}`,
-        reason: check.reason,
-      });
-    }
-
-    /* Chụp lại giá, thời gian và buffer ngay lúc đặt. Sau này Admin đổi giá
-       dịch vụ thì lịch này vẫn hiện đúng số tiền khách đã trả. */
-    const [result] = await connection.query(
-      `INSERT INTO booking
-         (customer_id, guest_name, guest_phone, staff_id, service_id,
-          service_price, service_duration, buffer_time,
-          start_time, end_time, status, note, source)
-       VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING',?,'WALK_IN')`,
-      [customerId, guestName, guestPhone, staffId, serviceId,
-        svc.price, svc.duration, svc.bufferTime ?? 0,
-        startsAt, endsAt, note]);
-
-    await logEvent({
-      bookingId: result.insertId,
-      type: 'CREATED',
-      detail: `${customerId
-        ? 'Khách tạo lịch tại quầy.'
-        : `Khách vãng lai tạo lịch tại quầy: ${guestName}.`} Nhân viên: ${pickedStaffName ?? check.staffName}.`,
+    const record = await createBookingRecord(connection, {
+      serviceId,
+      staffId: Number(req.body.staffId) || null,
+      customerId,
+      guestName,
+      guestPhone,
+      startsAt: momentOf(day, time),
+      price: service.price,
+      duration: service.duration,
+      bufferTime: service.bufferTime,
+      source: 'WALK_IN',
+      note,
       actorRole: 'ADMIN',
-      actorName: String(req.body.actorName ?? 'Quản trị viên'),
-      connection,
+      actorName: req.user?.name ?? 'Quản trị viên',
     });
 
     await connection.commit();
 
     res.status(201).json({
       data: {
-        id: String(result.insertId),
-        code: bookingCode(result.insertId),
+        id: String(record.bookingId),
+        code: bookingCode(record.bookingId),
         /* Khách có hồ sơ thì lưu tên vào đúng hồ sơ, không sinh tài khoản. */
         customerId: customerId ? String(customerId) : null,
         guestName,
+        staffId: String(record.staffId),
       },
     });
   } catch (error) {
     await connection.rollback();
-    next(error);
+    if (error.status) {
+      return res.status(error.status).json({
+        message: error.message, reason: error.reason, conflict: error.conflict,
+      });
+    }
+    return next(error);
   } finally {
     connection.release();
   }
@@ -723,44 +758,125 @@ export async function createBooking(req, res, next) {
 
 /* ================================================================
    Dịch vụ phát sinh (add-on)
+   ---------------------------------------------------------------
+   Luật nghiệp vụ:
+     - Nhân viên chỉ thêm được khi lịch đang PROCESSING (khách đang ngồi,
+       nhân viên mới thấy mình còn làm thêm được món gì).
+     - Quản trị thêm được ở CONFIRMED / PROCESSING / COMPLETED, nhưng
+       chỉ khi khách CHƯA thanh toán — đã PAID thì khoá lại, vì số tiền
+       khách trả rồi mà thêm dịch vụ thì hoá đơn sai.
+     - CANCELLED / NO_SHOW thì không thêm được.
+
+   Tên và đơn giá được chụp lại lúc thêm, không đọc từ bảng services khi
+   in hoá đơn: sau này đổi tên hoặc đổi giá thì các lịch cũ vẫn phải ra
+   đúng số tiền khách đã trả.
    ================================================================ */
 export async function addAddon(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const bookingId = Number(req.params.id);
     const serviceId = Number(req.body.serviceId);
+    /* Giới hạn 1..20: một lịch có nhiều món phát sinh là bình thường,
+       nhưng số lượng vô hạn là dấu hiệu gõ nhầm. */
+    const quantity = Number(req.body.quantity ?? 1);
+    const requested = Number.isInteger(quantity) && quantity >= 1 && quantity <= 20
+      ? quantity : 1;
 
-    const [[booking]] = await pool.query(
-      `SELECT b.status FROM booking b WHERE b.booking_id = ? LIMIT 1`, [bookingId]);
-    if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
-    if (['CANCELLED', 'NO_SHOW'].includes(booking.status)) {
-      return res.status(409).json({ message: `Lịch đã ${STATUS_TEXT[booking.status].toLowerCase()} nên không thêm được dịch vụ phát sinh.` });
+    if (!Number.isInteger(bookingId) || !Number.isInteger(serviceId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn hoặc dịch vụ không hợp lệ.' });
     }
 
-    const [[svc]] = await pool.query(
-      'SELECT service_name, price FROM services WHERE service_id = ? LIMIT 1', [serviceId]);
-    if (!svc) return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
+    await connection.beginTransaction();
+    const [[booking]] = await connection.query(
+      `SELECT b.status, b.staff_id AS staffId, pay.payment_status AS paymentStatus
+         FROM booking b
+         LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+        WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [bookingId],
+    );
+    if (!booking) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+
+    const actorRole = req.user?.role ?? 'ADMIN';
+
+    if (actorRole === 'STAFF') {
+      if (booking.staffId !== req.user.staffId) {
+        await connection.rollback();
+        return res.status(403).json({ message: 'Lịch hẹn này không được phân công cho bạn.' });
+      }
+      if (booking.status !== 'PROCESSING') {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Chỉ thêm được dịch vụ phát sinh khi khách đang được phục vụ '
+            + `(trạng thái "${STATUS_TEXT[booking.status]}").`,
+        });
+      }
+    } else {
+      if (['CANCELLED', 'NO_SHOW'].includes(booking.status)) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: `Lịch đã ${STATUS_TEXT[booking.status].toLowerCase()} nên không thêm được dịch vụ phát sinh.`,
+        });
+      }
+      if (booking.paymentStatus === 'PAID') {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Lịch đã thanh toán nên không thêm được dịch vụ phát sinh. '
+            + 'Thêm rồi thì số tiền khách đã trả sẽ không còn khớp.',
+        });
+      }
+    }
+
+    const [[svc]] = await connection.query(
+      `SELECT service_name, price FROM services
+        WHERE service_id = ? AND status = 'ACTIVE' LIMIT 1`, [serviceId]);
+    if (!svc) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Dịch vụ không tồn tại hoặc đã ngừng hoạt động.' });
+    }
 
     try {
-      await pool.query(
-        'INSERT INTO booking_addon (booking_id, service_id, quantity, price) VALUES (?,?,1,?)',
-        [bookingId, serviceId, svc.price]);
+      await connection.query(
+        `INSERT INTO booking_addon
+           (booking_id, service_id, service_name, quantity, price, added_by_role)
+         VALUES (?,?,?,?,?,?)`,
+        [bookingId, serviceId, svc.service_name, requested, svc.price, actorRole],
+      );
     } catch (error) {
       if (error.code === 'ER_DUP_ENTRY') {
+        await connection.rollback();
         return res.status(409).json({ message: `Lịch này đã có "${svc.service_name}" rồi.` });
       }
       throw error;
     }
 
+    const total = Number(svc.price) * requested;
     await logEvent({
       bookingId,
       type: 'ADDON_ADDED',
-      detail: `Thêm dịch vụ phát sinh: ${svc.service_name} - ${Number(svc.price).toLocaleString('vi-VN')} đ.`,
-      actorName: String(req.body.actorName ?? 'Quản trị viên'),
+      detail: `Thêm dịch vụ phát sinh: ${svc.service_name} ×${requested} `
+        + `- ${total.toLocaleString('vi-VN')} đ.`,
+      actorRole,
+      actorName: req.user?.name ?? 'Quản trị viên',
+      connection,
     });
 
-    res.status(201).json({ data: { serviceId: String(serviceId), name: svc.service_name, price: Number(svc.price) } });
+    await connection.commit();
+    res.status(201).json({
+      data: {
+        serviceId: String(serviceId),
+        name: svc.service_name,
+        quantity: requested,
+        price: Number(svc.price),
+        total,
+      },
+    });
   } catch (error) {
+    await connection.rollback();
     next(error);
+  } finally {
+    connection.release();
   }
 }
 

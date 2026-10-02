@@ -36,10 +36,14 @@ export function BookingPage() {
     setBusy(true);
     setError('');
     try {
+      /* Không gửi staffId nữa: backend lấy nhân viên từ token đăng nhập và tự
+       kiểm tra lịch có được phân công cho mình không. Trước đây gửi
+       staffId trong body là chỉ cần đổi số là thao tác được lịch của
+       nhân viên khác. */
       const response = await fetch(`/api/bookings/${b?.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffId: profile.id, status: nextStatus }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       const payload = await response.json();
       if (!response.ok) setError(payload.message ?? 'Không cập nhật được trạng thái.');

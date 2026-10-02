@@ -15,6 +15,10 @@ import { BookingPage } from './pages/BookingPage';
 import { CustomersPage, CustomersPageActions } from './pages/CustomersPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ServicesPage, ServicesPageActions } from './pages/ServicesPage';
+import { installAuthFetch } from './lib/auth-fetch';
+
+/* Gắn token vào mọi lệnh gọi /api/* trước khi dựng giao diện. */
+installAuthFetch();
 
 function Routes() {
   const { state } = useApp();

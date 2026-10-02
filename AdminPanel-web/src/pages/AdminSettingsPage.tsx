@@ -12,7 +12,7 @@ export function AdminSettingsPage() {
   const { state, reload } = useApp();
   const { services, categories, staff, customers, bookings, payments } = state;
 
-  const hidden = services.filter((service) => service.status === 'HIDDEN').length;
+  const hidden = services.filter((service) => service.status === 'INACTIVE').length;
   const withoutStaff = services.filter((service) => service.staffCount === 0).length;
   const unassigned = bookings.filter((booking) => !booking.staffId).length;
   const unpaid = payments.filter((payment) => payment.paymentStatus !== 'PAID').length;

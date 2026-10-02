@@ -8,26 +8,13 @@
 /** Mã hiển thị dạng #BK00125, dựng từ booking_id nên không cần cột riêng. */
 export const bookingCode = (id) => `#BK${String(id).padStart(5, '0')}`;
 
-export const STATUS_TEXT = {
-  PENDING: 'Chờ xác nhận',
-  CONFIRMED: 'Đã xác nhận',
-  PROCESSING: 'Đang thực hiện',
-  COMPLETED: 'Hoàn thành',
-  CANCELLED: 'Đã hủy',
-  NO_SHOW: 'Không đến',
-};
+/* Nhãn trạng thái lịch nằm cùng file với luật chuyển trạng thái ở
+   booking-state.js — một nơn duy nhất, không phải hai bản chữ ở hai file. */
+export { STATUS_TEXT } from './booking-state.js';
 
-export const PAYMENT_TEXT = {
-  UNPAID: 'Chưa thanh toán',
-  DEPOSITED: 'Đã đặt cọc',
-  PAID: 'Đã thanh toán',
-};
-
-export const METHOD_TEXT = {
-  CASH: 'Tiền mặt',
-  BANK_TRANSFER: 'Chuyển khoản',
-  ONLINE: 'Thanh toán online',
-};
+/* Nhãn thanh toán nằm cùng file với luật chuyển trạng thái ở
+   payment-state.js — cùng cách làm như trạng thái lịch ở trên. */
+export { METHOD_TEXT, PAYMENT_TEXT } from './payment-state.js';
 
 export const SOURCE_TEXT = {
   MOBILE: 'Mobile',

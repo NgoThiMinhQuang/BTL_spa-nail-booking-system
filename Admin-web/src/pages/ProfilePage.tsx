@@ -156,7 +156,7 @@ export function ProfilePage() {
                     <em>{fmtNum(s.duration)}′</em>
                     <strong>{money(s.price)}</strong>
                     <span
-                      className={`pro-service-flag${s.status === 'HIDDEN' ? ' is-paused' : ''}`}
+                      className={`pro-service-flag${s.status === 'INACTIVE' ? ' is-paused' : ''}`}
                       title={statusLabel(s.status)}
                     />
                   </li>

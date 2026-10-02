@@ -23,10 +23,21 @@ export async function getHome(req, res, next) {
         WHERE s.status = 'ACTIVE' GROUP BY s.service_id, c.category_id ORDER BY rating DESC, s.service_id DESC LIMIT 6`),
       pool.query(`SELECT design_id AS id, design_name AS name, image
         FROM nail_designs WHERE status = 'ACTIVE' AND is_trending = TRUE ORDER BY created_at DESC LIMIT 8`),
-      pool.query(`SELECT st.staff_id AS id, u.full_name AS name, u.avatar, st.experience_year AS experienceYears,
-          st.specialty, st.rating, (st.experience_year >= 5) AS expert
+      /* Điểm đánh giá tính trực tiếp từ review, không đọc cột cache ở
+         bảng staff (cột đó đã bị bỏ). Nhân viên chưa có đánh giá thì hiện
+         null chứ không hiện 0 — 0 sao và "chưa đánh giá" là hai thứ khác. */
+      pool.query(`SELECT st.staff_id AS id, u.full_name AS name, u.avatar,
+          st.experience_year AS experienceYears, st.specialty,
+          (st.experience_year >= 5) AS expert,
+          (SELECT ROUND(AVG(r.rating), 1) FROM review r
+             JOIN booking b ON b.booking_id = r.booking_id
+            WHERE b.staff_id = st.staff_id) AS rating,
+          (SELECT COUNT(*) FROM review r2
+             JOIN booking b2 ON b2.booking_id = r2.booking_id
+            WHERE b2.staff_id = st.staff_id) AS reviewCount
         FROM staff st JOIN users u ON u.user_id = st.user_id
-        WHERE u.status = 'ACTIVE' ORDER BY st.rating DESC, st.experience_year DESC LIMIT 6`),
+        WHERE u.status = 'ACTIVE'
+        ORDER BY rating DESC, st.experience_year DESC LIMIT 6`),
       pool.query(`SELECT b.booking_id AS id, s.service_name AS serviceName, s.image AS image,
           b.start_time AS startsAt, b.status, u.full_name AS staffName
         FROM booking b JOIN services s ON s.service_id = b.service_id

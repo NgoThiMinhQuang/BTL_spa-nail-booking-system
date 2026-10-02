@@ -36,8 +36,12 @@ export function CustomerDrawer({ customerId, staffId, onClose, onNoteSaved }: Pr
     setError(null);
     setShowAll(false);
     setNoteOpen(false);
+    /* Không gửi staffId nữa: backend lấy nhân viên từ token đăng nhập.
+       Trước đây truyền từ query nghĩa là bỏ tham số thì xem được toàn bộ
+       lịch sử của khách — nhân viên đọc được dữ liệu của khách chưa từng
+       phục vụ ai. */
     apiRequest<CustomerDetail>(
-      `/api/staff/customers/${encodeURIComponent(customerId)}?staffId=${encodeURIComponent(staffId)}`,
+      `/api/staff/customers/${encodeURIComponent(customerId)}`,
     )
       .then((data) => { if (alive) setDetail(data); })
       .catch((e: Error) => { if (alive) setError(e.message); });

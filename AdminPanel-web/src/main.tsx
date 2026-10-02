@@ -25,6 +25,10 @@ import { AdminServicesPage } from './pages/AdminServicesPage';
 import { AdminSettingsPage } from './pages/AdminSettingsPage';
 import { AdminStaffPage } from './pages/AdminStaffPage';
 import { AdminWorkSchedulePage } from './pages/AdminWorkSchedulePage';
+import { installAuthFetch } from './lib/auth-fetch';
+
+/* Gắn token vào mọi lệnh gọi /api/* trước khi dựng giao diện. */
+installAuthFetch();
 
 function Routes() {
   const { state } = useApp();

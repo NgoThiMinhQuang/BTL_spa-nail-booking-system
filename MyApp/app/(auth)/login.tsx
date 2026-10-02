@@ -14,19 +14,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { ApiError } from '@/services/api';
+import { login } from '@/features/auth/auth.service';
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [emailOrPhone, setEmailOrPhone] = useState('user2005@gmail.com');
-  const [password, setPassword] = useState('12345678');
+  const [emailOrPhone, setEmailOrPhone] = useState('0910000001');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = () => {
-    // Navigate to main tab app upon login
-    router.replace('/(tabs)');
+  /* Gọi thật vào POST /api/auth/login.
+     Trước đây nút này chỉ chuyển sang màn chính, không hề kiểm tra tài
+     khoản — ai cũng vào được, và không có token nào để backend biết lệch này
+     của ai. Lỗi trả về từ máy chủ hiển thị nguyên văn để khách hiểu vì sao. */
+  const handleLogin = async () => {
+    if (!emailOrPhone.trim() || !password) {
+      setError('Vui lòng nhập đầy đủ tài khoản và mật khẩu.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const { user } = await login(emailOrPhone, password);
+      if (user.role !== 'CUSTOMER') {
+        setError('Tài khoản này không dùng để đặt lịch trên ứng dụng.');
+        return;
+      }
+      router.replace('/(tabs)');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Không kết nối được tới máy chủ.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -159,13 +183,20 @@ export default function LoginScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.loginButton,
-              pressed && styles.buttonPressed,
+              (pressed || busy) && styles.buttonPressed,
             ]}
             onPress={handleLogin}
+            disabled={busy}
           >
-            <Text style={styles.loginButtonText}>Đăng nhập</Text>
+            <Text style={styles.loginButtonText}>
+              {busy ? 'Đang kiểm tra…' : 'Đăng nhập'}
+            </Text>
             <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={styles.buttonArrow} />
           </Pressable>
+
+          {/* Thông báo lỗi từ máy chủ, hiện nguyên văn để khách biết chính
+              xác lý do: sai mật khẩu, tài khoản bị khoá, số điện thoại sai… */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {/* Divider */}
           <View style={styles.dividerContainer}>
@@ -393,6 +424,13 @@ const styles = StyleSheet.create({
   },
   buttonArrow: {
     marginLeft: 8,
+  },
+  errorText: {
+    marginTop: -12,
+    marginBottom: 16,
+    fontSize: 13,
+    color: '#C0392B',
+    textAlign: 'center',
   },
   buttonPressed: {
     opacity: 0.85,

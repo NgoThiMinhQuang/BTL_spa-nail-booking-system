@@ -132,6 +132,14 @@ Staff không được:
 - Thay đổi cấu hình hệ thống.
 - Xem hoặc thay đổi toàn bộ doanh thu của cửa hàng.
 - Tự ý thay đổi Booking không thuộc quyền xử lý của mình.
+- Thêm, sửa, tạm ngưng hoặc gỡ dịch vụ — nhân viên chỉ **xem** danh sách
+  dịch vụ mình phục vụ. Việc quản lý dịch vụ và định giá thuộc quyền Admin.
+- Tự duyệt yêu cầu nghỉ hoặc yêu cầu lịch làm việc của chính mình.
+- Xem hồ sơ khách hàng chưa từng có lịch với mình.
+
+Lưu ý về phạm vi dữ liệu: Staff được xem khách hàng **trong những lịch mình
+phục vụ**, không phải toàn bộ danh sách khách của cửa hàng. Cách này được
+kiểm tra ở backend chứ không phụ thuộc giao diện có mở màn hình hay không.
 
 ## 2.3. Admin/Manager
 
@@ -237,9 +245,34 @@ Hệ thống thực hiện:
 
 # 4.2. Đăng nhập
 
-Customer đăng nhập bằng tài khoản đã đăng ký.
+Customer đăng nhập bằng số điện thoại hoặc email đã đăng ký.
 
-Sau khi đăng nhập thành công, Customer được chuyển vào giao diện Mobile Application.
+Hệ thống kiểm tra mật khẩu, rồi trả về **token JWT** có thời hạn 12 giờ.
+Ứng dụng lưu token và gửi kèm ở header `Authorization` của mọi yêu cầu
+sau đó.
+
+Tài khoản `INACTIVE` không đăng nhập được.
+
+### Cách hệ thống biết yêu cầu của ai
+
+Token chứa mã người dùng. Backend tra `users` để biết vai trò, `customer_id`
+và `staff_id` tương ứng.
+
+Điểm quan trọng: **id người dùng không bao giờ được nhận từ request**. Không
+có `customerId` hay `staffId` trong URL hay body. Nếu nhận từ request thì chỉ
+cần đổi con số là xem hoặc sửa được dữ liệu của người khác — đây chính là
+lỗ hổng mà hệ thống này đã chặn.
+
+### Ba tài khoản, ba quyền
+
+| Tài khoản | Đăng nhập được | Không đăng nhập được |
+| --------- | -------------- | ------------------- |
+| CUSTOMER | Xem và đặt lịch của chính mình | Không vào được khu quản trị |
+| STAFF | Lịch được phân công cho mình | Không thấy doanh thu, khách ngoài phạm vi |
+| ADMIN | Toàn bộ hệ thống | — |
+
+Giao diện chỉ tự ẩn màn hình khi chưa đăng nhập. Việc kiểm tra quyền thật
+luôn nằm ở server.
 
 ---
 
@@ -1437,249 +1470,362 @@ buffer_time
 
 # 8. DATABASE SCHEMA
 
+Tên cột dưới đây là tên thật trong database. File
+`BE_Nail/DB/Database.sql` là schema hoàn chỉnh — dựng một lần là đủ.
+
+Bộ trạng thái dùng chung cho mọi đối tượng là `ACTIVE` / `INACTIVE`.
+
+---
+
 ## 8.1. Users
 
 ```text
-Users
+users
 -----
-id
-name
-phone
-email
-password
+user_id
+full_name
+phone             -- UNIQUE, kiêm luôn vai trò đăng nhập của khách
+email             -- UNIQUE
+password          -- bcrypt hash, KHÔNG bao giờ lưu dạng thô
 avatar
-role
-status
+role              -- CUSTOMER | STAFF | ADMIN
+status            -- ACTIVE | INACTIVE
+password_changed_at
 created_at
 updated_at
 ```
 
-Role:
-
-```text
-CUSTOMER
-STAFF
-ADMIN
-```
+`status = 'INACTIVE'` nghĩa là khoá tài khoản: vẫn còn tên để các lịch hẹn
+cũ đọc được, nhưng không đăng nhập được nữa.
 
 ---
 
-# 8.2. Categories
+## 8.2. Categories
 
 ```text
-Categories
-----------
-id
-name
-description
-status
-created_at
-updated_at
-```
-
----
-
-# 8.3. Services
-
-```text
-Services
---------
-id
+service_category
+----------------
 category_id
-name
+category_name
+description
+status            -- ACTIVE | INACTIVE
+service_count     -- cache số dịch vụ thuộc danh mục
+```
+
+Khách chỉ thấy danh mục `ACTIVE`. Tắt một danh mục là ẩn luôn cả nhóm dịch
+vụ của nó mà không cần sửa từng dịch vụ con.
+
+Danh mục còn dịch vụ thì không xoá được — phải chuyển sang `INACTIVE`.
+
+---
+
+## 8.3. Services
+
+```text
+services
+--------
+service_id
+category_id
+service_name
 description
 image
 price
-duration
-buffer_time
-status
-created_at
-updated_at
+duration          -- thời lượng thực hiện (phút)
+buffer_time       -- khoảng nghỉ sau dịch vụ (phút)
+status            -- ACTIVE | INACTIVE
 ```
+
+Dịch vụ đã từng xuất hiện trong một lịch hẹn thì không xoá được — phải
+chuyển sang `INACTIVE`, vì các lịch cũ vẫn cần đọc tên và giá.
+
+Giá và thời lượng ở đây là giá **hiện tại** của danh mục. Lịch hẹn chụp lại
+ba số này tại thời điểm khách đặt, nên đổi giá ở đây không làm thay đổi các
+lịch cũ.
 
 ---
 
-# 8.4. Staff
+## 8.4. Staff
 
 ```text
-Staff
+staff
 -----
-id
-user_id
-experience
-description
-status
-created_at
-updated_at
+staff_id
+user_id          -- UNIQUE
+experience_year
+specialty
 ```
 
----
+Bảng này **không có** cột `rating`. Điểm đánh giá nhân viên được tính trực
+tiếp bằng `AVG(review.rating)`; lưu sẵn một cột cache dễ lệch khỏi thực tế
+(và trước đây đã lệch thật: 4.2 trong bảng so với 4.8 tính từ đánh giá).
 
-# 8.5. StaffService
+Trạng thái làm việc của nhân viên nằm ở `users.status`, không phải ở đây.
+
+Nhân viên từng có lịch hẹn thì không xoá được — phải khoá tài khoản.
+
+---
+## 8.5. StaffService
 
 ```text
 StaffService
 ------------
-id
 staff_id
 service_id
 ```
 
+Quan hệ nhiều-nhiều. Quyết định nhân viên nào nhận được lịch dịch vụ nào.
+
 ---
 
-# 8.6. StaffSchedule
+## 8.6. StaffSchedule
 
 ```text
 StaffSchedule
 -------------
 id
 staff_id
-date
+work_date
 start_time
 end_time
-status
-created_at
-updated_at
+status      -- AVAILABLE | OFF
 ```
+
+Ca làm việc **đã được duyệt**. Một ngày có tối đa một ca.
+
+Ngày nghỉ không ghi ở đây mà ghi ở `StaffLeaveRequest` — ca OFF không cho
+biết ai xin nghỉ, Admin duyệt lúc nào.
 
 ---
 
-# 8.7. StaffLeaveRequest
+## 8.7. StaffLeaveRequest
 
 ```text
 StaffLeaveRequest
 -----------------
-id
+leave_request_id
 staff_id
 start_datetime
 end_datetime
 reason
-status
-reviewed_by
+status           -- PENDING | APPROVED | REJECTED
+reviewed_by      -- users.user_id (quản trị duyệt)
 reviewed_at
+review_note
 created_at
 ```
 
+Nhân viên xin nghỉ → Admin duyệt hoặc từ chối. Chỉ khi `APPROVED` thì nhân
+viên mới thật sự không nhận được lịch trong khoảng đó.
+
+Ràng buộc: Admin chỉ duyệt được khi trong khoảng nghỉ không còn lịch nào
+đang chạy. Nếu còn thì phải đổi nhân viên / đổi giờ / hủy lịch trước.
+
 ---
 
-# 8.8. Bookings
+## 8.7b. StaffScheduleRequest
+
+```text
+StaffScheduleRequest
+--------------------
+schedule_request_id
+staff_id
+work_date
+start_time
+end_time
+action           -- ADD | UPDATE | REMOVE
+status           -- PENDING | APPROVED | REJECTED
+reviewed_by
+reviewed_at
+review_note
+created_at
+```
+
+Nhân viên xin thêm hoặc bỏ ca. **Chỉ khi Admin duyệt** thì bảng
+`StaffSchedule` mới thay đổi.
+
+---
+
+## 8.8. Bookings
 
 ```text
 Bookings
 --------
-id
+booking_id
 
-customer_id
+customer_id          -- NULL với khách chưa có tài khoản
+guest_name           -- tên khách ngay trên lịch khi không có hồ sơ
+guest_phone
+
 staff_id
 service_id
 
-guest_name
-guest_phone
-
-booking_source
-
-start_time
-end_time
-
+-- Chụp lại tại thời điểm đặt --
 service_price
 service_duration
 buffer_time
+actual_duration      -- thời lượng thực tế khi hoàn thành
 
-customer_note
+start_time
+end_time             -- = start_time + service_duration + buffer_time
 
-status
-payment_status
+status               -- xem máy trạng thái ở BR16
+note                 -- ghi chú của khách
+
+source               -- MOBILE | WALK_IN
+
+cancel_reason
+cancelled_at
+cancelled_by         -- CUSTOMER | STAFF | ADMIN
 
 created_at
-updated_at
 ```
 
-Booking Source:
+### Về `payment_status`
+
+Bảng `Booking` **không có** cột `payment_status`. Trạng thái thanh toán
+nằm ở bảng `Payment`.
+
+Lý do: một lịch có thể đã hoàn thành nhưng chưa thu tiền, hoặc đã đặt cọc
+nhưng còn phần chưa trả. Gộp hai thứ đó vào một cột sẽ không diễn tả
+được. Tách ra còn giúp luật "doanh thu chỉ tính lịch đã thu tiền" viết
+được rõ ràng.
+
+### Về ba cột chụp giá
+
+`service_price`, `service_duration`, `buffer_time` chép lại lúc khách đặt.
+Sau này Admin đổi giá hoặc thời lượng dịch vụ, các lịch cũ vẫn hiện đúng
+số tiền và độ dài khách đã đặt.
+
+Đổi giờ một lịch cũ cũng phải dùng ba số này, **không** đọc
+`services.duration` hiện tại.
+
+### Về `end_time`
+
+```
+end_time = start_time + service_duration + buffer_time
+```
+
+Nhân viên bị chiếm lịch tới cả khoảng nghỉ giữa hai lịch. Vì vậy hai lịch
+liền nhau phải cách nhau ít nhất tổng buffer của lịch trước.
+
+Khi hiển thị, hệ thống trả thêm `serviceEndsAt` (giờ dịch vụ kết thúc) bên
+cạnh `endsAt` (giờ nhân viên rảnh lại) để phân biệt hai mốc này.
+
+### Ràng buộc khách vãng lai
 
 ```text
-MOBILE
-WALK_IN
+customer_id IS NULL  →  guest_name và guest_phone bắt buộc có
+customer_id IS NOT NULL → guest_name và guest_phone phải NULL
 ```
+
+Khách chưa có tài khoản thì **không** tạo tài khoản, **không** tạo mật
+khẩu. Tên và số điện thoại nằm ngay trên lịch.
 
 ---
 
-# 8.9. BookingReferenceImages
+## 8.9. BookingReferenceImages
+
+Tên bảng thật trong database là `booking_image`.
 
 ```text
-BookingReferenceImages
-----------------------
-id
+booking_image
+-------------
+image_id
 booking_id
 image_url
 created_at
 ```
 
+Ảnh mẫu móng khách gửi kèm lịch hẹn, để nhân viên xem trước khi khách tới.
+
 ---
 
-# 8.10. BookingAddOns
+## 8.10. BookingAddOns
+
+Tên bảng thật trong database là `booking_addon`.
 
 ```text
-BookingAddOns
+booking_addon
 -------------
-id
+addon_id
 booking_id
 service_id
-name
+service_name     -- chụp tên tại lúc thêm
 quantity
-unit_price
-total_price
-added_by
+price            -- đơn giá của MỘT món, chụp tại lúc thêm
+added_by_role    -- CUSTOMER | STAFF | ADMIN | SYSTEM
 created_at
 ```
 
----
+**Thành tiền = `SUM(price * quantity)`, không phải `SUM(price)`.** Ba món
+cùng loại giá 40.000 là 120.000.
 
-# 8.11. Payments
+Tên và đơn giá được chụp lại lúc thêm, nên sau này đổi tên hoặc đổi giá
+dịch vụ thì hoá đơn của các lịch cũ không đổi theo.
 
-```text
-Payments
---------
-id
-booking_id
-amount
-payment_method
-transaction_id
-status
-paid_at
-created_at
-```
+Một lịch không có hai dòng cho cùng một dịch vụ — muốn thêm ba món thì
+tăng `quantity`.
 
 ---
 
-# 8.12. Reviews
+## 8.11. Payments
 
 ```text
-Reviews
+payment
 -------
-id
-booking_id
-customer_id
-staff_id
-service_id
-rating
-comment
-created_at
+payment_id
+booking_id     -- UNIQUE: mỗi lịch chỉ có một dòng thanh toán
+amount         -- số tiền đã thu; với DEPOSITED là số tiền cọc
+payment_method -- CASH | BANK_TRANSFER | ONLINE
+payment_status -- UNPAID | DEPOSITED | PAID
+payment_date
 ```
+
+### Máy trạng thái thanh toán
+
+```text
+UNPAID ──► DEPOSITED ──► PAID
+   └────────────────────►
+```
+
+`PAID` không quay lại được. Dự án chưa có nghiệp vụ hoàn tiền; mở đường
+đi ngược thì báo cáo doanh thu không bao giờ khớp thực tế.
 
 ---
 
-# 8.13. ReviewImages
+## 8.12. Reviews
 
 ```text
-ReviewImages
-------------
-id
+review
+------
+review_id
+booking_id     -- UNIQUE: mỗi lịch chỉ đánh giá một lần
+customer_id
+rating         -- 1..5
+comment
+image          -- ảnh cũ một ô
+created_at
+```
+
+Bảng `review` **không** lưu `staff_id` và `service_id`. Lấy từ `booking`
+là ra, tránh hai nơi ghi khác nhau.
+
+Chỉ đánh giá được lịch đã `COMPLETED`.
+
+---
+
+## 8.13. ReviewImages
+
+```text
+review_images
+-------------
+review_image_id
 review_id
 image_url
+created_at
 ```
 
----
-
+Một đánh giá có nhiều ảnh.
 # 9. QUAN HỆ DỮ LIỆU
 
 ```text
@@ -1822,6 +1968,69 @@ Nếu Staff xin nghỉ trong thời gian đã có Booking, Admin phải xử lý
 ## BR25
 
 Revenue chỉ tính Payment đã PAID.
+
+---
+
+## BR26
+
+Mọi thao tác trên Booking đều kiểm tra ở backend, không dựa vào việc
+ẩn nút ở giao diện. Giao diện chỉ là tiện lợi cho người dùng, không phải
+bảo mật.
+
+## BR27
+
+Customer chỉ được xem, hủy, đánh giá Booking của chính mình.
+
+## BR28
+
+Staff chỉ được xem Booking được phân công cho mình, và chỉ xem được hồ sơ
+khách hàng đã từng có lịch với mình.
+
+## BR29
+
+Chỉ Admin được truy cập `/api/admin/*`. Token của Customer hoặc Staff bị từ
+chối với HTTP 403.
+
+## BR30
+
+Tài khoản `INACTIVE` không được đăng nhập, kể cả khi token còn hạn.
+
+## BR31
+
+Mọi id người dùng đều lấy từ token đăng nhập, không lấy từ request. Không
+thể giả danh người khác bằng cách đổi tham số trên URL hay trong body.
+
+## BR32
+
+Booking ở trạng thái kết thúc (COMPLETED, CANCELLED, NO_SHOW) là dữ liệu
+lịch sử: không đổi trạng thái, không đổi nhân viên, không đổi giờ được nữa.
+
+## BR33
+
+Khi Admin xác nhận lịch (PENDING → CONFIRMED) phải kiểm tra lại khả dụng
+ngay thời điểm xác nhận, vì giữa lúc khách đặt và lúc xác nhận nhân viên có
+thể đã nhận việc khác.
+
+## BR34
+
+Đổi giờ một Booking cũ phải dùng thời lượng chụp trên chính Booking đó, không
+đọc thời lượng hiện tại của dịch vụ.
+
+## BR35
+
+Thanh toán chỉ đi theo một chiều: UNPAID → DEPOSITED → PAID. Đã PAID thì
+khoá, không cho thêm dịch vụ phát sinh nữa vì số tiền khách đã trả sẽ
+không còn khớp.
+
+## BR36
+
+Số tiền phải thu = `service_price` chụp lúc đặt + `SUM(price × quantity)`
+của dịch vụ phát sinh. Không lấy giá hiện tại của dịch vụ trong danh mục.
+
+## BR37
+
+Customer chỉ được hủy lịch `PENDING` bất cứ lúc nào. Lịch đã `CONFIRMED`
+chỉ hủy được khi còn trên 2 giờ. Các trạng thái còn lại không hủy được.
 
 ---
 

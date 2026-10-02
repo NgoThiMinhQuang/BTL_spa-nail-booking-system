@@ -69,10 +69,59 @@ export function weekAround(anchor: string): string[] {
   });
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`/api/admin${path}`, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`Máy chủ trả về ${response.status}`);
-  return (await response.json()) as T;
+/* Token đăng nhập. Mọi lệnh gọi /api/admin/* đều đính kèm token này, và
+   backend tự kiểm tra vai trò ADMIN — đây mới là lớp bảo vệ thật. */
+const TOKEN_KEY = 'nailhouse_token';
+
+export function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch { /* trình duyệt chặn lưu trữ — phiên vẫn dùng được */ }
+}
+
+/** Gọi API, tự kèm token và hiện đúng thông báo lỗi của backend. */
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const response = await fetch(`/api/admin${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  });
+
+  /* 401 = token hết hạn hoặc sai vai trò. Xoá token rồi báo sự kiện để giao
+     diện đưa người dùng về màn đăng nhập, thay vì để màn hình trắng. */
+  if (response.status === 401) {
+    clearToken();
+    window.dispatchEvent(new Event('nailhouse:unauthorized'));
+  }
+
+  const payload = await response.json().catch(() => null) as { message?: string } | null;
+  if (!response.ok) throw new Error(payload?.message ?? `Máy chủ trả về ${response.status}`);
+  return payload as T;
+}
+
+function getJson<T>(path: string): Promise<T> {
+  return request<T>(path);
+}
+
+/** Gọi API ghi dữ liệu (POST/PATCH/DELETE) kèm token. */
+export function sendJson<T>(path: string, method: string, body?: unknown): Promise<T> {
+  return request<T>(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 }
 
 /* ================================================================
@@ -142,7 +191,7 @@ export interface Overview {
 export interface ServiceItem {
   id: string; name: string; description: string | null;
   price: number; duration: number; bufferTime: number;
-  status: 'ACTIVE' | 'HIDDEN'; imageUrl: string | null;
+  status: 'ACTIVE' | 'INACTIVE'; imageUrl: string | null;
   categoryId: string | null; category: string | null;
   staffCount: number; staffNames: string[];
   bookingCount: number; revenue: number;
@@ -256,7 +305,10 @@ function getStoredUser(): AuthUser | null {
   }
 }
 
-const initialUser = getStoredUser();
+/* Chỉ coi là đã đăng nhập khi còn token. Trước đây chỉ kiểm tra đối tượng
+   user trong localStorage — xoá khoá đó là vào được màn hình, dù backend
+   đã từ chối hết mọi yêu cầu. */
+const initialUser = getToken() ? getStoredUser() : null;
 const initialBookingId = bookingIdFromHash(window.location.hash);
 const initialCustomerId = customerIdFromHash(window.location.hash);
 

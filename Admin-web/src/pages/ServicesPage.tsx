@@ -1,24 +1,31 @@
-/* ===== Trang dịch vụ: lưới thẻ + bộ lọc cột phải ===== */
+/* ===== Trang dịch vụ (nhân viên): chỉ XEM =====
 
-import { useEffect, useRef, useState } from 'react';
+   Nhân viên không thêm, sửa, tạm ngưng hay gỡ dịch vụ — theo phân quyền
+   trong README: Admin quản lý danh mục dịch vụ và giá; nhân viên chỉ xem
+   danh sách dịch vụ mình phục vụ.
+
+   Trước đây trang này có nút "＋ Thêm dịch vụ" và menu ⋮ gồm Sửa / Tạm
+   ngưng / Gỡ, và các nút đó gọi POST/PUT/DELETE /api/staff/services. Nghĩa
+   là nhân viên tự đổi được giá dịch vụ của cửa hàng. Nay các API đó không
+   còn tồn tại và quyền quản lý chuyển sang khu vực quản trị
+   (/api/admin/catalog/*). */
+
 import { EmptyState } from '../components/Primitives';
 import { PageBar } from '../components/PageBar';
 import { Icon, type IconName } from '../components/Icon';
-import { ServiceDialog } from '../components/ServiceDialog';
-import { apiRequest, useApp } from '../store';
+import { useApp } from '../store';
 import { usePager } from '../hooks/usePager';
 import { fmtNum, money, safeImage } from '../lib/utils';
 import {
   serviceCategories, serviceCode, serviceStats, servicesFiltered, statusLabel,
 } from '../lib/services';
-import type { ServiceItem } from '../types';
 
 const PAGE_SIZE = 9;
 
 const STAT_CARDS: { key: string; label: string; symbol: IconName; tone: string }[] = [
   { key: '', label: 'Tổng dịch vụ', symbol: 'services', tone: 'rose' },
   { key: 'ACTIVE', label: 'Đang cung cấp', symbol: 'done', tone: 'sage' },
-  { key: 'HIDDEN', label: 'Tạm ngưng', symbol: 'clock', tone: 'gold' },
+  { key: 'INACTIVE', label: 'Ngừng hoạt động', symbol: 'clock', tone: 'gold' },
   { key: 'price', label: 'Giá trung bình', symbol: 'tag', tone: 'lavender' },
 ];
 
@@ -33,23 +40,7 @@ export function ServicesPage() {
   });
   const info = usePager('services', rows, PAGE_SIZE);
 
-  const [editing, setEditing] = useState<ServiceItem | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [notice, setNotice] = useState('');
-
   const active = Boolean(state.query.trim()) || state.serviceCategory !== '' || state.serviceStatus !== '';
-
-  /* Thông báo tự ẩn sau vài giây, không cần bấm để đóng. */
-  useEffect(() => {
-    if (!notice) return undefined;
-    const timer = window.setTimeout(() => setNotice(''), 4000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
-
-  const saved = (service: ServiceItem, message: string) => {
-    dispatch({ type: 'serviceSaved', service });
-    setNotice(message);
-  };
 
   return (
     <div className="svc-layout">
@@ -70,7 +61,7 @@ export function ServicesPage() {
                 <small>
                   {card.key === '' ? 'dịch vụ của bạn'
                     : card.key === 'price' ? 'mỗi lượt làm'
-                      : card.key === 'ACTIVE' ? 'khách đang đặt được' : 'đang ẩn khỏi danh sách'}
+                      : card.key === 'ACTIVE' ? 'khách đang đặt được' : 'cửa hàng đã ngừng'}
                 </small>
               </span>
             </div>
@@ -102,23 +93,10 @@ export function ServicesPage() {
           ))}
         </div>
 
-        {notice && <p className="svc-notice" role="status">{notice}</p>}
-
         {info.rows.length ? (
           <>
             <div className="svc-grid">
-              {info.rows.map((s) => (
-                <ServiceCard
-                  key={s.id}
-                  service={s}
-                  onEdit={() => setEditing(s)}
-                  onSaved={saved}
-                  onRemoved={(message) => {
-                    dispatch({ type: 'serviceRemoved', id: s.id });
-                    setNotice(message);
-                  }}
-                />
-              ))}
+              {info.rows.map((s) => <ServiceCard key={s.id} service={s} />)}
             </div>
             <PageBar info={info} onChange={info.goTo} unit="dịch vụ" />
           </>
@@ -127,7 +105,7 @@ export function ServicesPage() {
             title={active ? 'Không có dịch vụ phù hợp' : 'Chưa có dịch vụ nào'}
             detail={active
               ? 'Bỏ bộ lọc hoặc thử từ khóa khác để xem thêm.'
-              : 'Bấm “+ Thêm dịch vụ” để khai báo dịch vụ đầu tiên của bạn.'}
+              : 'Liên hệ quản lý để được gán dịch vụ.'}
           />
         )}
       </div>
@@ -154,7 +132,7 @@ export function ServicesPage() {
             {[
               { key: '', label: 'Tất cả', count: all.length, symbol: 'check' as IconName },
               { key: 'ACTIVE', label: 'Đang cung cấp', count: stats.active, symbol: 'done' as IconName },
-              { key: 'HIDDEN', label: 'Tạm ngưng', count: stats.hidden, symbol: 'clock' as IconName },
+              { key: 'INACTIVE', label: 'Ngừng hoạt động', count: stats.hidden, symbol: 'clock' as IconName },
             ].map((item) => (
               <li key={item.key || 'all'}>
                 <button
@@ -162,7 +140,7 @@ export function ServicesPage() {
                   aria-pressed={state.serviceStatus === item.key}
                   onClick={() => dispatch({ type: 'serviceStatus', value: item.key })}
                 >
-                  <span className={`svc-dot svc-dot-${item.key === 'HIDDEN' ? 'gold' : item.key === 'ACTIVE' ? 'sage' : 'rose'}`}>
+                  <span className={`svc-dot svc-dot-${item.key === 'INACTIVE' ? 'gold' : item.key === 'ACTIVE' ? 'sage' : 'rose'}`}>
                     <Icon name={item.symbol} />
                   </span>
                   {item.label}
@@ -219,120 +197,26 @@ export function ServicesPage() {
           </div>
         </section>
       </aside>
-
-      {(creating || editing) && (
-        <ServiceDialog
-          service={editing}
-          staffId={state.staffId}
-          onClose={() => { setCreating(false); setEditing(null); }}
-          onSaved={(service) => saved(service, editing ? 'Đã cập nhật dịch vụ.' : 'Đã thêm dịch vụ mới.')}
-        />
-      )}
     </div>
   );
 }
 
-/* Nút ở đầu trang: mở hộp thoại thêm dịch vụ. Hộp thoại nằm ở đây nên vẫn
-   mở được khi người dùng cuộn xuống dưới danh sách dài. */
+/* Không còn nút thêm dịch vụ: việc đó thuộc quyền Admin. Vị trí nút ở đầu
+   trang vẫn được giữ để main.tsx không phải đổi cấu trúc. */
 export function ServicesPageActions() {
-  const [open, setOpen] = useState(false);
-  const { state, dispatch } = useApp();
-
   return (
-    <>
-      <button className="button" onClick={() => setOpen(true)}>
-        <span aria-hidden="true">＋</span> Thêm dịch vụ
-      </button>
-      {open && (
-        <ServiceDialog
-          service={null}
-          staffId={state.staffId}
-          onClose={() => setOpen(false)}
-          onSaved={(service) => dispatch({ type: 'serviceSaved', service })}
-        />
-      )}
-    </>
+    <span className="svc-readonly-hint">Danh mục dịch vụ do quản lý quản lý</span>
   );
 }
 
-/* ===== Thẻ dịch vụ: ảnh · mã · giá · thời lượng · trạng thái · menu ⋮ ===== */
+/* ===== Thẻ dịch vụ: ảnh · mã · giá · thời lượng · trạng thái ===== */
 
-function ServiceCard({
-  service, onEdit, onSaved, onRemoved,
-}: {
-  service: ServiceItem;
-  onEdit: () => void;
-  onSaved: (service: ServiceItem, message: string) => void;
-  onRemoved: (message: string) => void;
-}) {
-  const { state } = useApp();
-  const [menu, setMenu] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const wrapRef = useRef<HTMLDivElement>(null);
-
+function ServiceCard({ service }: { service: import('../types').ServiceItem }) {
   const image = safeImage(service.image);
-  const hidden = service.status === 'HIDDEN';
-
-  /* Bấm ra ngoài thì đóng menu ⋮. */
-  useEffect(() => {
-    if (!menu) return undefined;
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setMenu(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [menu]);
-
-  const toggleStatus = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      const next = hidden ? 'ACTIVE' : 'HIDDEN';
-      const data = await apiRequest<ServiceItem>(`/api/staff/services/${service.id}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          staffId: state.staffId,
-          name: service.name,
-          description: service.description,
-          image: service.image,
-          price: service.price,
-          duration: service.duration,
-          status: next,
-          categoryId: service.categoryId ?? null,
-        }),
-      });
-      onSaved({ ...service, ...data, status: next }, hidden ? 'Đã mở lại dịch vụ.' : 'Đã tạm ngưng dịch vụ.');
-      setMenu(false);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError('');
-    try {
-      await apiRequest(`/api/staff/services/${service.id}?staffId=${encodeURIComponent(state.staffId)}`, {
-        method: 'DELETE',
-      });
-      onRemoved(`Đã gỡ “${service.name}” khỏi danh sách.`);
-    } catch (e) {
-      setError((e as Error).message);
-      setConfirming(false);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const paused = service.status === 'INACTIVE';
 
   return (
-    <article className={`svc-card${hidden ? ' is-hidden' : ''}`}>
+    <article className={`svc-card${paused ? ' is-hidden' : ''}`}>
       <div className="svc-card-media">
         {image
           ? <img src={image} alt={service.name} loading="lazy" />
@@ -342,39 +226,6 @@ function ServiceCard({
       <div className="svc-card-body">
         <div className="svc-card-head">
           <h3 title={service.name}>{service.name}</h3>
-          <div className="svc-menu" ref={wrapRef}>
-            <button
-              type="button"
-              aria-label={`Tuỳ chọn cho ${service.name}`}
-              aria-expanded={menu}
-              aria-haspopup="menu"
-              onClick={() => { setMenu((v) => !v); setConfirming(false); setError(''); }}
-            >
-              ⋮
-            </button>
-            {menu && (
-              <div className="svc-menu-pop" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(); }}>
-                  ✎ Sửa dịch vụ
-                </button>
-                <button type="button" role="menuitem" disabled={busy} onClick={toggleStatus}>
-                  {hidden ? '▶ Đang cung cấp lại' : '⏸ Tạm ngưng'}
-                </button>
-                {confirming ? (
-                  <div className="svc-menu-confirm">
-                    <span>Gỡ dịch vụ này?</span>
-                    <button type="button" disabled={busy} onClick={remove}>Gỡ</button>
-                    <button type="button" disabled={busy} onClick={() => setConfirming(false)}>Giữ</button>
-                  </div>
-                ) : (
-                  <button type="button" role="menuitem" className="is-danger" onClick={() => setConfirming(true)}>
-                    ✕ Gỡ khỏi danh sách
-                  </button>
-                )}
-                {error && <p className="svc-menu-error">{error}</p>}
-              </div>
-            )}
-          </div>
         </div>
 
         <p className="svc-card-code">{serviceCode(service.id)}</p>
@@ -384,7 +235,7 @@ function ServiceCard({
         </p>
 
         <p className="svc-card-price">{money(service.price)}</p>
-        <span className={`svc-pill ${hidden ? 'is-paused' : ''}`}>{statusLabel(service.status)}</span>
+        <span className={`svc-pill ${paused ? 'is-paused' : ''}`}>{statusLabel(service.status)}</span>
       </div>
     </article>
   );

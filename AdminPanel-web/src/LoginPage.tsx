@@ -1,39 +1,65 @@
 /* ===== Đăng nhập khu vực quản trị =====
+
    Cùng bảng màu và thang chữ với màn đăng nhập nhân viên, chỉ khác ở nhãn
-   "KHU VỰC QUẢN TRỊ". Tài khoản nhân viên nằm ở app riêng
-   (Admin-web, cổng 5173) — hai bên không dùng chung khoá đăng nhập. */
+   "KHU VỰC QUẢN TRỊ".
+
+   Trước đây màn này so trực tiếp với "admin / admin123" viết cứng trong
+   mã nguồn, không hề gọi máy chủ. Bảo vệ thật phải nằm ở server: nay
+   nút đăng nhập gọi POST /api/auth/login, nhận token JWT và gửi kèm mọi
+   lệnh gọi /api/admin/*. Backend tự chặn token thiếu hoặc sai vai trò —
+   nên dù sửa được mã nguồn trình duyệt thì cũng không mở nổi khu quản trị. */
 
 import { useState } from 'react';
 import { useApp } from './store';
 import { Icon } from './components/Icon';
 import type { AuthUser } from './types';
 
-const DEMO = { username: 'admin', password: 'admin123' };
-
 export function LoginPage() {
   const { dispatch } = useApp();
-  const [username, setUsername] = useState(DEMO.username);
-  const [password, setPassword] = useState(DEMO.password);
+  const [username, setUsername] = useState('0900000000');
+  const [password, setPassword] = useState('Admin@2024');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!username.trim() || !password.trim()) {
       setError('Vui lòng nhập đầy đủ tài khoản và mật khẩu.');
       return;
     }
-    if (username.trim() !== DEMO.username || password.trim() !== DEMO.password) {
-      setError('Tài khoản hoặc mật khẩu quản trị không đúng.');
-      return;
-    }
-    const user: AuthUser = {
-      id: 'admin-1',
-      name: 'Quản lý NailHouse',
-      email: 'admin@nailhouse.vn',
-      role: 'admin',
-    };
+
+    setBusy(true);
     setError('');
-    dispatch({ type: 'login', user });
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: username.trim(), password }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.message ?? 'Tài khoản hoặc mật khẩu không đúng.');
+        return;
+      }
+
+      const { token, user } = payload.data;
+      /* Chỉ nhận vai trò quản trị. Backend cũng chặn rồi, nhưng kiểm tra ở
+         đây giúp thông báo rõ ràng thay vì một màn trắng rồi mới lỗi. */
+      if (user.role !== 'ADMIN') {
+        setError('Tài khoản này không có quyền quản trị.');
+        return;
+      }
+
+      localStorage.setItem('nailhouse_token', token);
+      dispatch({
+        type: 'login',
+        user: { id: user.userId, name: user.name, email: user.email, role: 'admin' } as AuthUser,
+      });
+    } catch {
+      setError('Không kết nối được tới máy chủ.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -54,7 +80,7 @@ export function LoginPage() {
             <input
               value={username}
               onChange={(e) => { setUsername(e.target.value); setError(''); }}
-              placeholder="Nhập tài khoản"
+              placeholder="Số điện thoại hoặc email"
               autoComplete="username"
             />
           </label>
@@ -71,11 +97,13 @@ export function LoginPage() {
 
           {error && <p className="login-admin-error" role="alert">{error}</p>}
 
-          <button type="submit" className="button login-admin-submit">Đăng nhập</button>
+          <button type="submit" className="button login-admin-submit" disabled={busy}>
+            {busy ? 'Đang kiểm tra…' : 'Đăng nhập'}
+          </button>
         </form>
 
         <p className="login-admin-demo">
-          Tài khoản demo: <code>admin</code> / <code>admin123</code>
+          Tài khoản demo: <code>0900000000</code> / <code>Admin@2024</code>
         </p>
         <a className="login-admin-staff" href="/staff/">Bạn là nhân viên? Vào không gian làm việc ↗</a>
       </section>

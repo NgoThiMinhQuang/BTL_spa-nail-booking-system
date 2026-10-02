@@ -14,22 +14,60 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, G } from 'react-native-svg';
 
+import { ApiError } from '@/services/api';
+import { register } from '@/features/auth/auth.service';
+
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [fullName, setFullName] = useState('Ngô Minh Quang');
-  const [phone, setPhone] = useState('0987654321');
-  const [email, setEmail] = useState('user2005@gmail.com');
-  const [password, setPassword] = useState('12345678');
-  const [confirmPassword, setConfirmPassword] = useState('12345678');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const handleRegister = () => {
-    // Navigate to login after registration
-    router.replace('/(auth)/login');
+  /* Đăng ký thật qua POST /api/auth/register.
+     Backend tự kiểm tra: họ tên, số điện thoại 10 số bắt đầu bằng 0, email,
+     mật khẩu tối thiểu 6 ký tự, và số điện thoại chưa có tài khoản nào. Lỗi
+     trả về hiển thị nguyên văn — ví dụ "Số điện thoại này đã được đăng ký".
+     Chỉ tạo được tài khoản khách; không ai tự đăng ký được vai trò nhân
+     viên hay quản trị. */
+  const handleRegister = async () => {
+    if (!fullName.trim() || !phone.trim() || !password) {
+      setError('Vui lòng nhập đầy đủ họ tên, số điện thoại và mật khẩu.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Hai mật khẩu không khớp.');
+      return;
+    }
+    if (!agreeTerms) {
+      setError('Bạn cần đồng ý với điều khoản trước khi đăng ký.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      await register({
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        password,
+      });
+      /* Đã đăng ký và có token, vào thẳng màn chính. */
+      router.replace('/(tabs)');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Không kết nối được tới máy chủ.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -232,13 +270,19 @@ export default function RegisterScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.registerButton,
-              pressed && styles.buttonPressed,
+              (pressed || busy) && styles.buttonPressed,
             ]}
             onPress={handleRegister}
+            disabled={busy}
           >
-            <Text style={styles.registerButtonText}>Đăng ký</Text>
+            <Text style={styles.registerButtonText}>
+              {busy ? 'Đang tạo tài khoản…' : 'Đăng ký'}
+            </Text>
             <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={styles.buttonArrow} />
           </Pressable>
+
+          {/* Lỗi từ máy chủ, hiện nguyên văn để khách biết chính xác lý do. */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {/* Footer Navigation Link */}
           <View style={styles.footerContainer}>
@@ -429,6 +473,12 @@ const styles = StyleSheet.create({
   },
   buttonArrow: {
     marginLeft: 8,
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: '#C0392B',
+    textAlign: 'center',
   },
   buttonPressed: {
     opacity: 0.85,

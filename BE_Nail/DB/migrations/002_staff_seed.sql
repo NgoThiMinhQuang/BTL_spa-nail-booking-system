@@ -8,21 +8,23 @@ INSERT INTO users (full_name, phone, email, password, avatar, role, status) VALU
 ('Hoàng Kim Ngân','0901000005','ngan@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=360&fit=crop','STAFF','ACTIVE')
 ON DUPLICATE KEY UPDATE full_name=VALUES(full_name),email=VALUES(email),avatar=VALUES(avatar),role='STAFF',status='ACTIVE';
 
-INSERT INTO staff (user_id,experience_year,specialty,rating)
-SELECT user_id,5,'Chuyên viên Nail',4.9 FROM users WHERE phone='0901000001'
-ON DUPLICATE KEY UPDATE experience_year=5,specialty='Chuyên viên Nail',rating=4.9;
-INSERT INTO staff (user_id,experience_year,specialty,rating)
-SELECT user_id,4,'Chuyên viên Spa',4.8 FROM users WHERE phone='0901000002'
-ON DUPLICATE KEY UPDATE experience_year=4,specialty='Chuyên viên Spa',rating=4.8;
-INSERT INTO staff (user_id,experience_year,specialty,rating)
-SELECT user_id,2,'Chuyên viên Nail',4.7 FROM users WHERE phone='0901000003'
-ON DUPLICATE KEY UPDATE experience_year=2,specialty='Chuyên viên Nail',rating=4.7;
-INSERT INTO staff (user_id,experience_year,specialty,rating)
-SELECT user_id,3,'Chuyên viên Gội đầu',4.8 FROM users WHERE phone='0901000004'
-ON DUPLICATE KEY UPDATE experience_year=3,specialty='Chuyên viên Gội đầu',rating=4.8;
-INSERT INTO staff (user_id,experience_year,specialty,rating)
-SELECT user_id,2,'Chuyên viên Spa',4.6 FROM users WHERE phone='0901000005'
-ON DUPLICATE KEY UPDATE experience_year=2,specialty='Chuyên viên Spa',rating=4.6;
+-- Điểm đánh giá KHÔNG ghi ở đây: bảng staff không còn cột rating.
+-- Điểm nhân viên lấy trực tiếp từ AVG(review.rating) — xem migration 013.
+INSERT INTO staff (user_id,experience_year,specialty)
+SELECT user_id,5,'Chuyên viên Nail' FROM users WHERE phone='0901000001'
+ON DUPLICATE KEY UPDATE experience_year=5,specialty='Chuyên viên Nail';
+INSERT INTO staff (user_id,experience_year,specialty)
+SELECT user_id,4,'Chuyên viên Spa' FROM users WHERE phone='0901000002'
+ON DUPLICATE KEY UPDATE experience_year=4,specialty='Chuyên viên Spa';
+INSERT INTO staff (user_id,experience_year,specialty)
+SELECT user_id,2,'Chuyên viên Nail' FROM users WHERE phone='0901000003'
+ON DUPLICATE KEY UPDATE experience_year=2,specialty='Chuyên viên Nail';
+INSERT INTO staff (user_id,experience_year,specialty)
+SELECT user_id,3,'Chuyên viên Gội đầu' FROM users WHERE phone='0901000004'
+ON DUPLICATE KEY UPDATE experience_year=3,specialty='Chuyên viên Gội đầu';
+INSERT INTO staff (user_id,experience_year,specialty)
+SELECT user_id,2,'Chuyên viên Spa' FROM users WHERE phone='0901000005'
+ON DUPLICATE KEY UPDATE experience_year=2,specialty='Chuyên viên Spa';
 
 INSERT IGNORE INTO staff_service (staff_id,service_id)
 SELECT st.staff_id,s.service_id FROM staff st JOIN users u ON u.user_id=st.user_id CROSS JOIN services s

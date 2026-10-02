@@ -9,7 +9,7 @@ export const UNGROUPED = 'Khác';
 export const STATUS_META: { key: ServiceStatus | ''; label: string }[] = [
   { key: '', label: 'Tất cả' },
   { key: 'ACTIVE', label: 'Đang cung cấp' },
-  { key: 'HIDDEN', label: 'Tạm ngưng' },
+  { key: 'INACTIVE', label: 'Tạm ngưng' },
 ];
 
 export const statusLabel = (status: ServiceStatus | string): string =>

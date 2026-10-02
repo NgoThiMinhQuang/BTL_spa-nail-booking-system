@@ -65,7 +65,9 @@ const BOOKING_JOINS = `FROM booking b
       LEFT JOIN users su ON su.user_id = st.user_id
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
       LEFT JOIN (
-        SELECT booking_id, SUM(price) AS total, COUNT(*) AS count
+        /* price * quantity — dịch vụ phát sinh có số lượng, cộng SUM(price)
+           sẽ tính thiếu tiền khi khách chọn nhiều món cùng loại. */
+        SELECT booking_id, SUM(price * quantity) AS total, COUNT(*) AS count
         FROM booking_addon GROUP BY booking_id
       ) addon ON addon.booking_id = b.booking_id`;
 
@@ -138,7 +140,13 @@ export async function getOverview(req, res, next) {
         /* Biểu đồ doanh thu theo khoảng đã chọn.
            Bảng ngày được sinh ra từ một dãy số 0..29 trừ dãy 0..6, nên phải
            DISTINCT: nếu không, mỗi ngày sẽ xuất hiện 7 lần và SUM ở ngoài sẽ
-           cộng doanh thu lên 7 lần. */
+           cộng doanh thu lên 7 lần.
+
+           DOANH THU CHỈ TÍNH LỊCH ĐÃ THU TIỀN. Trước đây câu này lấy
+           SUM(s.price) của mọi lịch COMPLETED, nên một lịch đã làm xong
+           mà khách chưa trả vẫn bị tính vào doanh thu — số liệu ra lớn hơn
+           thực tế. Nay lấy từ payment có trạng thái PAID, và lấy giá chụp
+           trên chính lịch chứ không lấy giá hiện tại của dịch vụ. */
         pool.query(`SELECT d.day,
             COALESCE(SUM(b.bookings), 0) AS bookings,
             COALESCE(SUM(b.revenue), 0) AS revenue
@@ -160,30 +168,40 @@ export async function getOverview(req, res, next) {
             WHERE t.d BETWEEN 0 AND ${span.days}
           ) d
           LEFT JOIN (
-            SELECT DATE_FORMAT(b.start_time, '%Y-%m-%d') AS day,
-                   COUNT(*) AS bookings, SUM(s.price) AS revenue
-            FROM booking b JOIN services s ON s.service_id = b.service_id
-            WHERE b.status = 'COMPLETED'
-              AND DATE_FORMAT(b.start_time, '%Y-%m-%d') >= ${span.from}
-            GROUP BY DATE_FORMAT(b.start_time, '%Y-%m-%d')
+            SELECT day, COUNT(*) AS bookings, SUM(amount) AS revenue
+              FROM (
+                SELECT DATE_FORMAT(b.start_time, '%Y-%m-%d') AS day,
+                       b.booking_id, p.amount
+                  FROM booking b
+                  JOIN payment p ON p.booking_id = b.booking_id
+                 WHERE p.payment_status = 'PAID'
+                   AND DATE_FORMAT(b.start_time, '%Y-%m-%d') >= ${span.from}
+              ) x
+             GROUP BY day
           ) b ON b.day = d.day
           GROUP BY d.day ORDER BY d.day ASC`),
 
-        /* Dịch vụ phổ biến nhất. */
+        /* Dịch vụ phổ biến nhất. Doanh thu đi kèm cũng chỉ tính lịch đã
+           thu tiền, đồng nhất với biểu đồ. */
         pool.query(`SELECT s.service_id AS id, s.service_name AS name, c.category_name AS category,
-            COUNT(b.booking_id) AS bookings, COALESCE(SUM(s.price), 0) AS revenue
+            COUNT(DISTINCT b.booking_id) AS bookings,
+            COALESCE(SUM(CASE WHEN p.payment_status = 'PAID'
+                              THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
           FROM services s
           JOIN service_category c ON c.category_id = s.category_id
           LEFT JOIN booking b ON b.service_id = s.service_id
+          LEFT JOIN payment p ON p.booking_id = b.booking_id
           GROUP BY s.service_id, s.service_name, c.category_name
           ORDER BY bookings DESC, revenue DESC LIMIT 5`),
 
         /* Việc cần xử lý — bốn nhóm vấn đề Admin nên xem ngay.
-           LEAVE là từ khoá dành riêng của MySQL nên cột phải đặt tên khác. */
+           LEAVE là từ khoá dành riêng của MySQL nên cột phải đặt tên khác.
+           Phần "nghỉ" đếm yêu cầu nghỉ chờ duyệt, đúng với bảng
+           staff_leave_request mới có. */
         pool.query(`SELECT
             (SELECT COUNT(*) FROM booking WHERE status = 'PENDING') AS pendingCount,
-            (SELECT COUNT(*) FROM staff_schedule
-              WHERE work_date = CURDATE() AND status = 'OFF') AS leaveCount,
+            (SELECT COUNT(*) FROM staff_leave_request WHERE status = 'PENDING') AS leaveCount,
+            (SELECT COUNT(*) FROM staff_schedule_request WHERE status = 'PENDING') AS scheduleCount,
             (SELECT COUNT(*) FROM payment WHERE payment_status <> 'PAID') AS unpaidCount,
             (SELECT COUNT(*) FROM booking
               WHERE status IN ('PENDING','CONFIRMED') AND staff_id IS NULL) AS unassignedCount`),
@@ -202,7 +220,7 @@ export async function getOverview(req, res, next) {
 
     const money = moneyRows[0];
     /* todoRows có dạng [rows, fields] nên phải lấy [0][0] mới ra đối tượng. */
-const todo = todoRows[0][0];
+    const todo = todoRows[0][0];
 
     /* Trạng thái hiện tại của nhân viên: rảnh, đang phục vụ, sắp có lịch, nghỉ. */
     const staffStatus = (item) => {
@@ -256,6 +274,7 @@ const todo = todoRows[0][0];
         todos: {
           pending: Number(todo.pendingCount ?? 0),
           leave: Number(todo.leaveCount ?? 0),
+          schedule: Number(todo.scheduleCount ?? 0),
           unpaid: Number(todo.unpaidCount ?? 0),
           unassigned: Number(todo.unassignedCount ?? 0),
         },
@@ -289,9 +308,13 @@ export async function listServices(req, res, next) {
            JOIN users su ON su.user_id = st.user_id
           WHERE ss.service_id = s.service_id) AS staffNames,
         (SELECT COUNT(*) FROM booking b WHERE b.service_id = s.service_id) AS bookingCount,
-        (SELECT COALESCE(SUM(s2.price), 0) FROM booking b2
-          JOIN services s2 ON s2.service_id = b2.service_id
-          WHERE s2.service_id = s.service_id AND b2.status = 'COMPLETED') AS revenue,
+        /* Doanh thu chỉ tính lịch đã thu tiền, và lấy giá chụp trên lịch
+           chứ không lấy giá hiện tại của dịch vụ. */
+        (SELECT COALESCE(SUM(COALESCE(b3.service_price, s3.price)), 0)
+           FROM booking b3
+           JOIN payment p3 ON p3.booking_id = b3.booking_id AND p3.payment_status = 'PAID'
+           JOIN services s3 ON s3.service_id = b3.service_id
+          WHERE b3.service_id = s.service_id) AS revenue,
         (SELECT ROUND(AVG(r.rating), 1) FROM review r
           JOIN booking b3 ON b3.booking_id = r.booking_id
           WHERE b3.service_id = s.service_id) AS rating,
@@ -303,11 +326,12 @@ export async function listServices(req, res, next) {
       ORDER BY c.category_name ASC, s.service_name ASC`);
 
     const [categories] = await pool.query(`SELECT c.category_id AS id, c.category_name AS name,
-        c.description, COUNT(s.service_id) AS serviceCount,
-        COALESCE(SUM(s.price), 0) AS totalPrice
+        c.description, c.status, COUNT(s.service_id) AS serviceCount,
+        COALESCE(SUM(CASE WHEN s.status = 'ACTIVE' THEN s.price ELSE 0 END), 0) AS totalPrice
       FROM service_category c
       LEFT JOIN services s ON s.category_id = c.category_id
-      GROUP BY c.category_id, c.category_name, c.description ORDER BY c.category_name`);
+      GROUP BY c.category_id, c.category_name, c.description, c.status
+      ORDER BY c.category_name`);
 
     res.json({
       data: rows.map((row) => ({
@@ -357,9 +381,12 @@ export async function listStaff(req, res, next) {
         (SELECT COUNT(*) FROM booking b WHERE b.staff_id = st.staff_id) AS bookingCount,
         (SELECT COUNT(*) FROM booking b2 WHERE b2.staff_id = st.staff_id
           AND b2.status = 'COMPLETED') AS completedCount,
-        (SELECT COALESCE(SUM(s.price), 0) FROM booking b3
-          JOIN services s ON s.service_id = b3.service_id
-          WHERE b3.staff_id = st.staff_id AND b3.status = 'COMPLETED') AS revenue,
+        /* Doanh thu của nhân viên = tiền thực thu trên các lịch họ phục
+           vụ, chỉ tính khoản đã PAID và lấy giá chụp trên lịch. */
+        (SELECT COALESCE(SUM(COALESCE(b3.service_price, s3.price)), 0) FROM booking b3
+          JOIN payment p3 ON p3.booking_id = b3.booking_id AND p3.payment_status = 'PAID'
+          JOIN services s3 ON s3.service_id = b3.service_id
+          WHERE b3.staff_id = st.staff_id) AS revenue,
         (SELECT COUNT(*) FROM staff_service ss WHERE ss.staff_id = st.staff_id) AS serviceCount,
         (SELECT GROUP_CONCAT(s.service_name ORDER BY s.service_name SEPARATOR ', ')
           FROM staff_service ss JOIN services s ON s.service_id = ss.service_id
@@ -545,7 +572,7 @@ export async function getCustomer(req, res, next) {
       LEFT JOIN users su ON su.user_id = st.user_id
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
       LEFT JOIN (
-        SELECT booking_id, SUM(price) AS total FROM booking_addon GROUP BY booking_id
+        SELECT booking_id, SUM(price * quantity) AS total FROM booking_addon GROUP BY booking_id
       ) addon ON addon.booking_id = b.booking_id
       WHERE b.customer_id = ?
       ORDER BY b.start_time DESC`, [id]);
@@ -650,50 +677,14 @@ export async function listSchedule(req, res, next) {
 /* ================================================================
    Yêu cầu nghỉ
    ---------------------------------------------------------------
-   Database chưa có bảng yêu cầu nghỉ riêng. Nhân viên nghỉ được ghi bằng
-   staff_schedule.status = 'OFF', nên trang này đọc đúng những dòng đó.
+   Trước đây trang này đọc staff_schedule.status = 'OFF', tức là coi mọi
+   ca OFF là một lần nghỉ. Cách đó không phân biệt được "nhân viên được
+   nghỉ" với "Admin đóng lịch", và không biết ai xin, ai duyệt.
+
+   Nay đọc bảng staff_leave_request: mỗi dòng là một yêu cầu có người
+   xin, lý do, trạng thái và người duyệt. Logic nằm ở request.controller.js.
    ================================================================ */
-export async function listLeaveRequests(req, res, next) {
-  try {
-    const [rows] = await pool.query(`SELECT
-        sc.schedule_id AS id,
-        sc.work_date AS workDate,
-        sc.start_time AS startTime,
-        sc.end_time AS endTime,
-        u.full_name AS staffName,
-        st.specialty,
-        (SELECT COUNT(*) FROM booking b WHERE b.staff_id = st.staff_id
-          AND DATE(b.start_time) = sc.work_date
-          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')) AS affectedBookings
-      FROM staff_schedule sc
-      JOIN staff st ON st.staff_id = sc.staff_id
-      JOIN users u ON u.user_id = st.user_id
-      WHERE sc.status = 'OFF'
-      ORDER BY sc.work_date DESC, u.full_name ASC
-      LIMIT 120`);
-
-    const [counts] = await pool.query(`SELECT
-        SUM(sc.work_date = CURDATE()) AS today,
-        SUM(sc.work_date > CURDATE()) AS upcoming,
-        SUM(sc.work_date < CURDATE()) AS past
-      FROM staff_schedule sc WHERE sc.status = 'OFF'`);
-
-    res.json({
-      data: rows.map((row) => ({
-        ...row,
-        id: String(row.id),
-        affectedBookings: Number(row.affectedBookings),
-      })),
-      meta: {
-        today: Number(counts[0].today ?? 0),
-        upcoming: Number(counts[0].upcoming ?? 0),
-        past: Number(counts[0].past ?? 0),
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-}
+export { listLeaveRequests, listScheduleRequests } from './request.controller.js';
 
 /* ================================================================
    Đánh giá
@@ -704,11 +695,17 @@ export async function listReviews(req, res, next) {
         r.review_id AS id,
         r.rating,
         r.comment,
+        r.image,
         r.created_at AS createdAt,
         u.full_name AS customerName,
         u.avatar AS customerAvatarUrl,
         su.full_name AS staffName,
-        s.service_name AS serviceName
+        s.service_name AS serviceName,
+        /* staff_id và service_id không lưu trùng ở bảng review: lấy từ
+           booking là ra, tránh hai nơi có thể ghi khác nhau. */
+        st.staff_id AS staffId, s.service_id AS serviceId,
+        (SELECT GROUP_CONCAT(ri.image_url SEPARATOR ',')
+           FROM review_images ri WHERE ri.review_id = r.review_id) AS extraImages
       FROM review r
       JOIN customer c ON c.customer_id = r.customer_id
       JOIN users u ON u.user_id = c.user_id
@@ -731,8 +728,13 @@ export async function listReviews(req, res, next) {
       data: rows.map((row) => ({
         ...row,
         id: String(row.id),
+        staffId: row.staffId == null ? null : String(row.staffId),
+        serviceId: String(row.serviceId),
         rating: Number(row.rating),
         customerAvatarUrl: imageUrl(req, row.customerAvatarUrl),
+        imageUrl: imageUrl(req, row.image),
+        /* Ảnh phụ trong bảng review_images, cộng với ảnh cũ một ô image. */
+        images: row.extraImages ? row.extraImages.split(',').map((u) => imageUrl(req, u)) : [],
       })),
       meta: {
         total: Number(stats[0].total ?? 0),
@@ -773,7 +775,9 @@ export async function listPayments(req, res, next) {
       ORDER BY COALESCE(pay.payment_date, b.start_time) DESC
       LIMIT 200`);
 
-    /* Tổng hợp theo tháng để vẽ biểu đồ cột ở trang Doanh thu. */
+    /* Tổng hợp theo tháng để vẽ biểu đồ cột ở trang Doanh thu. paidAmount là
+       con số doanh thu thật (chỉ khoản PAID); totalAmount là tổng tiền
+       ghi nhận kể cả tiền cọc, để đối chiếu. */
     const [months] = await pool.query(`SELECT
         DATE_FORMAT(b.start_time, '%Y-%m') AS month,
         SUM(pay.payment_status = 'PAID') AS paidCount,
@@ -822,36 +826,58 @@ export async function listPayments(req, res, next) {
 
 /* ================================================================
    Báo cáo — tổng hợp theo dịch vụ, nhân viên và khách hàng
+
+   Định nghĩa doanh thu xuyên suốt báo cáo: CHỈ tính những lịch có
+   payment.paid_status = 'PAID'. Trước đây các bảng này lấy
+   SUM(s.price) của mọi lịch COMPLETED, nên:
+     - Lịch hoàn thành nhưng chưa thu tiền vẫn ra doanh thu.
+     - Lấy `s.price` là giá HIỆN TẠI, nên sau khi Admin đổi giá dịch vụ,
+       lịch cũ đổi tiền theo — trong khi khách đã trả theo giá cũ.
+   Nay cả hai đều lấy từ payment và từ giá chụp trên lịch.
    ================================================================ */
 export async function getReports(req, res, next) {
   try {
     const [byService, byStaff, byCustomer, totals] = await Promise.all([
       pool.query(`SELECT s.service_name AS name, c.category_name AS category,
-          COUNT(b.booking_id) AS bookings,
-          COALESCE(SUM(CASE WHEN b.status = 'COMPLETED' THEN s.price END), 0) AS revenue
+          COUNT(DISTINCT b.booking_id) AS bookings,
+          COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID'
+                            THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
         FROM services s
         JOIN service_category c ON c.category_id = s.category_id
         LEFT JOIN booking b ON b.service_id = s.service_id
+        LEFT JOIN payment pay ON pay.booking_id = b.booking_id
         GROUP BY s.service_id, s.service_name, c.category_name
         HAVING bookings > 0
         ORDER BY revenue DESC, bookings DESC`),
 
       pool.query(`SELECT u.full_name AS name, st.specialty,
-          COUNT(b.booking_id) AS bookings,
-          COALESCE(SUM(CASE WHEN b.status = 'COMPLETED' THEN s.price END), 0) AS revenue
+          COUNT(DISTINCT b.booking_id) AS bookings,
+          COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID'
+                            THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
         FROM staff st
         JOIN users u ON u.user_id = st.user_id
         LEFT JOIN booking b ON b.staff_id = st.staff_id
         LEFT JOIN services s ON s.service_id = b.service_id
+        LEFT JOIN payment pay ON pay.booking_id = b.booking_id
         GROUP BY st.staff_id, u.full_name, st.specialty
         ORDER BY revenue DESC`),
 
+      /* Tổng chi tiêu của khách tính trực tiếp từ các khoản đã PAID, không
+         đọc cột cache customer.total_spending: cột đó không được cập nhật
+         khi khách thanh toán nên đọc vào sẽ ra số lệch với tiền thật. */
       pool.query(`SELECT u.full_name AS name, u.phone,
-          COUNT(b.booking_id) AS bookings, c.total_spending AS spending
+          COUNT(DISTINCT b.booking_id) AS bookings,
+          COALESCE(SUM(paid.total), 0) AS spending
         FROM customer c
         JOIN users u ON u.user_id = c.user_id
         LEFT JOIN booking b ON b.customer_id = c.customer_id
-        GROUP BY c.customer_id, u.full_name, u.phone, c.total_spending
+        LEFT JOIN (
+          SELECT b2.customer_id, SUM(p.amount) AS total
+            FROM payment p JOIN booking b2 ON b2.booking_id = p.booking_id
+           WHERE p.payment_status = 'PAID'
+           GROUP BY b2.customer_id
+        ) paid ON paid.customer_id = c.customer_id
+        GROUP BY c.customer_id, u.full_name, u.phone
         ORDER BY bookings DESC LIMIT 10`),
 
       pool.query(`SELECT
@@ -859,7 +885,8 @@ export async function getReports(req, res, next) {
           SUM(b.status = 'COMPLETED') AS completed,
           SUM(b.status = 'CANCELLED') AS cancelled,
           SUM(b.status = 'NO_SHOW') AS noShow,
-          COALESCE(AVG(NULLIF(TIMESTAMPDIFF(MINUTE, b.start_time, b.end_time), 0)), 0) AS avgMinutes
+          SUM(b.status IN ('PENDING','CONFIRMED','PROCESSING')) AS running,
+          COALESCE(AVG(NULLIF(b.actual_duration, 0)), 0) AS avgMinutes
         FROM booking b`),
     ]);
 
@@ -887,6 +914,7 @@ export async function getReports(req, res, next) {
           completed: Number(t.completed ?? 0),
           cancelled: Number(t.cancelled ?? 0),
           noShow: Number(t.noShow ?? 0),
+          running: Number(t.running ?? 0),
           avgMinutes: Math.round(Number(t.avgMinutes ?? 0)),
         },
       },

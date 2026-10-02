@@ -4,13 +4,15 @@ import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import adminRoutes from './routes/admin.routes.js';
+import authRoutes from './routes/auth.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import customerRoutes from './routes/customer.routes.js';
 import homeRoutes from './routes/home.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import staffServiceRoutes from './routes/staff-service.routes.js';
 import staffRoutes from './routes/staff.routes.js';
-import { staffDashboard } from './controllers/staff-dashboard.controller.js';
+import { getMyPayments } from './controllers/payment.controller.js';
+import { authenticate, requireCustomer } from './lib/auth.js';
 
 export const app = express();
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -26,8 +28,13 @@ app.use('/uploads', express.static(path.resolve(currentDirectory, '../public/upl
 /* Hai giao diện tách riêng, mỗi bên một bản build Vite:
      /staff -> Admin-web      (không gian nhân viên)
      /admin -> AdminPanel-web (khu vực quản trị)
-   Mỗi bên có khoá đăng nhập riêng trong localStorage nên tải lại trang không
-   nhảy sang bên kia. */
+
+   Lưu ý: việc hiển thị giao diện ở đây KHÔNG phải bảo mật. Cả hai đều
+   là trang tĩnh công khai, và bảo vệ thật nằm ở các API: mọi đường
+   /api/admin/* yêu cầu token vai trò ADMIN, mọi đường /api/staff/*
+   yêu cầu token vai trò STAFF. Giao diện chỉ tự ẩn màn hình khi
+   chưa đăng nhập, còn dữ liệu thì backend không chịu trả cho người
+   không đúng vai trò. */
 const staffWebBuild = path.resolve(currentDirectory, '../../Admin-web/dist');
 const adminWebBuild = path.resolve(currentDirectory, '../../AdminPanel-web/dist');
 
@@ -37,19 +44,38 @@ app.get(/^\/staff(\/.*)?$/, (_req, res) => res.sendFile(path.join(staffWebBuild,
 app.use('/admin', express.static(adminWebBuild, { index: false, maxAge: '1h' }));
 app.get(/^\/admin(\/.*)?$/, (_req, res) => res.sendFile(path.join(adminWebBuild, 'index.html')));
 
-app.get('/api/staff-dashboard/:id', staffDashboard);
-
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'nailhouse-api' }));
+
+/* ---- Đăng nhập ----
+   Đăng ký và đăng nhập là hai đường công khai duy nhất của toàn hệ
+   thống. Mọi đường còn lại đều đi qua middleware authenticate, kiểm tra
+   token và tài khoản còn ACTIVE. */
+app.use('/api/auth', authRoutes);
+
+/* ---- Danh mục công khai: khách xem dịch vụ và nhân viên ----
+   Các API này không chứa dữ liệu cá nhân nên mở công khai, giúp khách
+   xem dịch vụ và nhân viên trước khi đăng ký. */
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
-/* Khu vực quản trị: số liệu toàn cửa hàng, đăng trước /api/staff vì các
-   controller của admin không nhận tham số staffId như /api/staff/:id. */
-app.use('/api/admin', adminRoutes);
-app.use('/api/staff/customers', customerRoutes);
-/* Đăng ký trước `/api/staff` để không bị router('/:id') của staff bắt mất. */
-app.use('/api/staff/services', staffServiceRoutes);
 app.use('/api/staff', staffRoutes);
+
+/* ---- Lịch hẹn phía khách + cập nhật tiến trình của nhân viên ----
+   Router tự gắn middleware theo từng nhóm: xem lịch và đặt lịch cần
+   token CUSTOMER, bắt đầu/hoàn thành cần token STAFF. */
 app.use('/api/bookings', bookingRoutes);
+
+/* ---- Hồ sơ khách phía nhân viên ---- */
+app.use('/api/staff/customers', customerRoutes);
+/* Danh mục dịch vụ của chính nhân viên — chỉ đọc. */
+app.use('/api/staff/services', staffServiceRoutes);
+
+/* ---- Thanh toán của khách ---- */
+app.get('/api/customer/payments', authenticate, requireCustomer, getMyPayments);
+
+/* ---- Khu quản trị ----
+   Router này tự bắt buộc token ADMIN ngay từ đầu, nên mọi đường bên
+   dưới đều được bảo vệ mà không cần ghi lặp ở từng route. */
+app.use('/api/admin', adminRoutes);
 
 app.use((_req, res) => res.status(404).json({ message: 'API endpoint không tồn tại' }));
 app.use((error, _req, res, _next) => {

@@ -1,4 +1,12 @@
-USE nail_management;
+-- KHÔNG có câu `USE nail_management` ở đây.
+--
+-- Trước đây file này bắt đầu bằng `USE nail_management;`. Mỗi file
+-- migration được nối vào đúng database đã cấu hình sẵn (DB_NAME trong
+-- .env), nên câu `USE` cứng này chỉ gây hại: khi chạy test trên database
+-- riêng, toàn bộ câu lệnh của file vẫn ghi vào database thật. Đó là lý
+-- do dữ liệu test "biến mất" mà không báo lỗi.
+--
+-- Muốn đổi sang database khác thì đặt DB_NAME trong .env, không sửa ở đây.
 
 CREATE TABLE IF NOT EXISTS promotions (
     promotion_id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -121,17 +129,17 @@ INSERT INTO users (full_name, phone, email, password, avatar, role)
 VALUES ('Thợ chính Lan', '0900000001', 'lan@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/artists/lan-v2.png', 'STAFF')
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), avatar = VALUES(avatar);
 SET @lan_user_id = (SELECT user_id FROM users WHERE phone = '0900000001');
-INSERT INTO staff (user_id, experience_year, specialty, rating)
-VALUES (@lan_user_id, 3, 'Sơn gel & Nail Art', 4.9)
-ON DUPLICATE KEY UPDATE experience_year = VALUES(experience_year), specialty = VALUES(specialty), rating = VALUES(rating);
+INSERT INTO staff (user_id, experience_year, specialty)
+VALUES (@lan_user_id, 3, 'Sơn gel & Nail Art')
+ON DUPLICATE KEY UPDATE experience_year = VALUES(experience_year), specialty = VALUES(specialty);
 
 INSERT INTO users (full_name, phone, email, password, avatar, role)
 VALUES ('Mai Anh', '0900000002', 'maianh@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/artists/mai-anh-v2.png', 'STAFF')
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), avatar = VALUES(avatar);
 SET @mai_user_id = (SELECT user_id FROM users WHERE phone = '0900000002');
-INSERT INTO staff (user_id, experience_year, specialty, rating)
-VALUES (@mai_user_id, 5, 'Đắp gel & Vẽ hoa 3D', 5.0)
-ON DUPLICATE KEY UPDATE experience_year = VALUES(experience_year), specialty = VALUES(specialty), rating = VALUES(rating);
+INSERT INTO staff (user_id, experience_year, specialty)
+VALUES (@mai_user_id, 5, 'Đắp gel & Vẽ hoa 3D')
+ON DUPLICATE KEY UPDATE experience_year = VALUES(experience_year), specialty = VALUES(specialty);
 
 INSERT IGNORE INTO staff_service (staff_id, service_id)
 SELECT st.staff_id, s.service_id FROM staff st CROSS JOIN services s WHERE s.status = 'ACTIVE';
@@ -144,7 +152,7 @@ INSERT INTO customer (user_id)
 VALUES (@minh_user_id)
 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id);
 SET @minh_customer_id = (SELECT customer_id FROM customer WHERE user_id = @minh_user_id);
-SET @first_staff_id = (SELECT staff_id FROM staff ORDER BY rating DESC LIMIT 1);
+SET @first_staff_id = (SELECT staff_id FROM staff ORDER BY experience_year DESC, staff_id ASC LIMIT 1);
 SET @first_service_id = (SELECT service_id FROM services WHERE status = 'ACTIVE' ORDER BY service_id LIMIT 1);
 
 INSERT INTO booking (customer_id, staff_id, service_id, start_time, end_time, status, note)

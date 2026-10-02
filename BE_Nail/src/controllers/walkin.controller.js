@@ -114,10 +114,19 @@ export async function listEligibleStaff(req, res, next) {
        đoán, nếu không danh sách ở đây sẽ lệch với những gì lúc tạo lịch
        backend thực sự cho phép. */
     if (String(req.query.freeOnly ?? '') === '1') {
+      const [[svc]] = await pool.query(
+        `SELECT duration, COALESCE(buffer_time, 0) AS bufferTime
+           FROM services WHERE service_id = ? LIMIT 1`, [serviceId],
+      );
       const keep = [];
       for (const person of data) {
         const free = await freeSlotsForStaff({
-          staffId: person.id, serviceId, day, stepMinutes: 30,
+          staffId: person.id,
+          serviceId,
+          day,
+          duration: Number(svc?.duration ?? 0),
+          bufferTime: Number(svc?.bufferTime ?? 0),
+          stepMinutes: 30,
         });
         if (free.length) keep.push({ ...person, slotCount: free.length });
       }
@@ -147,15 +156,30 @@ export async function walkInSlots(req, res, next) {
       return res.status(400).json({ message: 'Cần dịch vụ và ngày.' });
     }
 
+    /* Độ dài khung giờ lấy từ dịch vụ một lần rồi truyền xuống: hàm sinh
+       khung giờ không tự đọc lại, để lúc hiển thị và lúc tạo lịch luôn
+       cùng một độ dài (dịch vụ + khoảng nghỉ). */
+    const [[svc]] = await pool.query(
+      `SELECT duration, COALESCE(buffer_time, 0) AS bufferTime
+         FROM services WHERE service_id = ? AND status = 'ACTIVE' LIMIT 1`, [serviceId],
+    );
+    if (!svc) return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
+    const duration = Number(svc.duration);
+    const bufferTime = Number(svc.bufferTime ?? 0);
+
     if (staffId === null) {
-      const any = await freeSlotsForAnyStaff({ serviceId, day, stepMinutes: 30 });
+      const any = await freeSlotsForAnyStaff({
+        serviceId, day, duration, bufferTime, stepMinutes: 30,
+      });
       return res.json({
         data: any.slots,
         meta: { count: any.slots.length, staffCount: any.staffCount, anyStaff: true },
       });
     }
 
-    const slots = await freeSlotsForStaff({ staffId, serviceId, day, stepMinutes: 30 });
+    const slots = await freeSlotsForStaff({
+      staffId, serviceId, day, duration, bufferTime, stepMinutes: 30,
+    });
     res.json({ data: slots, meta: { count: slots.length, anyStaff: false } });
   } catch (error) {
     next(error);

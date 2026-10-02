@@ -77,11 +77,18 @@ export async function getService(req, res, next) {
       pool.query('SELECT benefit_id AS id, title, subtitle, icon, color FROM service_benefits WHERE service_id = ? ORDER BY sort_order, benefit_id', [req.params.id]),
       pool.query('SELECT step_id AS id, step_number AS stepNumber, title, description, estimated_minutes AS estimatedMinutes FROM service_steps WHERE service_id = ? ORDER BY step_number', [req.params.id]),
       pool.query(`SELECT st.staff_id AS id, u.full_name AS name, u.avatar AS avatarUrl,
-        st.experience_year AS experienceYears, st.specialty, st.rating
+        st.experience_year AS experienceYears, st.specialty,
+        /* Điểm lấy từ review thật, không đọc cột cache ở bảng staff. */
+        (SELECT ROUND(AVG(r.rating), 1) FROM review r
+           JOIN booking b ON b.booking_id = r.booking_id
+          WHERE b.staff_id = st.staff_id) AS rating,
+        (SELECT COUNT(*) FROM review r2
+           JOIN booking b2 ON b2.booking_id = r2.booking_id
+          WHERE b2.staff_id = st.staff_id) AS reviewCount
         FROM staff_service ss JOIN staff st ON st.staff_id = ss.staff_id
         JOIN users u ON u.user_id = st.user_id
         WHERE ss.service_id = ? AND u.status = 'ACTIVE'
-        ORDER BY st.rating DESC, st.experience_year DESC`, [req.params.id]),
+        ORDER BY rating DESC, st.experience_year DESC`, [req.params.id]),
       pool.query(`SELECT r.review_id AS id, u.full_name AS customerName, u.avatar AS customerAvatarUrl,
         r.rating, r.comment, r.image AS imageUrl, r.created_at AS createdAt
         FROM review r JOIN booking b ON b.booking_id = r.booking_id

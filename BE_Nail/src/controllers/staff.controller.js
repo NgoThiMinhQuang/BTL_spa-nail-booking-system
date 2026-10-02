@@ -9,14 +9,21 @@ export async function listStaff(req, res, next) {
   try {
     const [staffRows, serviceRows] = await Promise.all([
       pool.query(`SELECT st.staff_id AS id, u.full_name AS name, u.avatar AS avatarUrl,
-          st.experience_year AS experienceYears, st.specialty, st.rating,
-          (SELECT COUNT(*) FROM booking b JOIN review r ON r.booking_id = b.booking_id
-            WHERE b.staff_id = st.staff_id) AS reviewCount,
+          st.experience_year AS experienceYears, st.specialty,
+          /* Điểm đánh giá tính trực tiếp từ review — bảng staff không còn
+             cột rating cache, tránh tình trạng staff.rating = 4.2 trong khi
+             trung bình đánh giá thật là 4.8. */
+          (SELECT ROUND(AVG(r.rating), 1) FROM review r
+             JOIN booking b ON b.booking_id = r.booking_id
+            WHERE b.staff_id = st.staff_id) AS rating,
+          (SELECT COUNT(*) FROM review r2
+             JOIN booking b2 ON b2.booking_id = r2.booking_id
+            WHERE b2.staff_id = st.staff_id) AS reviewCount,
           EXISTS(SELECT 1 FROM staff_schedule sc WHERE sc.staff_id = st.staff_id
             AND sc.work_date = CURRENT_DATE()) AS worksToday
         FROM staff st JOIN users u ON u.user_id = st.user_id
         WHERE u.status = 'ACTIVE'
-        ORDER BY st.rating DESC, st.experience_year DESC, u.full_name ASC`),
+        ORDER BY rating DESC, st.experience_year DESC, u.full_name ASC`),
       pool.query(`SELECT ss.staff_id AS staffId, s.service_id AS id, s.service_name AS name,
           c.category_name AS categoryName
         FROM staff_service ss JOIN services s ON s.service_id = ss.service_id
@@ -37,7 +44,7 @@ export async function listStaff(req, res, next) {
         id: String(staff.id),
         avatarUrl: imageUrl(req, staff.avatarUrl),
         experienceYears: Number(staff.experienceYears),
-        rating: Number(staff.rating ?? 0),
+        rating: staff.rating == null ? null : Number(staff.rating),
         reviewCount: Number(staff.reviewCount),
         worksToday: Boolean(staff.worksToday),
         services: servicesByStaff.get(String(staff.id)) ?? [],
@@ -55,9 +62,13 @@ export async function getStaff(req, res, next) {
 
     const [staffResult, servicesResult, portfolioResult, reviewsResult] = await Promise.all([
       pool.query(`SELECT st.staff_id AS id, u.full_name AS name, u.avatar AS avatarUrl,
-          st.experience_year AS experienceYears, st.specialty, st.rating,
-          (SELECT COUNT(*) FROM booking b JOIN review r ON r.booking_id = b.booking_id
-            WHERE b.staff_id = st.staff_id) AS reviewCount,
+          st.experience_year AS experienceYears, st.specialty,
+          (SELECT ROUND(AVG(r.rating), 1) FROM review r
+             JOIN booking b ON b.booking_id = r.booking_id
+            WHERE b.staff_id = st.staff_id) AS rating,
+          (SELECT COUNT(*) FROM review r2
+             JOIN booking b2 ON b2.booking_id = r2.booking_id
+            WHERE b2.staff_id = st.staff_id) AS reviewCount,
           EXISTS(SELECT 1 FROM staff_schedule sc WHERE sc.staff_id = st.staff_id
             AND sc.work_date = CURRENT_DATE()) AS worksToday
         FROM staff st JOIN users u ON u.user_id = st.user_id
@@ -84,7 +95,7 @@ export async function getStaff(req, res, next) {
     res.json({ data: {
       ...staff,
       id: String(staff.id), avatarUrl: imageUrl(req, staff.avatarUrl),
-      experienceYears: Number(staff.experienceYears), rating: Number(staff.rating ?? 0),
+      experienceYears: Number(staff.experienceYears), rating: staff.rating == null ? null : Number(staff.rating),
       reviewCount: Number(staff.reviewCount), worksToday: Boolean(staff.worksToday),
       services: servicesResult[0].map((item) => ({ ...item, id: String(item.id) })),
       portfolio: portfolioResult[0].map((item) => ({ ...item, imageUrl: imageUrl(req, item.imageUrl) })),

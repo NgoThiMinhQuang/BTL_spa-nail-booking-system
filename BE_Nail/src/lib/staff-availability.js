@@ -1,29 +1,94 @@
 /* ===== Kiểm tra khả dụng của nhân viên cho một khung giờ =====
 
-   Trang Quản lý lịch hẹn cần hỏi "nhân viên này còn nhận lịch được không?"
-   trước khi xác nhận hay đổi người. Trả lời phải nêu rõ lý do bị từ chối
-   để Admin không phải tự suy đoán:
-     - không còn làm việc (users.status)
-     - không thực hiện được dịch vụ này (staff_service)
-     - không có ca trong ngày, hoặc ca đã OFF
-     - giờ đặt nằm ngoài ca
-     - trùng với lịch khác
+   Đây là bộ luật trung tâm của hệ thống: mọi đường đặt lịch — khách đặt
+   trên Mobile, quản trị tạo lịch khách vãng lai, quản trị đổi người hoặc
+   đổi giờ — đều hỏi đúng hàm ở đây. Trước đây mỗi nơi tự viết một
+   câu kiểm tra riêng nên có lúc quản trị cho phép cái mà Mobile chặn.
 
-   Cùng một bộ luật dùng lại cho cả POST /bookings và PATCH /bookings/:id
-   nên không có chuyện một đường kiểm tra còn đường kia bỏ sót. */
+   Nhân viên nhận được lịch khi thỏa đồng thời:
+     1. Tài khoản còn ACTIVE
+     2. Được gán dịch vụ này (staff_service)
+     3. Trong ngày đó có ca làm AVAILABLE và giờ nằm trong ca
+     4. Không có yêu cầu nghỉ nào được duyệt chồng lên khung giờ
+     5. Không trùng lịch khác, tính cả khoảng nghỉ giữa hai lịch
+
+   Một điểm rất dễ sai: so sánh thời gian phải thống nhất một đơn vị. Ở đây
+   mọi thứ được quy về **phút tính từ 00:00 của ngày xét** rồi mới so
+   `start < busy.to && end > busy.from`. Trước đây một vế là timestamp
+   Unix (new Date(...).getTime()) còn vế kia là `minute * 60000`, hai đại
+   lượng khác nhau khiến phần kiểm tra trùng lịch trả về kết quả tùy tiện. */
 
 import { pool } from '../config/database.js';
 import { clockOf, dayOf } from './booking-labels.js';
 
+/* ================================================================
+   Đổi đơn vị thời gian
+   ================================================================ */
+
+/** 'HH:mm' hoặc Date → số phút kể từ 00:00 của ngày đó. */
+export function minutesOfClock(value) {
+  if (value instanceof Date) return value.getHours() * 60 + value.getMinutes();
+  const text = String(value ?? '');
+  /* Cột TIME của staff_schedule trả về 'HH:mm:ss' hoặc Date do driver. */
+  if (/^\d{2}:\d{2}/.test(text)) {
+    const [hour, minute] = text.slice(0, 5).split(':').map(Number);
+    return hour * 60 + minute;
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return 0;
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+/** Số phút → 'HH:mm'. */
+export function clockOfMinutes(minutes) {
+  return `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/** Khoảng [from, to) có chồng nhau với khoảng [a, b) không. */
+const overlaps = (from, to, a, b) => from < b && to > a;
+
+/** Ngày 'YYYY-MM-DD' của một mốc thời gian, theo giờ địa phương. */
+const dayOfStart = (startsAt) => dayOf(startsAt);
+
+/* ================================================================
+   Yêu cầu nghỉ đã được duyệt
+   ---------------------------------------------------------------
+   staff_leave_request.status = 'APPROVED' là nguồn sự thật về ngày
+   nghỉ. Trước đó hệ thống dùng staff_schedule.status = 'OFF' để đánh
+   dấu nghỉ, thiếu hẳn khái niệm "yêu cầu nghỉ chờ duyệt" và không
+   biết ai duyệt, duyệt lúc nào.
+   ================================================================ */
+
+/** Có yêu cầu nghỉ đã duyệt nào chồng lên khoảng thời gian này không? */
+export async function approvedLeaveOverlaps({ staffId, startsAt, endsAt }) {
+  const [rows] = await pool.query(
+    `SELECT lr.leave_request_id AS id, lr.start_datetime AS startDatetime,
+            lr.end_datetime AS endDatetime, lr.reason,
+            COALESCE(u.full_name, 'Nhân viên') AS staffName
+       FROM staff_leave_request lr
+       LEFT JOIN staff st ON st.staff_id = lr.staff_id
+       LEFT JOIN users u ON u.user_id = st.user_id
+      WHERE lr.staff_id = ? AND lr.status = 'APPROVED'
+        AND lr.start_datetime < ? AND lr.end_datetime > ?
+      LIMIT 1`,
+    [staffId, endsAt, startsAt],
+  );
+  return rows[0] ?? null;
+}
+
+/* ================================================================
+   Khả dụng cho một khung giờ cụ thể
+   ================================================================ */
+
 /**
  * Trả về `{ ok: true, staffName }` nếu nhân viên nhận được lịch,
- * hoặc `{ ok: false, reason }` bằng tiếng Việt để hiện thẳng cho Admin.
+ * hoặc `{ ok: false, reason }` bằng tiếng Việt để hiện thẳng ra giao diện.
  * `reason` luôn kèm số liệu cụ thể, không trả lời chung chung kiểu "không ổn".
  */
 export async function checkStaffAvailable({
-  bookingId = null, staffId, serviceId, startsAt, endsAt,
+  bookingId = null, staffId, serviceId, startsAt, endsAt, runner = pool,
 }) {
-  const [[staff]] = await pool.query(
+  const [[staff]] = await runner.query(
     `SELECT st.staff_id, u.full_name, u.status
        FROM staff st JOIN users u ON u.user_id = st.user_id
       WHERE st.staff_id = ? LIMIT 1`, [staffId]);
@@ -33,15 +98,15 @@ export async function checkStaffAvailable({
     return { ok: false, reason: `${staff.full_name} đã ngừng làm việc.` };
   }
 
-  const [[canDo]] = await pool.query(
+  const [[canDo]] = await runner.query(
     `SELECT 1 AS ok FROM staff_service WHERE staff_id = ? AND service_id = ? LIMIT 1`,
     [staffId, serviceId]);
   if (!canDo) {
     return { ok: false, reason: `${staff.full_name} không thực hiện được dịch vụ này.` };
   }
 
-  const day = dayOf(startsAt);
-  const [[shift]] = await pool.query(
+  const day = dayOfStart(startsAt);
+  const [[shift]] = await runner.query(
     `SELECT start_time AS startTime, end_time AS endTime, status
        FROM staff_schedule WHERE staff_id = ? AND work_date = ? LIMIT 1`,
     [staffId, day]);
@@ -49,18 +114,32 @@ export async function checkStaffAvailable({
   if (!shift) return { ok: false, reason: `${staff.full_name} không có ca làm ngày ${day}.` };
   if (shift.status === 'OFF') return { ok: false, reason: `${staff.full_name} đã nghỉ ngày ${day}.` };
 
-  const from = clockOf(shift.startTime);
-  const to = clockOf(shift.endTime);
-  if (clockOf(startsAt) < from || clockOf(endsAt) > to) {
+  const from = minutesOfClock(shift.startTime);
+  const to = minutesOfClock(shift.endTime);
+  const startMinute = minutesOfClock(startsAt);
+  const endMinute = minutesOfClock(endsAt);
+  if (startMinute < from || endMinute > to) {
     return {
       ok: false,
-      reason: `${staff.full_name} chỉ làm từ ${from} đến ${to} ngày ${day}.`,
+      reason: `${staff.full_name} chỉ làm từ ${clockOfMinutes(from)} đến ${clockOfMinutes(to)} ngày ${day}.`,
+    };
+  }
+
+  /* Nghỉ đã được duyệt: đây là lý do nghỉ cần bảng riêng thay vì chỉ ghi
+     ca OFF — một ca OFF không cho biết ai xin nghỉ và Admin duyệt lúc nào. */
+  const leave = await approvedLeaveOverlaps({ staffId, startsAt, endsAt });
+  if (leave) {
+    return {
+      ok: false,
+      reason: `${staff.full_name} đang được nghỉ `
+        + `(${clockOf(leave.startDatetime)} ngày ${dayOfStart(leave.startDatetime)} `
+        + `– ${clockOf(leave.endDatetime)} ngày ${dayOfStart(leave.endDatetime)}).`,
     };
   }
 
   /* Trùng lịch: hai khoảng thời gian có phần chồng nhau. bookingId bị loại
      khỏi điều kiện để lịch đang xét không tự đụng độ với chính nó. */
-  const [[clash]] = await pool.query(
+  const [[clash]] = await runner.query(
     `SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
             s.service_name AS serviceName,
             COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName
@@ -135,53 +214,86 @@ export async function listAvailableStaff({ bookingId = null, serviceId, startsAt
   return { available, blocked };
 }
 
-/** Các khung giờ còn trống của một nhân viên trong ngày, dùng cho hộp đổi lịch. */
-export async function freeSlotsForStaff({ staffId, serviceId, day, stepMinutes = 30 }) {
-  const [[shift]] = await pool.query(
+/* ================================================================
+   Khung giờ còn trống
+   ================================================================ */
+
+/**
+ * Các khung giờ còn trống của một nhân viên trong ngày.
+ *
+ * @param {number}  serviceId   dịch vụ cần đủ thời lượng + buffer
+ * @param {number}  duration    thời lượng dịch vụ (phút). Lịch đang xét thì
+ *                              lấy từ snapshot booking.service_duration
+ *                              để đổi giờ một lịch cũ không bị kéo dài.
+ * @param {number}  bufferTime  khoảng nghỉ sau dịch vụ (phút)
+ * @param {number}  bookingId   lịch đang sửa, để không tự loại chính nó
+ */
+export async function freeSlotsForStaff({
+  bookingId = null, staffId, serviceId, day, duration, bufferTime, stepMinutes = 30, runner = pool,
+}) {
+  const [[shift]] = await runner.query(
     `SELECT start_time AS startTime, end_time AS endTime
        FROM staff_schedule
       WHERE staff_id = ? AND work_date = ? AND status = 'AVAILABLE' LIMIT 1`,
     [staffId, day]);
   if (!shift) return [];
 
-  const [[svc]] = await pool.query(
-    `SELECT duration, buffer_time AS bufferTime FROM services WHERE service_id = ? LIMIT 1`,
-    [serviceId]);
-  const need = (Number(svc?.duration ?? 0) + Number(svc?.bufferTime ?? 0)) * 60000;
+  /* Thời lượng lấy từ tham số; không truyền thì đọc từ dịch vụ. Đây là
+     lý do một lịch cũ đã đặt trước khi dịch vụ đổi thời lượng vẫn giữ
+     đúng độ dài tại thời điểm khách đặt. */
+  let need = Number(duration);
+  if (!Number.isFinite(need)) {
+    const [[svc]] = await runner.query(
+      `SELECT duration, buffer_time AS bufferTime FROM services WHERE service_id = ? LIMIT 1`,
+      [serviceId]);
+    if (!svc) return [];
+    need = Number(svc.duration ?? 0) + Number(svc.bufferTime ?? 0);
+  } else {
+    need += Number(bufferTime ?? 0);
+  }
 
-  const [booked] = await pool.query(
+  const [booked] = await runner.query(
     `SELECT start_time AS startTime, end_time AS endTime FROM booking
       WHERE staff_id = ? AND DATE(start_time) = ?
         AND status IN ('PENDING','CONFIRMED','PROCESSING')
-      ORDER BY start_time`, [staffId, day]);
+        AND (? IS NULL OR booking_id <> ?)
+      ORDER BY start_time`, [staffId, day, bookingId, bookingId]);
 
-  const toMinutes = (value) => {
-    const [h, m] = String(value).slice(0, 5).split(':').map(Number);
-    return h * 60 + m;
-  };
-  const toClock = (minutes) =>
-    `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-
+  /* Quy tất cả về phút trong ngày rồi mới so sánh — trước đây một vế là
+     timestamp Unix còn vế kia là `minute * 60000`, lệch đơn vị nên phần
+     kiểm tra trùng lịch cho kết quả không đáng tin. */
   const busy = booked.map((row) => ({
-    from: new Date(row.startTime).getTime(),
-    to: new Date(row.endTime).getTime(),
+    from: minutesOfClock(row.startTime),
+    to: minutesOfClock(row.endTime),
   }));
 
-  const shiftStart = toMinutes(shift.startTime);
-  const shiftEnd = toMinutes(shift.endTime);
+  /* Lịch đã được duyệt nghỉ trong ngày cũng chiếm chỗ, dù ca làm vẫn mở. */
+  const [leaves] = await runner.query(
+    `SELECT start_datetime AS startDatetime, end_datetime AS endDatetime
+       FROM staff_leave_request
+      WHERE staff_id = ? AND status = 'APPROVED'
+        AND DATE(start_datetime) <= ? AND DATE(end_datetime) >= ?`,
+    [staffId, day, day]);
+  const away = leaves.map((row) => ({
+    from: minutesOfClock(row.startDatetime),
+    to: minutesOfClock(row.endDatetime),
+  }));
+
+  const shiftStart = minutesOfClock(shift.startTime);
+  const shiftEnd = minutesOfClock(shift.endTime);
   const slots = [];
 
-  for (let minute = shiftStart; minute * 60000 + need <= shiftEnd * 60000; minute += stepMinutes) {
-    const from = minute * 60000;
-    const to = from + need;
-    const overlaps = busy.some((slot) => from < slot.to && to > slot.from);
-    if (!overlaps) slots.push(toClock(minute));
+  for (let minute = shiftStart; minute + need <= shiftEnd; minute += stepMinutes) {
+    if (!overlaps(minute, minute + need, shiftStart, shiftEnd)) continue;
+    if (busy.some((slot) => overlaps(minute, minute + need, slot.from, slot.to))) continue;
+    if (away.some((slot) => overlaps(minute, minute + need, slot.from, slot.to))) continue;
+    slots.push(clockOfMinutes(minute));
   }
 
   return slots;
 }
 
-/** Những người thỏa cả ba điều kiện: còn làm việc, làm được dịch vụ này,
+/** Những người thỏa ba điều kiện: còn làm việc, làm được dịch vụ này,
     và có ca trong ngày. Đây là danh sách ứng viên cho lựa chọn "Bất kỳ
     nhân viên phù hợp" — cùng một bộ luật với `listAvailableStaff`. */
 export async function eligibleStaffIds({ serviceId, day }) {
@@ -198,7 +310,7 @@ export async function eligibleStaffIds({ serviceId, day }) {
 }
 
 /**
- * Chọn một nhân viên phù hợp cho khung giờ, dùng khi Admin không chỉ định
+ * Chọn một nhân viên phù hợp cho khung giờ, dùng khi không chỉ định
  * người ("Bất kỳ nhân viên phù hợp").
  *
  * Cố tình gọi lại `checkStaffAvailable` cho từng người thay vì viết một
@@ -207,12 +319,12 @@ export async function eligibleStaffIds({ serviceId, day }) {
  *
  * Ưu tiên người ít lịch hơn trong ngày để lịch không dồn về một người.
  */
-export async function pickStaffForSlot({ serviceId, startsAt, endsAt }) {
-  const day = dayOf(startsAt);
+export async function pickStaffForSlot({ serviceId, startsAt, endsAt, runner = pool }) {
+  const day = dayOfStart(startsAt);
   const ids = await eligibleStaffIds({ serviceId, day });
   if (!ids.length) return { ok: false, reason: 'Không có nhân viên nào làm được dịch vụ này trong ngày đã chọn.' };
 
-  const [busy] = await pool.query(
+  const [busy] = await runner.query(
     `SELECT staff_id, COUNT(*) AS n FROM booking
       WHERE DATE(start_time) = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
       GROUP BY staff_id`, [day]);
@@ -220,7 +332,9 @@ export async function pickStaffForSlot({ serviceId, startsAt, endsAt }) {
 
   const ranked = [...ids].sort((a, b) => (load.get(a) ?? 0) - (load.get(b) ?? 0) || a - b);
   for (const id of ranked) {
-    const check = await checkStaffAvailable({ staffId: id, serviceId, startsAt, endsAt });
+    const check = await checkStaffAvailable({
+      staffId: id, serviceId, startsAt, endsAt, runner,
+    });
     if (check.ok) return { ...check, staffId: id };
   }
   return { ok: false, reason: 'Khung giờ này không còn nhân viên phù hợp nào nhận được.' };
@@ -233,11 +347,11 @@ export async function pickStaffForSlot({ serviceId, startsAt, endsAt }) {
  * là ứng viên còn trống để backend tự chọn. Giao diện chỉ hiện `slots`;
  * người được chọn thật sự quyết định lúc tạo lịch, không phải lúc bấm chuột.
  */
-export async function freeSlotsForAnyStaff({ serviceId, day, stepMinutes = 30 }) {
+export async function freeSlotsForAnyStaff({ serviceId, day, duration, bufferTime, stepMinutes = 30 }) {
   const ids = await eligibleStaffIds({ serviceId, day });
   const perStaff = await Promise.all(ids.map(async (id) => ({
     id,
-    slots: await freeSlotsForStaff({ staffId: id, serviceId, day, stepMinutes }),
+    slots: await freeSlotsForStaff({ staffId: id, serviceId, day, duration, bufferTime, stepMinutes }),
   })));
 
   /* Giờ mà càng nhiều người nhận được thì càng chắc chắn còn nhận được. */
@@ -256,4 +370,20 @@ export async function freeSlotsForAnyStaff({ serviceId, day, stepMinutes = 30 })
     ),
     staffCount: perStaff.filter((person) => person.slots.length).length,
   };
+}
+
+/**
+ * Chống đặt trùng ở tầng database, dùng chung cho mọi đường tạo lịch.
+ *
+ * Khoá dòng lịch của nhân viên trong giao dịch để hai request gửi cùng
+ * lúc không cùng nhận một khung giờ: request thứ nhất giữ khoá, request thứ
+ * hai phải chờ, đọc thấy lịch vừa ghi và nhận HTTP 409.
+ */
+export async function lockStaffBookings({ connection, staffId, startsAt, endsAt }) {
+  await connection.query(
+    `SELECT booking_id FROM booking
+      WHERE staff_id = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
+        AND start_time < ? AND end_time > ?
+      LIMIT 1 FOR UPDATE`,
+    [staffId, endsAt, startsAt]);
 }
