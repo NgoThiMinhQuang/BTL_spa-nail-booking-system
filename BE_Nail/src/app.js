@@ -57,17 +57,24 @@ app.use('/api/auth', authRoutes);
    xem dịch vụ và nhân viên trước khi đăng ký. */
 app.use('/api/home', homeRoutes);
 app.use('/api/services', serviceRoutes);
+
+/* ---- Hồ sơ khách phía nhân viên, danh mục dịch vụ của nhân viên ----
+   Hai nhóm này MANG ĐƯỜNG DẪN RIÊNG (/api/staff/customers, /api/staff/services)
+   nên phải đăng ký TRƯỚC /api/staff. Nếu để sau, router của /api/staff sẽ
+   bắt trước và áp middleware "bắt buộc token nhân viên" lên cả hai — đúng
+   vai trò thì chạy, nhưng dễ vỡ khi ai đó thêm route mới. */
+app.use('/api/staff/customers', customerRoutes);
+app.use('/api/staff/services', staffServiceRoutes);
+
+/* Danh mục nhân viên: / và /:id công khai cho khách xem trước khi đặt lịch,
+   còn /dashboard và /leave-requests bắt buộc token nhân viên (xem trong
+   staff.routes.js). */
 app.use('/api/staff', staffRoutes);
 
 /* ---- Lịch hẹn phía khách + cập nhật tiến trình của nhân viên ----
    Router tự gắn middleware theo từng nhóm: xem lịch và đặt lịch cần
    token CUSTOMER, bắt đầu/hoàn thành cần token STAFF. */
 app.use('/api/bookings', bookingRoutes);
-
-/* ---- Hồ sơ khách phía nhân viên ---- */
-app.use('/api/staff/customers', customerRoutes);
-/* Danh mục dịch vụ của chính nhân viên — chỉ đọc. */
-app.use('/api/staff/services', staffServiceRoutes);
 
 /* ---- Thanh toán của khách ---- */
 app.get('/api/customer/payments', authenticate, requireCustomer, getMyPayments);

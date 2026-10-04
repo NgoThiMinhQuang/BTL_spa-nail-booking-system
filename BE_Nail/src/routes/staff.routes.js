@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getStaff, listStaff } from '../controllers/staff.controller.js';
 import {
   createLeaveRequest,
   createScheduleRequest,
@@ -10,20 +11,36 @@ import { authenticate, requireStaff } from '../lib/auth.js';
 
 const router = Router();
 
-/* Mọi thứ dưới đây là việc riêng của nhân viên, nên bắt buộc có token
-   vai trò STAFF. Trước đây nhân viên tự chọn id trên URL và không có
-   kiểm tra gì cả. */
-router.use(authenticate, requireStaff);
+/* Trước đây nhân viên tự chọn id trên URL và không có kiểm tra gì cả, nên
+   chỉ cần đổi con số là xem được lịch của nhân viên khác. Nay danh tính
+   lấy từ token. */
 
-/* Bảng điều khiển: chỉ trả lịch của chính mình. */
-router.get('/dashboard', staffDashboard);
+/* ================================================================
+   1. ĐƯỜNG RIÊNG CỦA NHÂN VIÊN
+   ---------------------------------------------------------------
+   Phải khai báo TRƯỚC `/:id` bên dưới, nếu không chuỗi "dashboard" hay
+   "leave-requests" sẽ bị `:id` nuốn và nhân viên không vào được màn
+   hình của chính mình. */
+router.get('/dashboard', authenticate, requireStaff, staffDashboard);
 
 /* Yêu cầu nghỉ — chỉ tạo cho chính mình, không tự duyệt được. */
-router.post('/leave-requests', createLeaveRequest);
-router.get('/leave-requests', listMyLeaveRequests);
+router.post('/leave-requests', authenticate, requireStaff, createLeaveRequest);
+router.get('/leave-requests', authenticate, requireStaff, listMyLeaveRequests);
 
 /* Yêu cầu lịch làm việc — chỉ gửi đề nghị, chưa có hiệu lực. */
-router.post('/schedule-requests', createScheduleRequest);
-router.get('/schedule-requests', listMyScheduleRequests);
+router.post('/schedule-requests', authenticate, requireStaff, createScheduleRequest);
+router.get('/schedule-requests', authenticate, requireStaff, listMyScheduleRequests);
+
+/* ================================================================
+   2. DANH MỤC NHÂN VIÊN — công khai
+   ---------------------------------------------------------------
+   Khách cần xem nhân viên và hồ sơ của họ TRƯỚC khi đặt lịch, nên hai
+   đường này không yêu cầu đăng nhập. Nội dung trả về chỉ gồm tên, ảnh,
+   chuyên môn, kinh nghiệm và điểm đánh giá — không có thông tin riêng tư
+   nào cần đăng nhập.
+
+   Đặt CUỐI router vì `/:id` sẽ khớp mọi đường còn lại. */
+router.get('/', listStaff);
+router.get('/:id', getStaff);
 
 export default router;
