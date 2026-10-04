@@ -6,7 +6,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useReducer,
   useRef, type ReactNode, type Dispatch,
 } from 'react';
-import type { Dashboard, ServiceItem, StaffOption, Role, AuthUser } from './types';
+import type { Dashboard, ServiceItem, Role, AuthUser } from './types';
 import { localDate } from './lib/utils';
 import { resetPages } from './hooks/usePager';
 
@@ -37,7 +37,6 @@ export interface AppState {
   date: string;
   staffId: string;
   data: Dashboard | null;
-  staffList: StaffOption[];
   selected: string | null;
   query: string;
   status: string;
@@ -64,7 +63,6 @@ export const initialState: AppState = {
   date: localDate(),
   staffId: initialUser?.id ?? '',
   data: null,
-  staffList: [],
   selected: null,
   query: '',
   status: '',
@@ -82,8 +80,6 @@ export const initialState: AppState = {
 export type Action =
   | { type: 'login'; user: AuthUser }
   | { type: 'logout' }
-  | { type: 'staffLoaded'; staff: StaffOption[]; staffId: string }
-  | { type: 'staffChanged'; staffId: string }
   | { type: 'loadStart' }
   | { type: 'loadDone'; data: Dashboard; rangeBookings: Dashboard['bookings']; selected: string | null }
   | { type: 'loadError'; message: string }
@@ -148,15 +144,6 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         user: null,
         view: 'home',
-      };
-
-    case 'staffLoaded':
-      return { ...state, staffList: action.staff, staffId: action.staffId };
-
-    case 'staffChanged':
-      return {
-        ...state, staffId: action.staffId, selected: null,
-        customerId: null, feedback: '', loading: true, reloadToken: state.reloadToken + 1,
       };
 
     case 'loadStart':
@@ -324,22 +311,16 @@ interface Store {
 
 const AppContext = createContext<Store | null>(null);
 
+/* Nhân viên đang đăng nhập lấy từ token, không phải từ danh sách nhân viên.
+
+   Trước đây vòng tải này gọi GET /api/staff rồi chọn `staff[0].id` — tức là
+   người đầu tiên trong danh sách chứ không phải người đã đăng nhập. Nhân viên
+   đăng nhập thì thấy tên và lịch của đồng nghiệp khác. Nay không cần danh
+   sách này nữa: backend tự xác định ai đang gọi, nên danh tính lấy thẳng từ
+   token đã lưu. */
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const seq = useRef(0);
-
-  /* Danh sách nhân viên: chỉ gọi một lần khi khởi động. */
-  useEffect(() => {
-    let alive = true;
-    apiRequest<StaffOption[]>('/api/staff')
-      .then((staff) => {
-        if (!alive) return;
-        if (!staff.length) throw new Error('Chưa có nhân viên hoạt động trong hệ thống.');
-        dispatch({ type: 'staffLoaded', staff, staffId: String(staff[0].id) });
-      })
-      .catch((error: Error) => { if (alive) dispatch({ type: 'initError', message: error.message }); });
-    return () => { alive = false; };
-  }, []);
 
   /* Dashboard: một vòng tải duy nhất, chạy khi đổi nhân viên / ngày / chế độ. */
   const { staffId, date, calendarMode, reloadToken, selected } = state;

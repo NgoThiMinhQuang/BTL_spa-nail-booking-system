@@ -119,16 +119,15 @@ export function Layout({
             <button type="submit" aria-label="Tìm kiếm">↵</button>
           </form>
           <div className="account">
-            <label htmlFor="staff-select">Nhân viên</label>
-            <select
-              id="staff-select"
-              aria-label="Chọn nhân viên"
-              value={state.staffId}
-              onChange={(e) => { dispatch({ type: 'staffChanged', staffId: e.target.value }); }}
-            >
-              {state.staffList.length === 0 && <option>Đang tải…</option>}
-              {state.staffList.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
-            </select>
+            {/* Hiển thị tên nhân viên ĐANG ĐĂNG NHẬP, không phải một danh sách
+                để chọn. Trước đây ở đây là <select> liệt kê toàn bộ nhân viên
+                và mặc định chọn người đầu tiên trong danh sách — nên nhân viên
+                đăng nhập lại thấy tên và lịch của đồng nghiệp khác. Nay backend
+                lấy danh tính từ token nên không thể xem lịch của nhau, và ô này
+                chỉ còn để nhắc ai đang làm việc. */}
+            <span className="account-name">
+              {state.data ? state.data.profile.name : state.user?.name ?? 'Đang tải…'}
+            </span>
             <span className="account-avatar">
               {state.data
                 ? <Avatar name={state.data.profile.name} url={state.data.profile.avatar} />
