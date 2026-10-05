@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#333333',
     letterSpacing: 0.5,
   },

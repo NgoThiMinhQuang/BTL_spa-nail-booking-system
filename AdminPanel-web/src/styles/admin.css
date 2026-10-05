@@ -708,3 +708,7 @@
 .adm-svc-group label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .adm-svc-group label em{font-style:normal;color:var(--nh-muted);font-size:12px;white-space:nowrap}
 #nailhouse .sidebar{overflow-y:auto;scrollbar-width:thin}
+.adm-staff-skills{margin:8px 0 0;font-size:12px;color:var(--nh-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.adm-person-phone{color:inherit;text-decoration:none}
+a.adm-person-phone:hover{color:var(--nh-primary-dark);text-decoration:underline}
+.adm-person-nums dd small{font-weight:400;color:var(--nh-muted);font-size:11px}

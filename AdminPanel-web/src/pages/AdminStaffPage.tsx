@@ -18,7 +18,9 @@ export function AdminStaffPage() {
   const [term, setTerm] = useState('');
   const [specialty, setSpecialty] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
-  const [sort, setSort] = useState<'name' | 'revenue' | 'rating' | 'completed'>('name');
+  const [sort, setSort] = useState<'name' | 'revenue' | 'rating' | 'bookings'>('revenue');
+
+  const activeStaff = staff.filter((item) => (item.status ?? 'ACTIVE') === 'ACTIVE');
 
   const [editing, setEditing] = useState<StaffItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -143,8 +145,8 @@ export function AdminStaffPage() {
         || (item.specialty ?? '').toLowerCase().includes(term.toLowerCase())))
     .sort((a, b) => {
       if (sort === 'revenue') return b.revenue - a.revenue;
-      if (sort === 'rating') return (b.rating ?? -1) - (a.rating ?? -1);
-      if (sort === 'completed') return b.completedCount - a.completedCount;
+      if (sort === 'rating') return (b.rating ?? 0) - (a.rating ?? 0);
+      if (sort === 'bookings') return b.bookingCount - a.bookingCount;
       return a.name.localeCompare(b.name, 'vi');
     });
 
@@ -154,14 +156,10 @@ export function AdminStaffPage() {
   const avgRating = rated.length
     ? rated.reduce((sum, item) => sum + (item.rating ?? 0), 0) / rated.length : null;
 
-  /** Đếm nhân viên thực hiện được từng danh mục, để đổ danh mục ở bộ lọc. */
-  const categoryOf = (serviceId: string) =>
-    services.find((service) => service.id === serviceId)?.category;
-
   return (
     <>
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="adminStaff" label="Nhân viên" value={staff.length} note="đang hoạt động" />
+        <StatTile tone="rose" icon="adminStaff" label="Nhân viên" value={`${activeStaff.length}/${staff.length}`} note="đang làm việc" />
         <StatTile tone="sage" icon="clock" label="Đang trong ca" value={`${onShift}/${staff.length}`} note="hôm nay" />
         <StatTile tone="gold" icon="dollar" label="Doanh thu nhân sự" value={moneyShort(totalRevenue)} note="lịch hoàn thành" />
         <StatTile tone="lavender" icon="star" label="Điểm đánh giá" value={fmtRating(avgRating)}
@@ -201,10 +199,10 @@ export function AdminStaffPage() {
           </select>
           <select aria-label="Sắp xếp" value={sort}
             onChange={(e) => setSort(e.target.value as typeof sort)}>
-            <option value="name">Tên A → Z</option>
             <option value="revenue">Doanh thu cao</option>
             <option value="rating">Đánh giá cao</option>
-            <option value="completed">Nhiều lịch hoàn thành</option>
+            <option value="bookings">Nhiều lịch nhất</option>
+            <option value="name">Tên A → Z</option>
           </select>
         </div>
 
@@ -227,44 +225,37 @@ export function AdminStaffPage() {
                   </span>
                 </div>
 
-                {/* Hai con số "122 lịch" và "66 hoàn thành" trước đây đứng riêng
-                    nên không thấy quan hệ — nay gộp thành tỉ lệ hoàn thành
-                    với thanh tiến trình, nhìn một cái biết ai làm chắc tay. */}
                 <div className="adm-person-meta">
-                  <span><Icon name="star" /> {fmtRating(item.rating)}
-                    {item.reviewCount > 0 ? ` (${item.reviewCount})` : ''}</span>
-                  <span><Icon name="dollar" /> {moneyShort(item.revenue)}</span>
-                  <span>{item.experienceYears} năm KN · {item.serviceCount} dịch vụ</span>
+                  <span title="Điểm trung bình / số lượt đánh giá">
+                    <Icon name="star" /> {fmtRating(item.rating)}
+                    {item.reviewCount > 0 ? ` (${item.reviewCount})` : ''}
+                  </span>
+                  <span title="Tổng số lịch đã nhận">
+                    <Icon name="schedule" /> {fmtNum(item.bookingCount)} lịch
+                  </span>
+                  <span title="Doanh thu từ lịch hoàn thành">
+                    <Icon name="dollar" /> {moneyShort(item.revenue)}
+                  </span>
                 </div>
 
-                {(() => {
-                  const total = Math.max(1, item.bookingCount);
-                  const rate = Math.min(100, Math.round((item.completedCount / total) * 100));
-                  return (
-                    <div className="adm-complete">
-                      <div className="adm-complete-top">
-                        <span>Hoàn thành {fmtNum(item.completedCount)}/{fmtNum(item.bookingCount)}</span>
-                        <strong>{rate}%</strong>
-                      </div>
-                      <div className="adm-complete-track">
-                        <div className="adm-complete-fill" style={{ width: `${rate}%` }} />
-                      </div>
-                    </div>
-                  );
-                })()}
+                <dl className="adm-person-nums">
+                  <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
+                  <div title="Lịch đã hoàn thành / tổng lịch">
+                    <dt>Hoàn thành</dt>
+                    <dd>{fmtNum(item.completedCount)}<small>/{fmtNum(item.bookingCount)}</small></dd>
+                  </div>
+                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}</dd></div>
+                </dl>
 
-                <div className="adm-cell-meta">
-                  {item.serviceNames.slice(0, 3).map((name) => {
-                    const match = services.find((service) => service.name === name);
-                    return <span key={name} className="adm-tag">{categoryOf(match?.id ?? '') ?? name}</span>;
-                  })}
-                  {item.serviceNames.length > 3 && (
-                    <span className="adm-tag">+{item.serviceNames.length - 3}</span>
-                  )}
-                </div>
+                {item.serviceNames.length > 0 && (
+                  <p className="adm-staff-skills" title={item.serviceNames.join(', ')}>
+                    {item.serviceNames.slice(0, 2).join(' · ')}
+                    {item.serviceNames.length > 2 && ` · +${item.serviceNames.length - 2}`}
+                  </p>
+                )}
 
                 <div className="adm-person-foot">
-                  <span className="adm-person-phone">{item.phone}</span>
+                  <a className="adm-person-phone" href={`tel:${item.phone}`}>{item.phone}</a>
                   {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
                     <span className="adm-lock-note">Không đăng nhập được</span>
                   )}
