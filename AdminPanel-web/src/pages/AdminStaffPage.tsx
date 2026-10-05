@@ -17,6 +17,7 @@ export function AdminStaffPage() {
 
   const [term, setTerm] = useState('');
   const [specialty, setSpecialty] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
 
   const [editing, setEditing] = useState<StaffItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -118,6 +119,7 @@ export function AdminStaffPage() {
   const rows = staff
     .filter((item) =>
       (specialty === 'all' || item.specialty === specialty)
+      && (statusFilter === 'all' || (item.status ?? 'ACTIVE') === statusFilter)
       && (item.name.toLowerCase().includes(term.toLowerCase())
         || (item.specialty ?? '').toLowerCase().includes(term.toLowerCase())));
 
@@ -166,19 +168,30 @@ export function AdminStaffPage() {
             <option value="all">Tất cả chuyên môn</option>
             {specialties.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
+          <select aria-label="Lọc theo trạng thái" value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+            <option value="all">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang làm việc</option>
+            <option value="INACTIVE">Đã khoá</option>
+          </select>
         </div>
 
         {rows.length === 0 ? (
           <EmptyState title="Không tìm thấy nhân viên" detail="Thử một từ khoá khác." />
         ) : (
-          <div className="adm-people">
-            {rows.map((item) => (
-              <article key={item.id} className="adm-person">
+          <div className="adm-people adm-staff">
+            {rows.map((item) => {
+              const locked = (item.status ?? 'ACTIVE') !== 'ACTIVE';
+              return (
+              <article key={item.id} className={`adm-person${locked ? ' is-off' : ''}`}>
                 <div className="adm-person-head">
                   <Avatar name={item.name} url={item.avatarUrl} size={44} />
                   <span style={{ minWidth: 0 }}>
                     <h3>{item.name}</h3>
                     <small>{item.specialty ?? 'Chưa cập nhật chuyên môn'}</small>
+                  </span>
+                  <span className={`badge ${locked ? 'cancelled' : item.worksToday ? 'completed' : 'pending'}`}>
+                    <i />{locked ? 'Đã khoá' : item.worksToday ? 'Trong ca' : 'Ngoài ca'}
                   </span>
                 </div>
 
@@ -206,24 +219,22 @@ export function AdminStaffPage() {
                 </div>
 
                 <div className="adm-person-foot">
-                  <span className={`badge ${item.worksToday ? 'completed' : 'pending'}`}>
-                    <i />{item.worksToday ? 'Đang trong ca' : 'Ngoài ca'}
-                  </span>
                   <span className="adm-person-phone">{item.phone}</span>
+                  {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
+                    <span className="adm-lock-note">Không đăng nhập được</span>
+                  )}
                 </div>
-                {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
-                  <p className="adm-error">Tài khoản đang bị khoá — không đăng nhập được.</p>
-                )}
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <div className="adm-staff-actions">
                   <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
                   <button className="button secondary" onClick={() => toggleStatus(item)}>
                     {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở khoá'}
                   </button>
-                  <button className="button secondary" onClick={() => removeStaff(item)}>Xoá</button>
+                  <button className="button secondary is-danger" onClick={() => removeStaff(item)}>Xoá</button>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </Panel>

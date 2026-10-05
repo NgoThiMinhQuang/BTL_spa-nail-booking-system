@@ -687,3 +687,9 @@
 .adm-cat-actions{display:flex;gap:6px}
 .adm-cat-actions .button{padding:6px 10px;font-size:12px}
 .button.is-danger{color:#b3261e}
+.adm-people.adm-staff{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.adm-person.is-off{opacity:.78}
+.adm-person-head .badge{margin-left:auto;flex:none}
+.adm-staff-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.adm-staff-actions .button{flex:1;padding:6px 8px;font-size:12px;white-space:nowrap}
+.adm-lock-note{font-size:11px;color:#b3261e}
