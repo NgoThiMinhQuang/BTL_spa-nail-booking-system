@@ -653,7 +653,8 @@ export async function updateStaff(req, res, next) {
     if (req.body?.password) {
       const problem = passwordProblem(req.body.password);
       if (problem) return res.status(400).json({ message: problem });
-      set.push('password = ?'); params.push(await hashPassword(req.body.password));
+      set.push('password = ?', 'password_changed_at = NOW()');
+      params.push(await hashPassword(req.body.password));
     }
 
     await connection.beginTransaction();

@@ -169,6 +169,20 @@ export function BookingPage() {
             {heading('schedule', 'Ghi chú từ khách hàng')}
             <p className="booking-note-text">{b.note || 'Khách hàng chưa có ghi chú cho lịch hẹn này.'}</p>
           </section>
+
+          {/* Ảnh mẫu khách gửi kèm — xem trước để chuẩn bị sơn / đá / mẫu vẽ. */}
+          {(b.images ?? []).length > 0 && (
+            <section className="booking-card">
+              {heading('flower', `Ảnh mẫu (${(b.images ?? []).length})`)}
+              <div className="booking-refs">
+                {(b.images ?? []).map((url) => (
+                  <a key={url} href={safeImage(url)} target="_blank" rel="noreferrer">
+                    <img src={safeImage(url)} alt="Ảnh mẫu của khách" loading="lazy" />
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Cột 2: thông tin + tiến trình */}
@@ -377,12 +391,41 @@ function Invoice({ b, code, profile }: { b: Booking; code: string; profile: Staf
               <td className="num">{fmtNum(b.price)}đ</td>
               <td className="num">{fmtNum(b.price)}đ</td>
             </tr>
+            {/* Dịch vụ phát sinh: trước đây hoá đơn chỉ in món chính nên
+                tổng sai khi có phát sinh — nay in từng món. */}
+            {(b.addons ?? []).map((addon, index) => (
+              <tr key={`${addon.name}-${index}`}>
+                <td className="col-stt num">{index + 2}</td>
+                <td className="txt">{addon.name} <small>(phát sinh)</small></td>
+                <td className="num">{addon.quantity}</td>
+                <td className="num">—</td>
+                <td className="num">{fmtNum(addon.price)}đ</td>
+                <td className="num">{fmtNum(addon.total)}đ</td>
+              </tr>
+            ))}
           </tbody>
           <tfoot>
             <tr>
               <td className="txt" colSpan={5}>Tổng thành tiền</td>
-              <td className="num">{money(b.price)}</td>
+              <td className="num">{money(b.total ?? b.price)}</td>
             </tr>
+            <tr>
+              <td className="txt" colSpan={5}>
+                Thanh toán: {b.paymentStatus === 'PAID' ? 'Đã thu đủ'
+                  : b.paymentStatus === 'DEPOSITED'
+                    ? `Đã cọc ${money(b.paidAmount ?? 0)}`
+                    : 'Chưa thu'}
+              </td>
+              <td className="num">
+                {b.paymentStatus === 'PAID' ? money(b.total ?? b.price) : money(b.paidAmount ?? 0)}
+              </td>
+            </tr>
+            {b.paymentStatus !== 'PAID' && (
+              <tr>
+                <td className="txt" colSpan={5}>Còn lại</td>
+                <td className="num">{money((b.total ?? b.price) - (b.paidAmount ?? 0))}</td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>

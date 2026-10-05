@@ -72,8 +72,7 @@ export async function setToken(token: string | null): Promise<void> {
   }
 }
 
-export async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = await getToken();
+export async function api<T>(path: string, options?: RequestInit): Promise<T> {  const token = await getToken();
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -84,7 +83,6 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
     /* 403 khi đang có token: nhiều khả năng token đó thuộc nhân viên/quản trị còn
        sót trong máy, còn ứng dụng này chỉ dành cho khách. Hỏi lại vai trò thật
        qua /api/auth/me thay vì đoán theo chữ trong thông điệp — chữ do backend
@@ -102,6 +100,31 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
       }
     }
 
+    throw new ApiError(response.status, payload?.message ?? `API error: ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+/**
+ * Upload file multipart (ảnh mẫu). Không đặt Content-Type để fetch tự
+ * sinh boundary. Token gắn tay vì body là FormData, không qua api().
+ */
+export async function uploadFiles<T>(path: string, uris: string[], field = 'images'): Promise<T> {
+  const token = await getToken();
+  const form = new FormData();
+  for (const uri of uris) {
+    const name = uri.split('/').pop() ?? `photo-${Date.now()}.jpg`;
+    const ext = name.split('.').pop()?.toLowerCase();
+    const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    form.append(field, { uri, name, type } as unknown as Blob);
+  }
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: form,
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(response.status, payload?.message ?? `API error: ${response.status}`);
   }
   return response.json() as Promise<T>;

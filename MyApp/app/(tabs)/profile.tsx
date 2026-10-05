@@ -46,10 +46,13 @@ export default function ProfileScreen() {
     { icon: 'person-outline', label: 'Thông tin cá nhân', action: () => router.push('/personal-info') },
     { icon: 'calendar-outline', label: 'Lịch hẹn của tôi', action: () => router.push('/bookings') },
     { icon: 'heart-outline', label: 'Yêu thích', action: () => router.push('/favorites') },
-    { icon: 'notifications-outline', label: 'Thông báo', badge: 5, action: () => comingSoon('Thông báo') },
-    { icon: 'gift-outline', label: 'Ưu đãi của tôi', action: () => comingSoon('Ưu đãi của tôi') },
-    { icon: 'help-circle-outline', label: 'Hỗ trợ, liên hệ', action: () => comingSoon('Hỗ trợ, liên hệ') },
-    { icon: 'settings-outline', label: 'Cài đặt', action: () => comingSoon('Cài đặt') },
+    /* Các mục dưới chưa có nghiệp vụ thật (comingSoon + badge cứng) nên
+       ẩn khỏi bản demo: nút giả bấm vào chỉ hiện "đang hoàn thiện" sẽ bị
+       hỏi khi bảo vệ. Mở lại khi làm thật từng tính năng. */
+    // { icon: 'notifications-outline', label: 'Thông báo', badge: 5, action: () => comingSoon('Thông báo') },
+    // { icon: 'gift-outline', label: 'Ưu đãi của tôi', action: () => comingSoon('Ưu đãi của tôi') },
+    // { icon: 'help-circle-outline', label: 'Hỗ trợ, liên hệ', action: () => comingSoon('Hỗ trợ, liên hệ') },
+    // { icon: 'settings-outline', label: 'Cài đặt', action: () => comingSoon('Cài đặt') },
   ];
 
   return (
@@ -66,7 +69,7 @@ export default function ProfileScreen() {
           )}
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{customer?.name ?? 'Khách hàng'}</Text>
-            <Text style={styles.email}>{customer?.email ?? 'minh@nailhouse.vn'}</Text>
+            <Text style={styles.email}>{customer?.email ?? (loading ? 'Đang tải…' : 'Chưa cập nhật email')}</Text>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
           <Pressable hitSlop={10} onPress={() => router.push('/personal-info')} style={styles.profileArrow}><Ionicons name="chevron-forward" size={22} color="#9B8C90" /></Pressable>

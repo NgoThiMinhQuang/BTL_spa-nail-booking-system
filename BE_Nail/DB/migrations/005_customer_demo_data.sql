@@ -149,11 +149,6 @@ WHERE b.status = 'COMPLETED'
 
 -- =====================================================
 -- 5. Tổng chi tiêu và số lần không đến
+--    BỎ: hai cột cache đã xoá khỏi schema (migration 016). Mọi báo cáo
+--    tính trực tiếp từ payment/booking nên không cần backfill ở đây.
 -- =====================================================
-UPDATE customer c
-SET c.total_spending = COALESCE((
-      SELECT SUM(s.price) FROM booking b JOIN services s ON s.service_id = b.service_id
-      WHERE b.customer_id = c.customer_id AND b.status = 'COMPLETED'), 0),
-    c.no_show_count = (
-      SELECT COUNT(*) FROM booking b
-      WHERE b.customer_id = c.customer_id AND b.status = 'NO_SHOW');

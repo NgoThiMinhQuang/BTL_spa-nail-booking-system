@@ -30,7 +30,7 @@ export async function staffDashboard(req, res, next) {
   if (!date) return res.status(400).json({ message: 'Ngày không hợp lệ.' });
 
   try {
-    const [[profiles], [bookings], [customers], [services], [shifts], [leave]] = await Promise.all([
+    const [[profiles], [bookings], [customers], [services], [shifts], [leave], [images], [addonRows], [reviews]] = await Promise.all([
       pool.query(
         `SELECT st.staff_id AS id, u.full_name AS name, u.avatar, u.email, u.phone,
           st.specialty, st.experience_year AS experienceYears
@@ -51,7 +51,7 @@ export async function staffDashboard(req, res, next) {
           COALESCE(b.service_duration, s.duration) AS duration,
           COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime,
           s.image AS serviceImage, s.description AS serviceDescription,
-          pay.payment_status AS paymentStatus,
+          pay.payment_status AS paymentStatus, pay.amount AS paidAmount,
           (SELECT COALESCE(SUM(ba.price * ba.quantity), 0) FROM booking_addon ba
             WHERE ba.booking_id = b.booking_id) AS addonTotal
          FROM booking b
@@ -123,6 +123,47 @@ export async function staffDashboard(req, res, next) {
           AND DATE(end_datetime) >= ? AND DATE(start_datetime) <= DATE_ADD(?, INTERVAL 30 DAY)
         ORDER BY start_datetime LIMIT 20`, [staffId, date, date],
       ),
+
+      /* Ảnh mẫu khách gửi kèm các lịch trong ngày — nhân viên xem trước
+         để chuẩn bị sơn / đá / charm / mẫu vẽ. */
+      pool.query(
+        `SELECT bi.booking_id AS bookingId, bi.image_url AS url
+           FROM booking_image bi
+           JOIN booking b ON b.booking_id = bi.booking_id
+          WHERE b.staff_id = ?
+            AND b.start_time >= ? AND b.start_time < DATE_ADD(?, INTERVAL 1 DAY)
+          ORDER BY bi.image_id`, [staffId, date, date],
+      ),
+
+      /* Chi tiết dịch vụ phát sinh từng lịch — hoá đơn phải in từng món
+         chứ không chỉ tổng. */
+      pool.query(
+        `SELECT ba.booking_id AS bookingId, ba.service_name AS name,
+                ba.quantity, ba.price
+           FROM booking_addon ba
+           JOIN booking b ON b.booking_id = ba.booking_id
+          WHERE b.staff_id = ?
+            AND b.start_time >= ? AND b.start_time < DATE_ADD(?, INTERVAL 1 DAY)
+          ORDER BY ba.addon_id`, [staffId, date, date],
+      ),
+
+      /* Đánh giá gần đây của khách về nhân viên này: điểm tổng hợp không
+         nói được khách khen hay chê điều gì. */
+      pool.query(
+        `SELECT r.review_id AS id, r.booking_id AS bookingId, r.rating,
+                r.comment, DATE_FORMAT(r.created_at,'%Y-%m-%d %H:%i') AS createdAt,
+                COALESCE(u.full_name, 'Khách') AS customerName,
+                u.avatar AS customerAvatar, s.service_name AS serviceName,
+                (SELECT GROUP_CONCAT(ri.image_url SEPARATOR '|')
+                   FROM review_images ri WHERE ri.review_id = r.review_id) AS images
+           FROM review r
+           JOIN booking b ON b.booking_id = r.booking_id
+           JOIN services s ON s.service_id = b.service_id
+           LEFT JOIN customer c ON c.customer_id = r.customer_id
+           LEFT JOIN users u ON u.user_id = c.user_id
+          WHERE b.staff_id = ?
+          ORDER BY r.created_at DESC LIMIT 10`, [staffId],
+      ),
     ]);
 
     if (!profiles.length) {
@@ -143,6 +184,18 @@ export async function staffDashboard(req, res, next) {
           bufferTime: Number(item.bufferTime ?? 0),
           addonTotal: Number(item.addonTotal ?? 0),
           total: Number(item.price) + Number(item.addonTotal ?? 0),
+          paidAmount: item.paidAmount == null ? null : Number(item.paidAmount),
+          images: images
+            .filter((image) => Number(image.bookingId) === Number(item.id))
+            .map((image) => String(image.url)),
+          addons: addonRows
+            .filter((row) => Number(row.bookingId) === Number(item.id))
+            .map((row) => ({
+              name: row.name,
+              quantity: Number(row.quantity),
+              price: Number(row.price),
+              total: Number(row.price) * Number(row.quantity),
+            })),
         })),
         customers: customers.map((customer) => ({
           ...customer,
@@ -162,6 +215,17 @@ export async function staffDashboard(req, res, next) {
         })),
         shifts,
         leave: leave.map((item) => ({ ...item, id: String(item.id) })),
+        recentReviews: reviews.map((review) => ({
+          id: String(review.id),
+          bookingId: String(review.bookingId),
+          rating: Number(review.rating),
+          comment: review.comment,
+          createdAt: review.createdAt,
+          customerName: review.customerName,
+          customerAvatar: review.customerAvatar,
+          serviceName: review.serviceName,
+          images: review.images ? String(review.images).split('|').filter(Boolean) : [],
+        })),
         date,
       },
     });

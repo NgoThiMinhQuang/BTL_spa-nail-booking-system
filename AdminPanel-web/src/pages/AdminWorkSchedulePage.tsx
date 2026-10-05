@@ -79,7 +79,8 @@ export function AdminWorkSchedulePage() {
   const week = weekAround(anchorDate);
   const isThisWeek = week[0] <= today() && today() <= week[6];
 
-  /* Gom ca theo (nhân viên, ngày): một ngày có thể có nhiều ca. */
+  /* Gom ca theo (nhân viên, ngày). DB unique một ca/ngày nên mỗi ô một
+     ca, nhưng gom theo danh sách cho chắc nếu sau này mở nhiều ca. */
   const byStaffDay = new Map<string, typeof shifts>();
   for (const shift of shifts) {
     const key = `${shift.staffId}|${shift.workDate}`;
@@ -108,6 +109,67 @@ export function AdminWorkSchedulePage() {
   const pendingRequests = scheduleRequests
     .filter((item) => item.status === 'PENDING')
     .sort((a, b) => a.workDate.localeCompare(b.workDate));
+
+  /* Xếp ca trực tiếp (không qua yêu cầu của nhân viên). Cùng luật chặn
+     lịch vướng như duyệt yêu cầu nên thông điệp lỗi hiện nguyên văn. */
+  const [shiftForm, setShiftForm] = useState({ staffId: '', date: today(), start: '09:00', end: '18:00' });
+  const [shiftMsg, setShiftMsg] = useState('');
+  const [shiftBusy, setShiftBusy] = useState(false);
+
+  const setShift = (key: keyof typeof shiftForm) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => setShiftForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  async function createShift(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shiftForm.staffId) {
+      setShiftMsg('Hãy chọn nhân viên.');
+      return;
+    }
+    setShiftBusy(true);
+    setShiftMsg('');
+    const result = await sendAdmin('/schedule', 'POST', {
+      staffId: Number(shiftForm.staffId),
+      workDate: shiftForm.date,
+      startTime: shiftForm.start,
+      endTime: shiftForm.end,
+    });
+    setShiftBusy(false);
+    if (!result.ok) {
+      setShiftMsg(result.message);
+      return;
+    }
+    setShiftMsg('Đã xếp ca.');
+    reload();
+  }
+
+  async function editShift(id: string, currentStart: string, currentEnd: string) {
+    const start = window.prompt('Giờ bắt đầu mới (HH:mm):', currentStart.slice(0, 5)) ?? '';
+    if (!/^\d{2}:\d{2}$/.test(start.trim())) return;
+    const end = window.prompt('Giờ kết thúc mới (HH:mm):', currentEnd.slice(0, 5)) ?? '';
+    if (!/^\d{2}:\d{2}$/.test(end.trim())) return;
+    const result = await sendAdmin(`/schedule/${id}`, 'PUT', {
+      startTime: start.trim(), endTime: end.trim(),
+    });
+    if (!result.ok) {
+      setShiftMsg(result.message);
+      return;
+    }
+    reload();
+  }
+
+  async function removeShift(id: string) {
+    if (!window.confirm('Xoá ca này? Ca còn lịch của khách thì không xoá được.')) return;
+    const result = await sendAdmin(`/schedule/${id}`, 'DELETE');
+    if (!result.ok) {
+      setShiftMsg(result.message);
+      return;
+    }
+    reload();
+  }
+
+  const weekShifts = [...shifts].sort((a, b) =>
+    a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
 
   return (
     <>
@@ -223,6 +285,76 @@ export function AdminWorkSchedulePage() {
                         </td>
                       );
                     })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel>
+        <SectionHeading
+          icon={<Icon name="plus" />}
+          title="Xếp ca trực tiếp"
+          subtitle="Admin chủ động xếp ca, không qua yêu cầu của nhân viên"
+        />
+        <form className="adm-form" onSubmit={createShift} style={{ padding: '0 16px 16px' }}>
+          <div className="adm-form-row">
+            <label className="adm-field">
+              <span>Nhân viên</span>
+              <select value={shiftForm.staffId} onChange={setShift('staffId')} disabled={shiftBusy}>
+                <option value="">— Chọn nhân viên —</option>
+                {staff.map((person) => (
+                  <option key={person.id} value={person.id}>{person.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="adm-field">
+              <span>Ngày</span>
+              <input type="date" value={shiftForm.date} onChange={setShift('date')} disabled={shiftBusy} />
+            </label>
+          </div>
+          <div className="adm-form-row">
+            <label className="adm-field">
+              <span>Giờ bắt đầu</span>
+              <input type="time" value={shiftForm.start} onChange={setShift('start')} disabled={shiftBusy} />
+            </label>
+            <label className="adm-field">
+              <span>Giờ kết thúc</span>
+              <input type="time" value={shiftForm.end} onChange={setShift('end')} disabled={shiftBusy} />
+            </label>
+          </div>
+          <div>
+            <button className="button" type="submit" disabled={shiftBusy}>Xếp ca</button>
+          </div>
+          {shiftMsg && <p className="adm-error">{shiftMsg}</p>}
+        </form>
+
+        {weekShifts.length > 0 && (
+          <div className="table-scroll">
+            <table className="adm-table">
+              <thead>
+                <tr><th>Ngày</th><th>Nhân viên</th><th>Giờ</th><th>Lịch</th><th>Thao tác</th></tr>
+              </thead>
+              <tbody>
+                {weekShifts.map((shift) => (
+                  <tr key={shift.id}>
+                    <td><strong>{shift.workDate}</strong></td>
+                    <td>{shift.staffName}</td>
+                    <td>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</td>
+                    <td>{shift.bookingCount} lịch</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="button secondary"
+                          onClick={() => editShift(shift.id, shift.startTime, shift.endTime)}>
+                          Sửa giờ
+                        </button>
+                        <button className="button secondary" onClick={() => removeShift(shift.id)}>
+                          Xoá
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

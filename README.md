@@ -2103,6 +2103,12 @@ phát sinh.
 trong giao dịch (khoá + hỏi lại từng người). Hai khách cùng bấm một giờ
 thì một người nhận `409`.
 
+## BR50
+
+Banner khuyến mãi chỉ để hiển thị trên trang chủ. Tổng tiền phải thu =
+giá dịch vụ chụp lúc đặt + dịch vụ phát sinh, không trừ discount —
+chưa có nghiệp vụ voucher/áp mã giảm giá (tránh feature creep).
+
 ---
 
 # 11. USE CASE CUSTOMER
@@ -2138,7 +2144,9 @@ Cancel Booking
 View Booking History
 
 View Payment
-Make Payment
+(Make Payment KHÔNG thuộc Customer: khách chỉ xem trạng thái thanh toán,
+Admin/thu ngân ghi nhận CASH/BANK_TRANSFER tại quầy. Không có cổng thanh
+toán online — enum ONLINE nghĩa là "đã xác nhận chuyển khoản thủ công".)
 
 Create Review
 Upload Review Images

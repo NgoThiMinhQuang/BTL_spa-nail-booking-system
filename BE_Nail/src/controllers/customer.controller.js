@@ -64,9 +64,8 @@ export async function getCustomerDetail(req, res, next) {
     const customer = customerRows[0];
     if (!customer) return res.status(404).json({ message: 'Không tìm thấy khách hàng này.' });
 
-    /* Tổng chi tiêu tính từ các khoản đã thu tiền, không đọc cột cache
-       customer.total_spending: cột đó không được cập nhật khi thanh toán
-       nên đọc vào sẽ ra số lệch với tiền thật khách đã trả. */
+    /* Tổng chi tiêu tính từ các khoản đã thu tiền (PAID). Không còn cột
+       cache trong schema — API giữ tên trường cũ để frontend không đổi. */
     const [spend] = await pool.query(
       `SELECT COALESCE(SUM(p.amount), 0) AS total,
               COALESCE(SUM(p.payment_status = 'PAID'), 0) AS paidCount

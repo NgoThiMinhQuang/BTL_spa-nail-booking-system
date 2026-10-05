@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   addCustomerImage,
+  addCustomerImageUpload,
   cancelBooking,
   createBooking,
   createReview,
@@ -35,8 +36,11 @@ router.patch('/:id/cancel', authenticate, requireCustomer, cancelBooking);
 /* Khách đánh giá lịch đã hoàn thành, mỗi lịch một lần. */
 router.post('/:bookingId/review', authenticate, requireCustomer, createReview);
 
-/* Ảnh mẫu khách gửi kèm lịch của chính mình. */
+/* Ảnh mẫu khách gửi kèm lịch của chính mình (URL). */
 router.post('/:id/images', authenticate, requireCustomer, addCustomerImage);
+
+/* Upload file ảnh mẫu thật (multipart, tối đa 6 file, mỗi file 5MB). */
+router.post('/:id/images/upload', authenticate, requireCustomer, addCustomerImageUpload);
 
 /* Nhân viên bắt đầu / hoàn thành lịch được phân công cho mình. Nhân viên
    tự lấy danh tính từ token nên không có đường gọi chéo lịch của

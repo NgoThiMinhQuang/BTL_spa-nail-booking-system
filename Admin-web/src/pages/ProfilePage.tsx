@@ -39,6 +39,7 @@ export function ProfilePage() {
   const { state } = useApp();
   const { goView, openBooking } = useNavigation();
   const { profile, customers, services, shifts, bookings, date } = state.data!;
+  const { recentReviews = [] } = state.data!;
 
   const visits = customers.reduce((sum, c) => sum + c.visits, 0);
   const values = [
@@ -210,6 +211,34 @@ export function ProfilePage() {
                   ? 'Hôm nay bạn chưa có cuộc hẹn nào. Tận dụng khoảng trống để chăm sóc khách quen nhé.'
                   : 'Ngày này bạn chưa có cuộc hẹn nào được đặt.'}
               </p>
+            )}
+          </section>
+
+          {/* ---- Đánh giá gần đây: điểm số không nói được khách khen
+              hay chê điều gì, nên hiện cả lời nhận xét. ---- */}
+          <section className="panel pro-panel">
+            <div className="pro-panel-head">
+              <h3>Đánh giá gần đây</h3>
+              <span className="pro-panel-note">{fmtNum(recentReviews.length)} lượt mới nhất</span>
+            </div>
+            {recentReviews.length ? (
+              <ul className="pro-review-list">
+                {recentReviews.slice(0, PREVIEW).map((review) => (
+                  <li key={review.id}>
+                    <Avatar name={review.customerName} url={review.customerAvatar} />
+                    <div className="pro-review-copy">
+                      <div className="pro-review-head">
+                        <strong>{review.customerName}</strong>
+                        <span className="pro-rate-stars"><Stars rating={review.rating} /></span>
+                      </div>
+                      <small>{review.serviceName} · {String(review.createdAt).slice(0, 10).split('-').reverse().join('/')}</small>
+                      {review.comment && <p>{review.comment}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pro-empty">Chưa có đánh giá nào. Điểm và nhận xét sẽ hiện ở đây sau buổi làm đầu tiên được khách chấm.</p>
             )}
           </section>
         </div>

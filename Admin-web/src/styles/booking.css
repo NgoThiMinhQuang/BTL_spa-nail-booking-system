@@ -111,3 +111,5 @@
 .booking-addon-row{display:flex;gap:8px}
 .booking-addon-row input{width:76px;flex:none}
 .booking-addon-row button{flex:1}
+.booking-refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.booking-refs img{width:100%;height:96px;object-fit:cover;display:block;border-radius:8px}

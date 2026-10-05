@@ -430,10 +430,9 @@ export async function listStaff(req, res, next) {
 /* ================================================================
    Khách hàng
    ---------------------------------------------------------------
-   Mọi chỉ số đều tính trực tiếp từ booking và payment, KHÔNG đọc cột
-   cache customer.total_spending / no_show_count: hai cột đó không được
-   cập nhật khi lịch hủy hoặc khi khách thanh toán, nên đọc vào sẽ ra số
-   lệch với tiền thật khách đã trả.
+   Mọi chỉ số đều tính trực tiếp từ booking và payment. Hai cột cache
+   cũ (total_spending / no_show_count) đã bỏ khỏi schema — API vẫn trả
+   hai trường cùng tên nhưng là số tính tươi.
    ================================================================ */
 
 /** Mã hiển thị dạng CUS0001, dựng từ customer_id. */
@@ -656,6 +655,7 @@ export async function listSchedule(req, res, next) {
     }
 
     const [rows] = await pool.query(`SELECT
+        sc.schedule_id AS id,
         st.staff_id AS staffId,
         u.full_name AS staffName,
         u.avatar AS avatarUrl,
@@ -675,6 +675,7 @@ export async function listSchedule(req, res, next) {
     res.json({
       data: rows.map((row) => ({
         ...row,
+        id: String(row.id),
         staffId: String(row.staffId),
         avatarUrl: imageUrl(req, row.avatarUrl),
         bookingCount: Number(row.bookingCount),
@@ -873,9 +874,8 @@ export async function getReports(req, res, next) {
         GROUP BY st.staff_id, u.full_name, st.specialty
         ORDER BY revenue DESC`),
 
-      /* Tổng chi tiêu của khách tính trực tiếp từ các khoản đã PAID, không
-         đọc cột cache customer.total_spending: cột đó không được cập nhật
-         khi khách thanh toán nên đọc vào sẽ ra số lệch với tiền thật. */
+      /* Tổng chi tiêu của khách tính trực tiếp từ các khoản đã PAID
+         (không còn cột cache trong schema). */
       pool.query(`SELECT u.full_name AS name, u.phone,
           COUNT(DISTINCT b.booking_id) AS bookings,
           COALESCE(SUM(paid.total), 0) AS spending

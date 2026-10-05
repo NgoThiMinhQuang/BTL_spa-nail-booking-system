@@ -67,6 +67,13 @@ const config = {
 let db;
 let setupPromise = null;
 
+/* Pool test dùng chung: mọi code chạm pool mặc định (auth, availability
+   không truyền runner) đều chạy trên database test, kể cả ở CI nơi không
+   có database thật. Không có dòng này thì test auth rớt với
+   "Unknown database 'nail_management'". */
+let testPool = null;
+let realPool = null;
+
 /**
  * Dá»±ng database test má»™t láº§n, cÃ¡c láº§n gá»i sau dÃ¹ng láº¡i káº¿t quáº£.
  *
@@ -148,6 +155,21 @@ async function setup() {
 
 before(ensureReady);
 
+/* Trỏ pool mặc định sang database test NGAY TỪ ĐẦU, trước mọi test trong
+   file — kể cả các test cũ gọi auth qua pool mặc định. Đăng ký sau
+   before(ensureReady) nên chạy sau khi schema + seed xong. */
+before(async () => {
+  await ensureReady();
+  if (!testPool) {
+    realPool = dbConfig.pool;
+    testPool = mysql.createPool({
+      ...config, database: TEST_DB, connectionLimit: 10,
+      decimalNumbers: true, charset: 'utf8mb4',
+    });
+    dbConfig._setPoolForTests(testPool);
+  }
+});
+
 /* Giá»¯ database test láº¡i giá»¯a cÃ¡c láº§n cháº¡y. Láº§n sau Database.sql dá»±ng láº¡i
    toÃ n bá»™ báº£ng nÃªn váº«n sáº¡ch, nhÆ°ng khá»i pháº£i chá» DROP DATABASE â€” thao tÃ¡c
    Ä‘Ã³ cháº­m vÃ  treo náº¿u cÃ²n káº¿t ná»‘i nÃ o chÆ°a Ä‘Ã³ng. Muá»‘n dá»n thÃ¬ cháº¡y:
@@ -157,8 +179,11 @@ before(ensureReady);
    giá»¯ socket má»Ÿ nÃªn náº¿u khÃ´ng Ä‘Ã³ng, node sáº½ khÃ´ng bao giá» thoÃ¡t dÃ¹ test
    Ä‘Ã£ cháº¡y xong. */
 after(async () => {
-  const { pool } = await import('../src/config/database.js');
-  await pool.end();
+  /* Đóng cả hai pool đúng một lần: testPool (mọi controller/test dùng
+     chung sau swap) và pool gốc. Thiếu dòng này node treo dù test xong. */
+  dbConfig._setPoolForTests(realPool);
+  if (testPool) await testPool.end();
+  await dbConfig.pool.end();
 });
 
 async function seed(connection) {
@@ -841,22 +866,26 @@ function strictNext(err) {
 const dayPlus = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
 describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
-  let testPool = null;
-  let realPool = null;
+
+
+
 
   before(async () => {
+    /* Pool test đã dựng ở before top-level; giữ lại để chạy độc lập. */
     await ensureReady();
-    realPool = dbConfig.pool;
-    testPool = mysql.createPool({
-      ...config, database: TEST_DB, connectionLimit: 10,
-      decimalNumbers: true, charset: 'utf8mb4',
-    });
-    dbConfig._setPoolForTests(testPool);
+    if (!testPool) {
+      realPool = dbConfig.pool;
+      testPool = mysql.createPool({
+        ...config, database: TEST_DB, connectionLimit: 10,
+        decimalNumbers: true, charset: 'utf8mb4',
+      });
+      dbConfig._setPoolForTests(testPool);
+    }
   });
 
   after(async () => {
+    /* Chỉ trả pool về, không end ở đây — after top-level đóng một lần. */
     dbConfig._setPoolForTests(realPool);
-    if (testPool) await testPool.end();
   });
 
   /* NhÃ¢n viÃªn test cÃ¡ch ly: khÃ´ng Ä‘á»¥ng lá»‹ch cá»§a cÃ¡c test khÃ¡c. */

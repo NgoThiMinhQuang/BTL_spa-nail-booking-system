@@ -296,7 +296,7 @@ export async function changePassword(req, res, next) {
     const ok = await verifyPassword(currentPassword, account?.password ?? '');
     if (!ok) return res.status(401).json({ message: 'Mật khẩu cũ không đúng.' });
 
-    await pool.query('UPDATE users SET password = ? WHERE user_id = ?',
+    await pool.query('UPDATE users SET password = ?, password_changed_at = NOW() WHERE user_id = ?',
       [await hashPassword(newPassword), req.user.userId]);
 
     res.json({ data: { changed: true } });

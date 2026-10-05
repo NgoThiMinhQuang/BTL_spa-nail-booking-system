@@ -27,6 +27,45 @@ function readMoment(value) {
   return new Date(text.replace(' ', 'T'));
 }
 
+/* Lịch đang có khách mà ca mới không chứa hết — dùng chung cho duyệt yêu
+   cầu đổi ca và Admin xếp ca trực tiếp. newStart/newEnd null nghĩa là
+   xoá ca: bất kỳ lịch nào trong ngày cũng vướng. */
+async function findStrandedBookings(connection, staffId, day, newStart, newEnd) {
+  const [rows] = await connection.query(
+    `SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
+            s.service_name AS serviceName,
+            COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName
+       FROM booking b
+       JOIN services s ON s.service_id = b.service_id
+       LEFT JOIN customer c ON c.customer_id = b.customer_id
+       LEFT JOIN users u ON u.user_id = c.user_id
+      WHERE b.staff_id = ? AND DATE(b.start_time) = ?
+        AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+        ${newStart == null ? '' : 'AND NOT (b.start_time >= ? AND b.end_time <= ?)'}
+      ORDER BY b.start_time LIMIT 50`,
+    newStart == null
+      ? [staffId, day]
+      : [staffId, day, `${day} ${newStart}`, `${day} ${newEnd}`],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    serviceName: row.serviceName,
+    customerName: row.customerName,
+  }));
+}
+
+function strandedMessage(action, day, start, end, bookings) {
+  if (action === 'REMOVE') {
+    return `Nhân viên này đang có ${bookings.length} lịch trong ngày ${day}. `
+      + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt xoá ca.';
+  }
+  return `Ca mới (${start.slice(0, 5)}–${end.slice(0, 5)} `
+    + `ngày ${day}) bỏ rơi ${bookings.length} lịch đã có khách. `
+    + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt.';
+}
+
 /* Cột TIME driver có thể trả về chuỗi 'HH:mm:ss' hoặc object Date tuỳ
    cấu hình — chuẩn hoá về 'HH:mm:ss' trước khi ghép vào câu so sánh.
    Nếu lọt object Date vào String().slice(0,8) sẽ ra "Wed Oct " và điều
@@ -457,46 +496,16 @@ export async function approveScheduleRequest(req, res, next) {
        ai phục vụ. Admin phải đổi nhân viên, đổi giờ hoặc hủy các lịch đó
        trước rồi duyệt — giống luật duyệt nghỉ phép. */
     const day = String(request.workDate).slice(0, 10);
-    const [stranded] = await connection.query(
-      `SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-              s.service_name AS serviceName,
-              COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName
-         FROM booking b
-         JOIN services s ON s.service_id = b.service_id
-         LEFT JOIN customer c ON c.customer_id = b.customer_id
-         LEFT JOIN users u ON u.user_id = c.user_id
-        WHERE b.staff_id = ? AND DATE(b.start_time) = ?
-          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
-          ${request.action === 'REMOVE'
-            ? ''
-            : 'AND NOT (b.start_time >= ? AND b.end_time <= ?)'}
-        ORDER BY b.start_time LIMIT 50`,
-      request.action === 'REMOVE'
-        ? [request.staffId, day]
-        : [
-          request.staffId, day,
-          `${day} ${timeText(request.startTime)}`,
-          `${day} ${timeText(request.endTime)}`,
-        ],
-    );
+    const newStart = request.action === 'REMOVE' ? null : timeText(request.startTime);
+    const newEnd = request.action === 'REMOVE' ? null : timeText(request.endTime);
+    const stranded = await findStrandedBookings(connection, request.staffId, day, newStart, newEnd);
 
     if (stranded.length) {
       await connection.rollback();
       return res.status(409).json({
-        message: request.action === 'REMOVE'
-          ? `Nhân viên này đang có ${stranded.length} lịch trong ngày ${day}. `
-            + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt xoá ca.'
-          : `Ca mới (${timeText(request.startTime).slice(0, 5)}–${timeText(request.endTime).slice(0, 5)} `
-            + `ngày ${day}) bỏ rơi ${stranded.length} lịch đã có khách. `
-            + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt.',
+        message: strandedMessage(request.action, day, newStart ?? '', newEnd ?? '', stranded),
         reason: 'CONFLICTING_BOOKINGS',
-        bookings: stranded.map((row) => ({
-          id: String(row.id),
-          startsAt: row.startsAt,
-          endsAt: row.endsAt,
-          serviceName: row.serviceName,
-          customerName: row.customerName,
-        })),
+        bookings: stranded,
       });
     }
 
@@ -557,5 +566,174 @@ export async function rejectScheduleRequest(req, res, next) {
     res.json({ data: { id: String(id), status: 'REJECTED' } });
   } catch (error) {
     next(error);
+  }
+}
+
+/* ================================================================
+   ADMIN XẾP CA TRỰC TIẾP
+   ---------------------------------------------------------------
+   Khác duyệt yêu cầu (nhân viên đề xuất → Admin đồng ý): ở đây Admin
+   chủ động xếp ca cho nhân viên. Cùng một luật bảo vệ lịch đã có khách
+   (findStrandedBookings) nên hai đường không lệch nhau.
+   ================================================================ */
+
+function readShiftBody(body) {
+  const staffId = Number(body?.staffId);
+  const workDate = String(body?.workDate ?? '').trim();
+  const startTime = String(body?.startTime ?? '').trim().slice(0, 5);
+  const endTime = String(body?.endTime ?? '').trim().slice(0, 5);
+  if (!Number.isInteger(staffId)) return { error: 'Mã nhân viên không hợp lệ.' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return { error: 'Ngày làm việc không hợp lệ.' };
+  }
+  if (workDate < new Date().toISOString().slice(0, 10)) {
+    return { error: 'Không xếp ca cho ngày đã qua.' };
+  }
+  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+    return { error: 'Giờ bắt đầu và kết thúc phải dạng HH:mm.' };
+  }
+  if (startTime >= endTime) {
+    return { error: 'Giờ kết thúc phải sau giờ bắt đầu.' };
+  }
+  return { staffId, workDate, startTime, endTime };
+}
+
+/** POST /api/admin/schedule — xếp ca mới (mỗi người một ca/ngày). */
+export async function createSchedule(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const parsed = readShiftBody(req.body);
+    if (parsed.error) return res.status(400).json({ message: parsed.error });
+    const { staffId, workDate, startTime, endTime } = parsed;
+
+    await connection.beginTransaction();
+    const [[staff]] = await connection.query(
+      `SELECT st.staff_id FROM staff st JOIN users u ON u.user_id = st.user_id
+        WHERE st.staff_id = ? AND u.status = 'ACTIVE' LIMIT 1`, [staffId]);
+    if (!staff) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy nhân viên đang làm việc.' });
+    }
+
+    const [[existing]] = await connection.query(
+      `SELECT schedule_id FROM staff_schedule
+        WHERE staff_id = ? AND work_date = ? LIMIT 1 FOR UPDATE`, [staffId, workDate]);
+    if (existing) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Nhân viên đã có ca ngày này. Dùng sửa ca để đổi giờ.',
+      });
+    }
+
+    const stranded = await findStrandedBookings(
+      connection, staffId, workDate, `${startTime}:00`, `${endTime}:00`);
+    if (stranded.length) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: strandedMessage('UPDATE', workDate, startTime, endTime, stranded),
+        reason: 'CONFLICTING_BOOKINGS',
+        bookings: stranded,
+      });
+    }
+
+    const [result] = await connection.query(
+      `INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status)
+       VALUES (?,?,?,?,'AVAILABLE')`, [staffId, workDate, `${startTime}:00`, `${endTime}:00`]);
+    await connection.commit();
+    res.status(201).json({
+      data: {
+        id: String(result.insertId), staffId: String(staffId),
+        workDate, startTime, endTime, status: 'AVAILABLE',
+      },
+    });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+/** PUT /api/admin/schedule/:id — đổi giờ ca (không đổi người/ngày). */
+export async function updateSchedule(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã ca không hợp lệ.' });
+    const startTime = String(req.body?.startTime ?? '').trim().slice(0, 5);
+    const endTime = String(req.body?.endTime ?? '').trim().slice(0, 5);
+    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) || startTime >= endTime) {
+      return res.status(400).json({ message: 'Giờ bắt đầu phải trước giờ kết thúc (HH:mm).' });
+    }
+
+    await connection.beginTransaction();
+    const [[shift]] = await connection.query(
+      `SELECT schedule_id, staff_id AS staffId,
+              DATE_FORMAT(work_date,'%Y-%m-%d') AS workDate
+         FROM staff_schedule WHERE schedule_id = ? LIMIT 1 FOR UPDATE`, [id]);
+    if (!shift) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy ca làm việc.' });
+    }
+
+    const stranded = await findStrandedBookings(
+      connection, shift.staffId, shift.workDate, `${startTime}:00`, `${endTime}:00`);
+    if (stranded.length) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: strandedMessage('UPDATE', shift.workDate, startTime, endTime, stranded),
+        reason: 'CONFLICTING_BOOKINGS',
+        bookings: stranded,
+      });
+    }
+
+    await connection.query(
+      `UPDATE staff_schedule SET start_time = ?, end_time = ? WHERE schedule_id = ?`,
+      [`${startTime}:00`, `${endTime}:00`, id]);
+    await connection.commit();
+    res.json({ data: { id: String(id), startTime, endTime } });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+/** DELETE /api/admin/schedule/:id — xoá ca (chặn khi còn lịch trong ngày). */
+export async function deleteSchedule(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã ca không hợp lệ.' });
+
+    await connection.beginTransaction();
+    const [[shift]] = await connection.query(
+      `SELECT schedule_id, staff_id AS staffId,
+              DATE_FORMAT(work_date,'%Y-%m-%d') AS workDate
+         FROM staff_schedule WHERE schedule_id = ? LIMIT 1 FOR UPDATE`, [id]);
+    if (!shift) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy ca làm việc.' });
+    }
+
+    const stranded = await findStrandedBookings(connection, shift.staffId, shift.workDate, null, null);
+    if (stranded.length) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: strandedMessage('REMOVE', shift.workDate, '', '', stranded),
+        reason: 'CONFLICTING_BOOKINGS',
+        bookings: stranded,
+      });
+    }
+
+    await connection.query('DELETE FROM staff_schedule WHERE schedule_id = ?', [id]);
+    await connection.commit();
+    res.json({ data: { id: String(id), removed: true } });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
   }
 }

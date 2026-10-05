@@ -22,6 +22,36 @@ import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
 } from '../lib/booking-service.js';
 import { freeSlotsForStaff } from '../lib/staff-availability.js';
+import fs from 'node:fs';
+import multer from 'multer';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const uploadsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public/uploads');
+
+/* Upload file ảnh mẫu thật (multipart) — khác đường JSON chỉ nhận URL.
+   File nằm dưới public/uploads/references/<bookingId>/ nên phục vụ được
+   ngay qua static /uploads có sẵn, không cần thêm hạ tầng. */
+const referenceStorage = multer.diskStorage({
+  destination(req, file, done) {
+    const dir = path.join(uploadsRoot, 'references', String(req.params.id));
+    fs.mkdirSync(dir, { recursive: true });
+    done(null, dir);
+  },
+  filename(req, file, done) {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    done(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+  },
+});
+
+const uploadReferences = multer({
+  storage: referenceStorage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+  fileFilter(req, file, done) {
+    if (/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) done(null, true);
+    else done(new Error('Chỉ nhận file ảnh (JPEG/PNG/WebP).'));
+  },
+}).array('images', 6);
 
 /** Điểm hủy lịch: khách được hủy lịch còn trên 2 giờ nếu đã xác nhận. */
 export const CANCEL_WINDOW_HOURS = 2;
@@ -352,6 +382,75 @@ export async function addCustomerImage(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+/* ================================================================
+   Upload file ảnh mẫu (multipart) — POST /api/bookings/:id/images/upload
+   ---------------------------------------------------------------
+   Cùng luật với đường JSON: chỉ chủ lịch, lịch còn sống, tổng tối đa
+   6 ảnh (cộng dồn cả ảnh URL đã gửi). Lỗi multer (quá 5MB, sai định
+   dạng, quá 6 file) dịch thành 400 chứ không để rơi vào handler 500.
+   File đã lưu mà guard fail thì xoá để không rác uploads.
+   ================================================================ */
+export async function addCustomerImageUpload(req, res, next) {
+  uploadReferences(req, res, async (uploadError) => {
+    const files = req.files ?? [];
+    try {
+      if (uploadError) {
+        const message = uploadError.code === 'LIMIT_FILE_SIZE'
+          ? 'Mỗi ảnh tối đa 5MB.'
+          : uploadError.code === 'LIMIT_FILE_COUNT' || uploadError.code === 'LIMIT_UNEXPECTED_FILE'
+            ? 'Mỗi lịch hẹn chỉ gửi được tối đa 6 ảnh mẫu.'
+            : uploadError.message || 'File ảnh không hợp lệ.';
+        return res.status(400).json({ message });
+      }
+
+      const bookingId = Number(req.params.id);
+      if (!Number.isInteger(bookingId)) {
+        return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+      }
+      if (!files.length) {
+        return res.status(400).json({ message: 'Chưa chọn file ảnh nào.' });
+      }
+
+      const [[booking]] = await pool.query(
+        `SELECT booking_id, customer_id AS customerId, status
+           FROM booking WHERE booking_id = ? LIMIT 1`, [bookingId]);
+      const fail = (status, message) => {
+        for (const file of files) {
+          try { fs.unlinkSync(file.path); } catch { /* bỏ qua */ }
+        }
+        return res.status(status).json({ message });
+      };
+      if (!booking) return fail(404, 'Không tìm thấy lịch hẹn.');
+      if (booking.customerId !== req.user.customerId) {
+        return fail(403, 'Bạn không có quyền gửi ảnh cho lịch hẹn này.');
+      }
+      if (['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(booking.status)) {
+        return fail(409, 'Lịch đã kết thúc nên không gửi thêm được ảnh mẫu.');
+      }
+
+      const [[count]] = await pool.query(
+        'SELECT COUNT(*) AS n FROM booking_image WHERE booking_id = ?', [bookingId]);
+      if (Number(count.n) + files.length > 6) {
+        return fail(409, 'Mỗi lịch hẹn chỉ gửi được tối đa 6 ảnh mẫu.');
+      }
+
+      const urls = [];
+      for (const file of files) {
+        const url = `/uploads/references/${bookingId}/${file.filename}`;
+        const [result] = await pool.query(
+          'INSERT INTO booking_image (booking_id, image_url) VALUES (?,?)', [bookingId, url]);
+        urls.push({ id: String(result.insertId), url: imageUrl(req, url) });
+      }
+      res.status(201).json({ data: urls });
+    } catch (error) {
+      for (const file of files) {
+        try { fs.unlinkSync(file.path); } catch { /* bỏ qua */ }
+      }
+      next(error);
+    }
+  });
 }
 
 /* ================================================================

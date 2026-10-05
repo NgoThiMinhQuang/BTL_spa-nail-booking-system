@@ -75,19 +75,14 @@ CREATE TABLE users (
 -- ============================================================================
 --  2. CUSTOMER — hồ sơ khách hàng
 -- ----------------------------------------------------------------------------
---  total_spending và no_show_count là cột cache, được xem là CẨN THẬN:
---  mọi báo cáo đều tính trực tiếp từ payment và booking, không đọc hai
---  cột này, vì chúng dễ lệch khỏi thực tế khi lịch bị hủy hoặc khách
---  thanh toán muộn.
+--  KHÔNG còn cột cache total_spending / no_show_count: mọi báo cáo tính
+--  trực tiếp từ payment (PAID) và booking (NO_SHOW). Cột cache dễ lệch
+--  khi lịch bị hủy hoặc thanh toán muộn, lại gây câu hỏi thừa khi bảo vệ.
 -- ============================================================================
 DROP TABLE IF EXISTS `customer`;
 CREATE TABLE customer (
     customer_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    -- Cache số tiền khách đã thanh toán (chỉ tính payment PAID).
-    total_spending DECIMAL(12,2) NOT NULL DEFAULT 0,
-    -- Cache số lần khách không đến.
-    no_show_count INT NOT NULL DEFAULT 0,
     address VARCHAR(255) NULL,
     birthday DATE NULL,
     note TEXT NULL COMMENT 'Ghi chú nội bộ của nhân viên về khách này (tối đa 2000 ký tự theo customer.controller.js)',

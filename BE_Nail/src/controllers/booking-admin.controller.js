@@ -415,13 +415,8 @@ export async function patchBooking(req, res, next) {
         set.push('b.cancel_reason = ?', 'b.cancelled_at = NOW()', "b.cancelled_by = 'ADMIN'");
         params.push(reason);
       }
-      if (status === 'NO_SHOW' && current.status === 'CONFIRMED') {
-        /* Số lần khách không đến tăng lên — dùng để đánh giá độ tin cậy
-           của một khách. */
-        await connection.query(
-          'UPDATE customer SET no_show_count = no_show_count + 1 WHERE customer_id = ?',
-          [current.customerId]);
-      }
+      /* NO_SHOW không cần ghi thêm gì: số lần khách không đến tính trực
+         tiếp từ lịch khi báo cáo (không còn cột cache). */
       if (status === 'COMPLETED') {
         /* Thời gian phục vụ thật (xem actualServiceMinutes), không phải
            thời lượng dự kiến. */

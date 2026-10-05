@@ -42,6 +42,14 @@ export interface Booking {
   serviceImage: string | null;
   serviceDescription: string | null;
   bufferTime: number | null;
+  /** Ảnh mẫu khách gửi kèm — nhân viên xem trước để chuẩn bị. */
+  images?: string[];
+  /** Chi tiết dịch vụ phát sinh — hoá đơn in từng món. */
+  addons?: { name: string; quantity: number; price: number; total: number }[];
+  addonTotal?: number;
+  total?: number;
+  paymentStatus?: string | null;
+  paidAmount?: number | null;
 }
 
 export interface CustomerSummary {
@@ -83,6 +91,18 @@ export interface Shift {
   status: string;
 }
 
+export interface StaffReview {
+  id: string;
+  bookingId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  customerName: string;
+  customerAvatar: string | null;
+  serviceName: string;
+  images: string[];
+}
+
 export interface Dashboard {
   profile: StaffProfile;
   bookings: Booking[];
@@ -90,6 +110,7 @@ export interface Dashboard {
   services: ServiceItem[];
   shifts: Shift[];
   date: string;
+  recentReviews?: StaffReview[];
 }
 
 export interface StaffOption {

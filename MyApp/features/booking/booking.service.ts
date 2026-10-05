@@ -1,4 +1,4 @@
-import { api } from '@/services/api';
+import { api, uploadFiles } from '@/services/api';
 import type { ApiResponse } from '@/types';
 import type { Availability, Booking, BookingDraft, PaymentStatus } from './booking.types';
 
@@ -34,6 +34,20 @@ export async function createBooking(draft: BookingDraft): Promise<Booking> {
   }
 
   return booking;
+}
+
+/**
+ * Upload file ảnh mẫu đã chọn trên máy lên lịch vừa tạo.
+ * Tách khỏi createBooking vì cần bookingId — gọi sau khi đặt thành công.
+ */
+export async function uploadBookingImages(
+  bookingId: string, uris: string[],
+): Promise<{ id: string; url: string }[]> {
+  if (!uris.length) return [];
+  const response = await uploadFiles<{ data: { id: string; url: string }[] }>(
+    `/api/bookings/${bookingId}/images/upload`, uris,
+  );
+  return response.data;
 }
 
 /** Lịch hẹn của chính khách đang đăng nhập. */

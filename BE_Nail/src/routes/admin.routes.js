@@ -32,10 +32,13 @@ import {
 import {
   approveLeaveRequest,
   approveScheduleRequest,
+  createSchedule,
+  deleteSchedule,
   listLeaveRequests,
   listScheduleRequests,
   rejectLeaveRequest,
   rejectScheduleRequest,
+  updateSchedule,
 } from '../controllers/request.controller.js';
 import { patchPayment, savePayment } from '../controllers/payment.controller.js';
 import {
@@ -117,6 +120,12 @@ router.patch('/leave-requests/:id/reject', rejectLeaveRequest);
 router.get('/schedule-requests', listScheduleRequests);
 router.patch('/schedule-requests/:id/approve', approveScheduleRequest);
 router.patch('/schedule-requests/:id/reject', rejectScheduleRequest);
+
+/* Admin xếp ca trực tiếp (không qua yêu cầu của nhân viên). Khác method
+   với GET /schedule nên không xung đột route. */
+router.post('/schedule', createSchedule);
+router.put('/schedule/:id', updateSchedule);
+router.delete('/schedule/:id', deleteSchedule);
 
 /* Alias giữ lại đường cũ /api/admin/leave cho các màn hình đang dùng. */
 router.get('/leave', listLeaveRequests);

@@ -238,6 +238,7 @@ export interface CustomerStats {
 }
 
 export interface ShiftItem {
+  id: string;
   staffId: string; staffName: string; avatarUrl: string | null;
   workDate: string; startTime: string; endTime: string;
   status: 'AVAILABLE' | 'OFF'; bookingCount: number;
