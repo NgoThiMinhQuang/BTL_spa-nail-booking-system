@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Avatar } from './Avatar';
-import { Badge, EmptyState } from './Primitives';
+import { Badge, EmptyState, SafeArea } from './Primitives';
 import { Icon } from './Icon';
 import { Stars } from './Stars';
 import { apiRequest } from '../store';
@@ -114,6 +114,7 @@ export function CustomerDrawer({ customerId, staffId, onClose, onNoteSaved }: Pr
       <div className="cust-drawer-backdrop" onClick={onClose} />
       <section className="cust-drawer-panel" role="dialog" aria-modal="true"
         aria-labelledby="cust-drawer-title" tabIndex={-1} ref={panelRef}>
+        <SafeArea>
         <div className="cust-drawer-head">
           <div className="cust-drawer-title">
             <h2 id="cust-drawer-title">Thông tin khách hàng</h2>
@@ -215,6 +216,7 @@ export function CustomerDrawer({ customerId, staffId, onClose, onNoteSaved }: Pr
             )}
           </>
         )}
+        </SafeArea>
       </section>
     </div>
   );
