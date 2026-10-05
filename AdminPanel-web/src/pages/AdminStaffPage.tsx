@@ -8,7 +8,7 @@ import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
 import { sendAdmin } from '../lib/admin-api';
-import { fmtNum, fmtRating, moneyShort } from '../lib/utils';
+import { fmtNum, fmtRating, formatVND, moneyShort } from '../lib/utils';
 import type { StaffItem } from '../store';
 
 export function AdminStaffPage() {
@@ -23,6 +23,7 @@ export function AdminStaffPage() {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [svcTerm, setSvcTerm] = useState('');
   const [form, setForm] = useState({
     fullName: '', phone: '', email: '', password: '',
     specialty: '', experienceYears: '1', serviceIds: [] as string[],
@@ -43,6 +44,7 @@ export function AdminStaffPage() {
 
   function openCreate() {
     setEditing(null);
+    setSvcTerm('');
     setForm({
       fullName: '', phone: '', email: '', password: '',
       specialty: '', experienceYears: '1', serviceIds: [],
@@ -53,6 +55,7 @@ export function AdminStaffPage() {
 
   function openEdit(item: StaffItem) {
     setEditing(item);
+    setSvcTerm('');
     setForm({
       fullName: item.name, phone: item.phone, email: item.email ?? '', password: '',
       specialty: item.specialty ?? '', experienceYears: String(item.experienceYears),
@@ -61,6 +64,21 @@ export function AdminStaffPage() {
     setFeedback('');
     setCreating(true);
   }
+
+  /* Nhóm dịch vụ theo danh mục để chọn nhanh, kèm ô tìm kiếm. Danh sách
+     phẳng 18 tên dài bọc lung tung là không đọc được. */
+  const svcGroups = (() => {
+    const key = svcTerm.toLowerCase();
+    const matched = services.filter((s) => s.name.toLowerCase().includes(key));
+    const groups = new Map<string, typeof services>();
+    for (const service of matched) {
+      const group = service.category ?? 'Chưa phân loại';
+      const list = groups.get(group);
+      if (list) list.push(service);
+      else groups.set(group, [service]);
+    }
+    return [...groups.entries()];
+  })();
 
   async function submitStaff(e: React.FormEvent) {
     e.preventDefault();
@@ -244,7 +262,18 @@ export function AdminStaffPage() {
         <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
           onClick={() => setCreating(false)}>
           <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h3>{editing ? `Sửa nhân viên "${editing.name}"` : 'Thêm nhân viên mới'}</h3>
+            <div className="adm-staff-form-head">
+              {editing && <Avatar name={editing.name} url={editing.avatarUrl} size={44} />}
+              <div>
+                <h3>{editing ? `Sửa nhân viên "${editing.name}"` : 'Thêm nhân viên mới'}</h3>
+                {editing && (
+                  <small>
+                    {(editing.status ?? 'ACTIVE') === 'ACTIVE' ? 'Đang làm việc' : 'Đã khoá'}
+                    {' · '}{editing.serviceCount} dịch vụ · {editing.completedCount} lịch hoàn thành
+                  </small>
+                )}
+              </div>
+            </div>
             <form className="adm-form" onSubmit={submitStaff}>
               <div className="adm-form-row">
                 <label className="adm-field">
@@ -283,19 +312,54 @@ export function AdminStaffPage() {
                 </label>
               </div>
               <div className="adm-field">
-                <span>Dịch vụ thực hiện được</span>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {services.map((service) => (
-                    <label key={service.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={form.serviceIds.includes(service.id)}
-                        disabled={busy}
-                        onChange={() => toggleService(service.id)}
-                      />
-                      {service.name}
-                    </label>
+                <span>Dịch vụ thực hiện được ({form.serviceIds.length}/{services.length})</span>
+                <div className="adm-svc-tools">
+                  <input
+                    aria-label="Tìm dịch vụ"
+                    placeholder="Tìm dịch vụ…"
+                    value={svcTerm}
+                    onChange={(e) => setSvcTerm(e.target.value)}
+                    disabled={busy}
+                  />
+                  <button type="button" className="button secondary" disabled={busy}
+                    onClick={() => setForm((prev) => ({
+                      ...prev,
+                      serviceIds: services
+                        .filter((s) => s.name.toLowerCase().includes(svcTerm.toLowerCase()))
+                        .map((s) => s.id),
+                    }))}>
+                    Chọn theo tìm kiếm
+                  </button>
+                  <button type="button" className="button secondary" disabled={busy}
+                    onClick={() => { setSvcTerm(''); setForm((prev) => ({ ...prev, serviceIds: [] })); }}>
+                    Bỏ chọn hết
+                  </button>
+                </div>
+                <div className="adm-svc-groups">
+                  {svcGroups.map(([group, items]) => (
+                    <div key={group} className="adm-svc-group">
+                      <strong>{group} <small>({items.filter((s) => form.serviceIds.includes(s.id)).length}/{items.length})</small></strong>
+                      <ul>
+                        {items.map((service) => (
+                          <li key={service.id}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={form.serviceIds.includes(service.id)}
+                                disabled={busy}
+                                onChange={() => toggleService(service.id)}
+                              />
+                              <span>{service.name}</span>
+                              <em>{formatVND(service.price)}</em>
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ))}
+                  {svcGroups.length === 0 && (
+                    <p className="adm-none">Không tìm thấy dịch vụ phù hợp.</p>
+                  )}
                 </div>
               </div>
               {feedback && <p className="adm-error">{feedback}</p>}
