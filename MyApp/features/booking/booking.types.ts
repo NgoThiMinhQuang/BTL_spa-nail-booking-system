@@ -33,6 +33,37 @@ export type Booking = {
   paidAmount?: number | null;
 };
 
+export type BookingAddon = {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+};
+
+export type BookingImage = { id: string; url: string };
+
+export type BookingReview = {
+  id: string;
+  rating: number;
+  comment: string | null;
+};
+
+/** Chi tiết đầy đủ một lịch hẹn — màn hình xem chi tiết của khách. */
+export type BookingDetail = Booking & {
+  note?: string | null;
+  createdAt?: string;
+  cancelReason?: string | null;
+  cancelledAt?: string | null;
+  staffPhone?: string | null;
+  staffAvatarUrl?: string | null;
+  paymentMethod?: string | null;
+  paidAt?: string | null;
+  remaining?: number;
+  addons: BookingAddon[];
+  images: BookingImage[];
+  review: BookingReview | null;
+};
+
 /* KHÔNG còn customerId trong BookingDraft.
 
    Trước đây ứng dụng gửi customerId: '1' cứng trong mã nguồn — bất kỳ ai

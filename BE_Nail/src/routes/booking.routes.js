@@ -6,6 +6,7 @@ import {
   createBooking,
   createReview,
   getAvailableSlots,
+  getBookingDetail,
   getBookings,
   updateBookingStatus,
 } from '../controllers/booking.controller.js';
@@ -26,6 +27,10 @@ router.get('/availability', getAvailableSlots);
    từ query — trước đây nhận, nên chỉ cần đổi con số là xem được lịch
    của người khác. */
 router.get('/', authenticate, requireCustomer, getBookings);
+
+/* Chi tiết lịch của chính mình. Đặt sau /availability để không nuốt
+   đường khung giờ. */
+router.get('/:id', authenticate, requireCustomer, getBookingDetail);
 
 router.post('/', authenticate, requireCustomer, createBooking);
 

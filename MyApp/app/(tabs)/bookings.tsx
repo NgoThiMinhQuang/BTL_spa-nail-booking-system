@@ -95,27 +95,36 @@ function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter:
 
   return (
     <View style={styles.card}>
-      <Image
-        source={booking.serviceImageUrl ? { uri: booking.serviceImageUrl } : require('@/assets/images/nails/nail-collection-v2.png')}
-        style={styles.serviceImage}
-      />
-      <View style={styles.cardBody}>
-        <Text numberOfLines={1} style={styles.serviceName}>{booking.serviceName ?? 'Dịch vụ làm móng'}</Text>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>{(booking.total ?? booking.price ?? 0).toLocaleString('vi-VN')}đ</Text>
-          {isCompleted && (
-            <Text style={[styles.payChip, booking.paymentStatus === 'PAID' && styles.payChipPaid]}>
-              {payLabel}
-            </Text>
+      {/* Bấm vào thông tin để xem chi tiết lịch hẹn. Chỉ bọc vùng thông
+         tin, không bọc nút thao tác — bọc cả thẻ thì bấm Hủy/Đánh giá cũng
+         đá sang trang chi tiết. */}
+      <Pressable
+        style={styles.infoArea}
+        onPress={() => router.push({ pathname: '/booking/[id]', params: { id: booking.id } })}
+      >
+        <Image
+          source={booking.serviceImageUrl ? { uri: booking.serviceImageUrl } : require('@/assets/images/nails/nail-collection-v2.png')}
+          style={styles.serviceImage}
+        />
+        <View style={styles.cardBody}>
+          <Text numberOfLines={1} style={styles.serviceName}>{booking.serviceName ?? 'Dịch vụ làm móng'}</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.price}>{(booking.total ?? booking.price ?? 0).toLocaleString('vi-VN')}đ</Text>
+            {isCompleted && (
+              <Text style={[styles.payChip, booking.paymentStatus === 'PAID' && styles.payChipPaid]}>
+                {payLabel}
+              </Text>
+            )}
+          </View>
+          <View style={styles.metaRow}><Ionicons name="calendar-outline" size={13} color="#7E6F73" /><Text style={styles.metaText}>{starts.date}</Text></View>
+          <View style={styles.metaRow}><Ionicons name="time-outline" size={13} color="#7E6F73" /><Text style={styles.metaText}>{starts.time} - {ends.time}</Text></View>
+          <Text numberOfLines={1} style={styles.staffText}>Nhân viên: {booking.staffName ?? 'Đang cập nhật'}</Text>
+          {filter === 'cancelled' && !!booking.cancelReason && (
+            <Text numberOfLines={1} style={styles.cancelReason}>Lý do: {booking.cancelReason}</Text>
           )}
         </View>
-        <View style={styles.metaRow}><Ionicons name="calendar-outline" size={13} color="#7E6F73" /><Text style={styles.metaText}>{starts.date}</Text></View>
-        <View style={styles.metaRow}><Ionicons name="time-outline" size={13} color="#7E6F73" /><Text style={styles.metaText}>{starts.time} - {ends.time}</Text></View>
-        <Text numberOfLines={1} style={styles.staffText}>Nhân viên: {booking.staffName ?? 'Đang cập nhật'}</Text>
-        {filter === 'cancelled' && !!booking.cancelReason && (
-          <Text numberOfLines={1} style={styles.cancelReason}>Lý do: {booking.cancelReason}</Text>
-        )}
-        <View style={styles.actionsRow}>
+      </Pressable>
+      <View style={styles.actionsRow}>
           {isUpcoming && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.pinkButton]}><Text style={styles.actionText}>Đổi lịch hẹn</Text></Pressable>}
           {isUpcoming && <Pressable disabled={busy} onPress={askCancel} style={[styles.actionButton, styles.redButton, busy && styles.disabledButton]}><Text style={styles.actionText}>Hủy</Text></Pressable>}
           {isCompleted && <Pressable disabled={busy} onPress={() => { setShowReview((v) => !v); setMessage(''); }} style={[styles.actionButton, styles.greenButton, busy && styles.disabledButton]}><Text style={styles.actionText}>Đánh giá</Text></Pressable>}
@@ -147,7 +156,6 @@ function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter:
             </Pressable>
           </View>
         )}
-      </View>
     </View>
   );
 }
@@ -231,7 +239,8 @@ const styles = StyleSheet.create({
   activeTab: { backgroundColor: '#D56B81', shadowColor: '#D56B81', shadowOpacity: .2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   tabText: { color: '#766A6E', fontSize: 13, fontWeight: '600' }, activeTabText: { color: '#FFF', fontWeight: '700' },
   content: { paddingHorizontal: 20, paddingBottom: 32, gap: 14 },
-  card: { padding: 13, borderRadius: 18, backgroundColor: '#FFF', flexDirection: 'row', gap: 12, borderWidth: 1, borderColor: '#F7ECEF', shadowColor: '#9D7781', shadowOpacity: .07, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  card: { padding: 13, borderRadius: 18, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F7ECEF', shadowColor: '#9D7781', shadowOpacity: .07, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  infoArea: { flexDirection: 'row', gap: 12 },
   serviceImage: { width: 96, height: 96, borderRadius: 13, backgroundColor: '#F4E5E9' },
   cardBody: { flex: 1, minWidth: 0 },
   serviceName: { color: '#30292B', fontSize: 16, fontWeight: '700' },

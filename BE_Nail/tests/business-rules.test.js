@@ -47,6 +47,7 @@ import { patchPayment } from '../src/controllers/payment.controller.js';
 import { register } from '../src/controllers/auth.controller.js';
 import { createBooking as createCustomerBooking } from '../src/controllers/booking.controller.js';
 import { approveScheduleRequest } from '../src/controllers/request.controller.js';
+import { getBookingDetail } from '../src/controllers/booking.controller.js';
 import { deleteService, setStaffStatus } from '../src/controllers/catalog.controller.js';
 import {
   assignServices, deleteCategory, removeServiceFromStaff, updateStaff,
@@ -1335,5 +1336,20 @@ describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
       { params: { id: '9001' }, body: { serviceIds: [999999] } }, res, strictNext,
     );
     assert.equal(res.statusCode, 404);
+  });
+
+  test('chi tiet lich: chu xem duoc, nguoi khac 404', async () => {
+    const { sid, day } = await makeStaff(24, 3);
+    const bookingId = await makeBooking({ customerId: 9001, staffId: sid, day });
+    const okRes = mockRes();
+    const mockGet = (name) => (String(name).toLowerCase() === 'host' ? 'localhost:3000' : null);
+    await getBookingDetail({ params: { id: String(bookingId) }, user: { customerId: 9001 }, protocol: 'http', get: mockGet }, okRes, strictNext);
+    assert.equal(okRes.statusCode, 200);
+    assert.equal(okRes.body.data.id, String(bookingId));
+    assert.ok(Array.isArray(okRes.body.data.addons));
+    assert.ok(Array.isArray(okRes.body.data.images));
+    const badRes = mockRes();
+    await getBookingDetail({ params: { id: String(bookingId) }, user: { customerId: 9401 }, protocol: 'http', get: mockGet }, badRes, strictNext);
+    assert.equal(badRes.statusCode, 404);
   });
 });

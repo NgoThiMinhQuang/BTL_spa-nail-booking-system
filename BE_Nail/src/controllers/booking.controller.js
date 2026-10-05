@@ -454,6 +454,97 @@ export async function addCustomerImageUpload(req, res, next) {
 }
 
 /* ================================================================
+   Chi tiết một lịch hẹn của chính khách đang đăng nhập
+   ---------------------------------------------------------------
+   Không phải chủ lịch thì 404 (không tiết lộ lịch có tồn tại không).
+   Trả đủ để màn hình chi tiết hiển thị mà không cần gọi thêm: dịch vụ
+   (snapshot lúc đặt), nhân viên, thanh toán + còn lại, dịch vụ phát
+   sinh, ảnh mẫu, đánh giá nếu có.
+   ================================================================ */
+export async function getBookingDetail(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+
+    const [[row]] = await pool.query(
+      `SELECT b.booking_id AS id, b.customer_id AS customerId,
+              b.service_id AS serviceId, b.staff_id AS staffId,
+              b.start_time AS startsAt, b.end_time AS endsAt,
+              b.status, b.note, b.source, b.created_at AS createdAt,
+              b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
+              COALESCE(b.service_price, s.price) AS price,
+              COALESCE(b.service_duration, s.duration) AS duration,
+              COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime,
+              s.service_name AS serviceName, s.image AS serviceImage,
+              su.full_name AS staffName, su.avatar AS staffAvatar,
+              su.phone AS staffPhone,
+              pay.payment_status AS paymentStatus, pay.payment_method AS paymentMethod,
+              pay.amount AS paidAmount, pay.payment_date AS paidAt
+         FROM booking b
+         JOIN services s ON s.service_id = b.service_id
+         LEFT JOIN staff st ON st.staff_id = b.staff_id
+         LEFT JOIN users su ON su.user_id = st.user_id
+         LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+        WHERE b.booking_id = ? LIMIT 1`, [id]);
+
+    if (!row || row.customerId !== req.user.customerId) {
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+
+    const [addons] = await pool.query(
+      `SELECT ba.addon_id AS id, ba.quantity, ba.price, s.service_name AS name
+         FROM booking_addon ba JOIN services s ON s.service_id = ba.service_id
+        WHERE ba.booking_id = ? ORDER BY s.service_name`, [id]);
+
+    const [images] = await pool.query(
+      'SELECT image_id AS id, image_url AS url FROM booking_image WHERE booking_id = ? ORDER BY image_id',
+      [id]);
+
+    const [[review]] = await pool.query(
+      'SELECT review_id AS id, rating, comment FROM review WHERE booking_id = ? LIMIT 1',
+      [id]);
+
+    const addonTotal = addons.reduce(
+      (sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
+    const total = Number(row.price) + addonTotal;
+
+    res.json({
+      data: {
+        ...row,
+        id: String(row.id),
+        customerId: String(row.customerId),
+        serviceId: String(row.serviceId),
+        staffId: row.staffId == null ? null : String(row.staffId),
+        status: row.status.toLowerCase(),
+        price: Number(row.price),
+        duration: Number(row.duration),
+        bufferTime: Number(row.bufferTime ?? 0),
+        paidAmount: row.paidAmount == null ? null : Number(row.paidAmount),
+        serviceImageUrl: imageUrl(req, row.serviceImage),
+        staffAvatarUrl: imageUrl(req, row.staffAvatar),
+        addonTotal,
+        total,
+        remaining: row.paymentStatus === 'PAID' ? 0 : Math.max(0, total - Number(row.paidAmount ?? 0)),
+        addons: addons.map((item) => ({
+          ...item,
+          id: String(item.id),
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+        })),
+        images: images.map((item) => ({ ...item, id: String(item.id) })),
+        review: review
+          ? { ...review, id: String(review.id), rating: Number(review.rating) }
+          : null,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/* ================================================================
    Nhân viên cập nhật tiến trình phục vụ
    ---------------------------------------------------------------
    Chỉ hai bước: CONFIRMED → PROCESSING và PROCESSING → COMPLETED,

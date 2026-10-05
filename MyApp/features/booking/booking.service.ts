@@ -50,9 +50,29 @@ export async function uploadBookingImages(
   return response.data;
 }
 
+/** Chi tiết một lịch hẹn của chính mình — màn hình xem chi tiết. */
+export async function fetchBookingDetail(id: string): Promise<BookingDetail> {
+  const response = await api<ApiResponse<BookingDetail>>(
+    `/api/bookings/${encodeURIComponent(id)}`,
+  );
+  const booking = response.data;
+  return {
+    ...booking,
+    id: String(booking.id),
+    customerId: String(booking.customerId),
+    serviceId: String(booking.serviceId),
+    staffId: booking.staffId == null ? null : String(booking.staffId),
+    price: Number(booking.price ?? 0),
+    duration: booking.duration == null ? undefined : Number(booking.duration),
+    bufferTime: Number(booking.bufferTime ?? 0),
+    addonTotal: Number(booking.addonTotal ?? 0),
+    total: Number(booking.total ?? booking.price ?? 0),
+    paidAmount: booking.paidAmount == null ? null : Number(booking.paidAmount),
+  };
+}
+
 /** Lịch hẹn của chính khách đang đăng nhập. */
-export async function fetchBookings(): Promise<Booking[]> {
-  const response = await api<ApiResponse<Booking[]>>('/api/bookings');
+export async function fetchBookings(): Promise<Booking[]> {  const response = await api<ApiResponse<Booking[]>>('/api/bookings');
   return response.data.map((booking) => ({
     ...booking,
     id: String(booking.id),
