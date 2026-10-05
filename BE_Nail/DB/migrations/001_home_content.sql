@@ -126,7 +126,7 @@ SELECT s.service_id, 5, 'Phủ bóng và hoàn thiện', 'Phủ top bảo vệ, 
 ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description), estimated_minutes = VALUES(estimated_minutes);
 
 INSERT INTO users (full_name, phone, email, password, avatar, role)
-VALUES ('Thợ chính Lan', '0900000001', 'lan@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/artists/lan-v2.png', 'STAFF')
+VALUES ('Thợ chính Lan', '0900000001', 'lan@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/avatars/staff-0900000001.jpg', 'STAFF')
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), avatar = VALUES(avatar);
 SET @lan_user_id = (SELECT user_id FROM users WHERE phone = '0900000001');
 INSERT INTO staff (user_id, experience_year, specialty)
@@ -134,7 +134,7 @@ VALUES (@lan_user_id, 3, 'Sơn gel & Nail Art')
 ON DUPLICATE KEY UPDATE experience_year = VALUES(experience_year), specialty = VALUES(specialty);
 
 INSERT INTO users (full_name, phone, email, password, avatar, role)
-VALUES ('Mai Anh', '0900000002', 'maianh@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/artists/mai-anh-v2.png', 'STAFF')
+VALUES ('Mai Anh', '0900000002', 'maianh@nailhouse.local', '$2b$10$seedAccountNotForLogin000000000000000000000000000', '/uploads/avatars/staff-0900000002.jpg', 'STAFF')
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), avatar = VALUES(avatar);
 SET @mai_user_id = (SELECT user_id FROM users WHERE phone = '0900000002');
 INSERT INTO staff (user_id, experience_year, specialty)

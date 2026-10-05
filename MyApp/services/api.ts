@@ -8,6 +8,14 @@ const getApiUrl = () => {
     return envUrl;
   }
   if (Platform.OS === 'web') {
+    /* Web có thể mở bằng localhost hoặc IP LAN (ví dụ 192.168.1.147:8081
+       trên trình duyệt điện thoại). Gọi cứng localhost:3000 thì trường hợp
+       mở bằng IP LAN sẽ hỏng vì "localhost" lúc đó là chính chiếc điện thoại.
+       Lấy hostname từ địa chỉ đang mở để API luôn cùng máy với Expo. */
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${protocol}//${window.location.hostname}:3000`;
+    }
     return 'http://localhost:3000';
   }
   const hostUri = Constants.expoConfig?.hostUri;
