@@ -9,6 +9,8 @@ import {
   Platform,
   StyleSheet,
   ImageBackground,
+  Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -25,8 +27,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   /* Gọi thật vào POST /api/auth/login.
      Trước đây nút này chỉ chuyển sang màn chính, không hề kiểm tra tài
@@ -34,18 +37,19 @@ export default function LoginScreen() {
      của ai. Lỗi trả về từ máy chủ hiển thị nguyên văn để khách hiểu vì sao. */
   const handleLogin = async () => {
     if (!emailOrPhone.trim() || !password) {
-      setError('Vui lòng nhập đầy đủ tài khoản và mật khẩu.');
+      setErrorMessage('Vui lòng nhập đầy đủ tài khoản và mật khẩu.');
+      setShowError(true);
       return;
     }
     setBusy(true);
-    setError('');
     try {
       /* auth.service tự kiểm tra vai trò và xoá token nếu là nhân viên/quản
          trị, nên chỉ cần bắt lỗi ở đây là hiện được đúng lý do. */
       await login(emailOrPhone, password);
       router.replace('/(tabs)');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Không kết nối được tới máy chủ.');
+    } catch (e: any) {
+      setErrorMessage(e?.message || 'Đã có lỗi xảy ra hoặc không kết nối được tới máy chủ.');
+      setShowError(true);
     } finally {
       setBusy(false);
     }
@@ -193,8 +197,7 @@ export default function LoginScreen() {
           </Pressable>
 
           {/* Thông báo lỗi từ máy chủ, hiện nguyên văn để khách biết chính
-              xác lý do: sai mật khẩu, tài khoản bị khoá, số điện thoại sai… */}
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              xác lý do: sai mật khẩu, tài khoản bị khoá, số điện thoại sai… (Đã chuyển thành popup) */}
 
           {/* Divider */}
           <View style={styles.dividerContainer}>
@@ -258,6 +261,32 @@ export default function LoginScreen() {
           />
         </Svg>
       </View>
+
+      <Modal
+        transparent
+        visible={showError}
+        animationType="fade"
+        onRequestClose={() => setShowError(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="alert-circle" size={40} color="#D56B81" />
+            </View>
+            <Text style={styles.modalTitle}>Lỗi đăng nhập</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.modalButton,
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => setShowError(false)}
+            >
+              <Text style={styles.modalButtonText}>Đã hiểu</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -501,5 +530,58 @@ const styles = StyleSheet.create({
     left: 0,
     width: 160,
     height: 140,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: 310,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFF0F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#261B20',
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 15,
+    color: '#7C6C74',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButton: {
+    width: '100%',
+    height: 50,
+    backgroundColor: '#D56B81',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

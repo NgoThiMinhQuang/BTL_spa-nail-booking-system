@@ -7,6 +7,7 @@ import { NailCard } from '@/components/home/NailCard';
 import { ServiceCard } from '@/components/home/ServiceCard';
 import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeData } from '@/features/home/home.types';
+import { me } from '@/features/auth/auth.service';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -25,7 +26,9 @@ export default function HomeScreen() {
   const loadHome = async () => {
     try {
       setError('');
-      setHome(await fetchHomeData());
+      const user = await me();
+      const customerId = user?.customerId || '1';
+      setHome(await fetchHomeData(customerId));
     } catch {
       setError('Không thể tải dữ liệu từ máy chủ.');
     } finally {
@@ -34,7 +37,7 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    fetchHomeData().then(setHome).catch(() => setError('Không thể tải dữ liệu từ máy chủ.')).finally(() => setLoading(false));
+    loadHome();
   }, []);
 
   if (loading && !home) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color="#397B76" /><Text style={styles.loadingText}>Đang tải dữ liệu NailHouse...</Text></SafeAreaView>;
