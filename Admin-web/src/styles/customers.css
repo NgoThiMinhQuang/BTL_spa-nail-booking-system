@@ -231,3 +231,4 @@ select.cust-dialog-picker:focus-visible{outline:2px solid var(--nh-primary);outl
 @media(prefers-reduced-motion:reduce){
   .cust-drawer-backdrop,.cust-drawer-panel{transition:none}
 }
+.cust-table .cust-visits{white-space:nowrap;font-variant-numeric:tabular-nums}

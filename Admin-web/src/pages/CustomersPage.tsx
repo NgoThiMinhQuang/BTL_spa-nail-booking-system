@@ -132,7 +132,7 @@ export function CustomersPage() {
                       <td className="txt">
                         <a href={`tel:${c.phone}`} onClick={(e) => e.stopPropagation()}>{c.phone}</a>
                       </td>
-                      <td className="num">{fmtNum(c.visits)}<small>lần</small></td>
+                      <td className="num"><span className="cust-visits">{fmtNum(c.visits)} lần</span></td>
                       <td className="txt">{c.lastVisit}</td>
                       <td className="num">
                         {c.rating
