@@ -16,7 +16,8 @@
 .adm-cs-row{cursor:pointer}
 .adm-cs-row:hover td{background:var(--nh-blush)}
 .adm-cs-stt{width:52px;color:var(--nh-muted);font-variant-numeric:tabular-nums}
-.adm-cs-num{text-align:right;font-variant-numeric:tabular-nums}
+.adm-cs-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.adm-cs-num small{display:block;font-weight:400;white-space:nowrap}
 .adm-cs-num strong{font-weight:600}
 
 /* ---- Chân bảng: số dòng + phân trang ---- */
