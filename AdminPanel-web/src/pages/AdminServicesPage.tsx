@@ -202,21 +202,26 @@ export function AdminServicesPage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
+                  <th className="num">STT</th>
                   <th>Dịch vụ</th>
-                  <th>Giá</th>
-                  <th>Thời lượng</th>
-                  <th>Nhân viên</th>
-                  <th>Lịch hẹn</th>
-                  <th>Doanh thu</th>
+                  <th className="num">Giá</th>
+                  <th className="num">Thời lượng</th>
+                  <th className="num">Nhân viên</th>
+                  <th className="num">Lịch hẹn</th>
+                  <th className="num">Doanh thu</th>
                   <th>Đánh giá</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((service) => (
+                {/* STT chạy theo đúng thứ tự đang hiển thị (đã lọc + sắp
+                    xếp) nên đổi tab/sắp xếp là số tự nhảy theo — không dùng
+                    mã dịch vụ cố định. */}
+                {rows.map((service, index) => (
                   <tr key={service.id} onClick={() => setDetailId(service.id)}
                     style={{ cursor: 'pointer' }}>
+                    <td className="num">{index + 1}</td>
                     <td>
                       <span className="adm-cell-name">
                         {safeImage(service.imageUrl)
@@ -228,11 +233,11 @@ export function AdminServicesPage() {
                         </span>
                       </span>
                     </td>
-                    <td><strong>{formatVND(service.price)}</strong></td>
-                    <td>{service.duration}′{service.bufferTime > 0 ? <small>+{service.bufferTime}′ nghỉ</small> : null}</td>
-                    <td>{service.staffCount} người</td>
-                    <td>{fmtNum(service.bookingCount)}</td>
-                    <td><strong>{formatVND(service.revenue)}</strong></td>
+                    <td className="num"><strong>{formatVND(service.price)}</strong></td>
+                    <td className="num">{service.duration}′{service.bufferTime > 0 ? <small>+{service.bufferTime}′ nghỉ</small> : null}</td>
+                    <td className="num">{service.staffCount} người</td>
+                    <td className="num">{fmtNum(service.bookingCount)}</td>
+                    <td className="num"><strong>{formatVND(service.revenue)}</strong></td>
                     <td>
                       {service.reviewCount > 0
                         ? <span className="adm-rating"><Icon name="star" /> {fmtRating(service.rating)}

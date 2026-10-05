@@ -712,3 +712,5 @@
 a.adm-person-phone{color:inherit;text-decoration:none}
 a.adm-person-phone:hover{color:var(--nh-primary-dark);text-decoration:underline}
 .adm-person-nums dd small{font-weight:400;color:var(--nh-muted);font-size:11px}
+.adm-table th{text-align:left}
+.adm-table th.num,.adm-table td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
