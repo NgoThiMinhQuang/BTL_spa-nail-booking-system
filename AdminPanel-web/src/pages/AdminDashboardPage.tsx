@@ -77,6 +77,11 @@ export function AdminDashboardPage() {
   const [walkIn, setWalkIn] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  /* Mọi useState phải nằm TRƯỚC mọi return sớm (Rules of Hooks). Trước đây
+     actionError khai báo sau `if (!overview) return ...` nên lần render đầu
+     (đang tải) ít hook hơn lần sau — React crash trắng trang. */
+  const [actionError, setActionError] = useState('');
+
   const go = (view: ViewName) => dispatch({ type: 'view', view });
 
   /* Lỗi tải dữ liệu — hiện cho người dùng, không lộ chi tiết kỹ thuật. */
@@ -97,12 +102,10 @@ export function AdminDashboardPage() {
   const { today, pendingAll, revenue, todayBookings, staffToday, chart, topServices, todos } = overview;
 
   /* Thao tác nhanh trên dòng. Chỉ những bước thuộc về quản trị:
-     Xác nhận (PENDING→CONFIRMED), Đánh dấu không đến (CONFIRMED→NO_SHOW),
-     Hủy (kèm lý do, backend bắt buộc). Hai bước CONFIRMED→PROCESSING và
-     PROCESSING→COMPLETED thuộc về nhân viên đang phục vụ — backend trả
-     403 nên ở đây không hiện nút, thay vì hiện rồi bấm là lỗi. */
-  const [actionError, setActionError] = useState('');
 
+  /* Chỉ những bước thuộc về quản trị: Xác nhận, Đánh dấu không đến,
+     Hủy kèm lý do. Hai bước của nhân viên (Bắt đầu/Hoàn thành) backend
+     trả 403 nên không hiện nút. */
   async function setStatus(booking: Booking, status: string, extra?: Record<string, unknown>) {
     setBusyId(booking.id);
     setActionError('');
