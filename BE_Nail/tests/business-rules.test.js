@@ -41,6 +41,7 @@ import * as dbConfig from '../src/config/database.js';
    chạm vào database thật. */
 import { addAddon, removeAddon } from '../src/controllers/booking-admin.controller.js';
 import { addCustomerImage } from '../src/controllers/booking.controller.js';
+import { getHome } from '../src/controllers/home.controller.js';
 import { savePayment } from '../src/controllers/payment.controller.js';
 import { approveScheduleRequest } from '../src/controllers/request.controller.js';
 import { deleteService, setStaffStatus } from '../src/controllers/catalog.controller.js';
@@ -1134,6 +1135,40 @@ describe('Bản vá bảo vệ dữ liệu', () => {
       `SELECT COUNT(*) AS n FROM booking
         WHERE staff_id = ? AND DATE(start_time) = ? AND status = 'PENDING'`, [sid, day]);
     assert.equal(Number(count.n), 1);
+  });
+
+  /* ---------------- Trang chủ không rò rỉ hồ sơ khách ---------------- */
+
+  function mockHomeReq({ token = null, query = {} } = {}) {
+    return {
+      protocol: 'http',
+      query,
+      get: (name) => {
+        if (String(name).toLowerCase() === 'host') return 'localhost:3000';
+        if (String(name).toLowerCase() === 'authorization' && token) return `Bearer ${token}`;
+        return null;
+      },
+    };
+  }
+
+  test('/api/home vô danh không trả hồ sơ dù có customerId trên query', async () => {
+    const res = mockRes();
+    await getHome(mockHomeReq({ query: { customerId: '9001' } }), res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.customer, null);
+    assert.equal(res.body.data.upcomingAppointment, null);
+    assert.ok(res.body.data.featuredServices.length > 0);
+    assert.ok(res.body.data.featuredArtists.length > 0);
+  });
+
+  test('/api/home trả đúng hồ sơ của người đang đăng nhập', async () => {
+    const { signToken } = await import('../src/lib/auth.js');
+    const token = signToken({ userId: 9001, role: 'CUSTOMER' });
+    const res = mockRes();
+    await getHome(mockHomeReq({ token, query: { customerId: '9003' } }), res, strictNext);
+    assert.equal(res.statusCode, 200);
+    /* Query đòi 9003 nhưng token là 9001 — phải trả 9001. */
+    assert.equal(res.body.data.customer.name, 'Khach Test');
   });
 
   /* ---------------- Thời gian phục vụ thực tế ---------------- */

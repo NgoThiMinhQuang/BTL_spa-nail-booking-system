@@ -1,4 +1,5 @@
 import { pool } from '../config/database.js';
+import { loadUserFromToken, readToken } from '../lib/auth.js';
 
 function imageUrl(req, path) {
   if (!path || /^https?:\/\//i.test(path)) return path;
@@ -7,11 +8,22 @@ function imageUrl(req, path) {
 
 export async function getHome(req, res, next) {
   try {
-    const customerId = Number(req.query.customerId ?? 1);
-    const [customerResult, bannerResult, servicesResult, designsResult, artistsResult, appointmentResult] = await Promise.all([
-      pool.query(`SELECT c.customer_id AS id, u.full_name AS name, u.email, u.phone, u.avatar
-        FROM customer c JOIN users u ON u.user_id = c.user_id
-        WHERE c.customer_id = ? AND u.status = 'ACTIVE' LIMIT 1`, [customerId]),
+    /* Phần công khai (banner, dịch vụ, mẫu nail, nhân viên) ai cũng xem
+       được để khách dạo trước khi đăng ký. Phần cá nhân (hồ sơ, lịch sắp
+       tới) chỉ trả cho đúng người đang đăng nhập — lấy từ token, KHÔNG
+       lấy customerId từ query. Trước đây query customerId nên chỉ cần
+       đổi con số là đọc được tên, email, số điện thoại và lịch hẹn của
+       khách khác. */
+    let customerId = null;
+    try {
+      const token = readToken(req);
+      const user = token ? await loadUserFromToken(token) : null;
+      if (user?.role === 'CUSTOMER') customerId = user.customerId;
+    } catch {
+      customerId = null;
+    }
+
+    const [bannerResult, servicesResult, designsResult, artistsResult] = await Promise.all([
       pool.query(`SELECT promotion_id AS id, title, subtitle, button_text AS buttonText, image, discount_percent AS discountPercent
         FROM promotions WHERE status = 'ACTIVE' AND NOW() BETWEEN start_date AND end_date
         ORDER BY created_at DESC LIMIT 1`),
@@ -38,22 +50,33 @@ export async function getHome(req, res, next) {
         FROM staff st JOIN users u ON u.user_id = st.user_id
         WHERE u.status = 'ACTIVE'
         ORDER BY rating DESC, st.experience_year DESC LIMIT 6`),
-      pool.query(`SELECT b.booking_id AS id, s.service_name AS serviceName, s.image AS image,
-          b.start_time AS startsAt, b.status, u.full_name AS staffName
-        FROM booking b JOIN services s ON s.service_id = b.service_id
-        LEFT JOIN staff st ON st.staff_id = b.staff_id LEFT JOIN users u ON u.user_id = st.user_id
-        WHERE b.customer_id = ? AND b.start_time >= NOW() AND b.status IN ('PENDING', 'CONFIRMED')
-        ORDER BY b.start_time ASC LIMIT 1`, [customerId]),
     ]);
 
-    const customer = customerResult[0][0] ?? null;
-    const banner = bannerResult[0][0] ?? null;
-    const appointment = appointmentResult[0][0] ?? null;
+    let customer = null;
+    let appointment = null;
+    if (customerId) {
+      const [customerRows] = await pool.query(
+        `SELECT c.customer_id AS id, u.full_name AS name, u.email, u.phone, u.avatar
+           FROM customer c JOIN users u ON u.user_id = c.user_id
+          WHERE c.customer_id = ? AND u.status = 'ACTIVE' LIMIT 1`, [customerId]);
+      const [appointmentRows] = await pool.query(
+        `SELECT b.booking_id AS id, s.service_name AS serviceName, s.image AS image,
+            b.start_time AS startsAt, b.status, u.full_name AS staffName
+           FROM booking b JOIN services s ON s.service_id = b.service_id
+          LEFT JOIN staff st ON st.staff_id = b.staff_id LEFT JOIN users u ON u.user_id = st.user_id
+          WHERE b.customer_id = ? AND b.start_time >= NOW() AND b.status IN ('PENDING', 'CONFIRMED')
+          ORDER BY b.start_time ASC LIMIT 1`, [customerId]);
+      customer = customerRows[0] ?? null;
+      appointment = appointmentRows[0] ?? null;
+    }
 
     res.json({
       data: {
         customer: customer ? { ...customer, avatarUrl: imageUrl(req, customer.avatar) } : null,
-        banner: banner ? { ...banner, imageUrl: imageUrl(req, banner.image) } : null,
+        banner: (() => {
+          const row = bannerResult[0][0] ?? null;
+          return row ? { ...row, imageUrl: imageUrl(req, row.image) } : null;
+        })(),
         featuredServices: servicesResult[0].map((item) => ({ ...item, imageUrl: imageUrl(req, item.imageUrl) })),
         trendingDesigns: designsResult[0].map((item) => ({ ...item, imageUrl: imageUrl(req, item.image) })),
         featuredArtists: artistsResult[0].map((item) => ({ ...item, avatarUrl: imageUrl(req, item.avatar), expert: Boolean(item.expert) })),

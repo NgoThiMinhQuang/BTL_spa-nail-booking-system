@@ -2085,6 +2085,12 @@ Không khoá (`INACTIVE`) nhân viên còn lịch `PENDING` / `CONFIRMED` /
 Production bắt buộc đặt `JWT_SECRET` riêng — server không khởi động được
 nếu thiếu. Môi trường phát triển vẫn dùng khoá mặc định kèm cảnh báo.
 
+## BR47
+
+Trang chủ (`GET /api/home`) công khai phần dùng chung (banner, dịch vụ,
+mẫu nail, nhân viên) nhưng phần cá nhân (hồ sơ, lịch sắp tới) chỉ trả cho
+đúng người đang đăng nhập lấy từ token. Không nhận `customerId` từ query.
+
 ---
 
 # 11. USE CASE CUSTOMER
