@@ -10,6 +10,9 @@ export default defineConfig({
        mà không dùng chung localStorage — tránh bị nhảy sang bên kia. */
     port: 5174,
     strictPort: true,
+    /* Xem giải thích ở Admin-web/vite.config.ts: host: true để nghe cả IPv4
+       và IP LAN, không chỉ ::1. */
+    host: true,
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
       '/uploads': { target: 'http://localhost:3000', changeOrigin: true },
