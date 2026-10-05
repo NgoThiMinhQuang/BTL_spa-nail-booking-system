@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 28,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#333333',
     letterSpacing: 0.5,
   },

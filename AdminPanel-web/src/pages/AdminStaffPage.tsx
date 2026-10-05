@@ -18,6 +18,7 @@ export function AdminStaffPage() {
   const [term, setTerm] = useState('');
   const [specialty, setSpecialty] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
+  const [sort, setSort] = useState<'name' | 'revenue' | 'rating' | 'completed'>('name');
 
   const [editing, setEditing] = useState<StaffItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -139,7 +140,13 @@ export function AdminStaffPage() {
       (specialty === 'all' || item.specialty === specialty)
       && (statusFilter === 'all' || (item.status ?? 'ACTIVE') === statusFilter)
       && (item.name.toLowerCase().includes(term.toLowerCase())
-        || (item.specialty ?? '').toLowerCase().includes(term.toLowerCase())));
+        || (item.specialty ?? '').toLowerCase().includes(term.toLowerCase())))
+    .sort((a, b) => {
+      if (sort === 'revenue') return b.revenue - a.revenue;
+      if (sort === 'rating') return (b.rating ?? -1) - (a.rating ?? -1);
+      if (sort === 'completed') return b.completedCount - a.completedCount;
+      return a.name.localeCompare(b.name, 'vi');
+    });
 
   const onShift = staff.filter((item) => item.worksToday).length;
   const totalRevenue = staff.reduce((sum, item) => sum + item.revenue, 0);
@@ -192,6 +199,13 @@ export function AdminStaffPage() {
             <option value="ACTIVE">Đang làm việc</option>
             <option value="INACTIVE">Đã khoá</option>
           </select>
+          <select aria-label="Sắp xếp" value={sort}
+            onChange={(e) => setSort(e.target.value as typeof sort)}>
+            <option value="name">Tên A → Z</option>
+            <option value="revenue">Doanh thu cao</option>
+            <option value="rating">Đánh giá cao</option>
+            <option value="completed">Nhiều lịch hoàn thành</option>
+          </select>
         </div>
 
         {rows.length === 0 ? (
@@ -213,18 +227,31 @@ export function AdminStaffPage() {
                   </span>
                 </div>
 
+                {/* Hai con số "122 lịch" và "66 hoàn thành" trước đây đứng riêng
+                    nên không thấy quan hệ — nay gộp thành tỉ lệ hoàn thành
+                    với thanh tiến trình, nhìn một cái biết ai làm chắc tay. */}
                 <div className="adm-person-meta">
                   <span><Icon name="star" /> {fmtRating(item.rating)}
                     {item.reviewCount > 0 ? ` (${item.reviewCount})` : ''}</span>
-                  <span><Icon name="schedule" /> {fmtNum(item.bookingCount)} lịch</span>
                   <span><Icon name="dollar" /> {moneyShort(item.revenue)}</span>
+                  <span>{item.experienceYears} năm KN · {item.serviceCount} dịch vụ</span>
                 </div>
 
-                <dl className="adm-person-nums">
-                  <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
-                  <div><dt>Hoàn thành</dt><dd>{fmtNum(item.completedCount)}</dd></div>
-                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}</dd></div>
-                </dl>
+                {(() => {
+                  const total = Math.max(1, item.bookingCount);
+                  const rate = Math.min(100, Math.round((item.completedCount / total) * 100));
+                  return (
+                    <div className="adm-complete">
+                      <div className="adm-complete-top">
+                        <span>Hoàn thành {fmtNum(item.completedCount)}/{fmtNum(item.bookingCount)}</span>
+                        <strong>{rate}%</strong>
+                      </div>
+                      <div className="adm-complete-track">
+                        <div className="adm-complete-fill" style={{ width: `${rate}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="adm-cell-meta">
                   {item.serviceNames.slice(0, 3).map((name) => {
