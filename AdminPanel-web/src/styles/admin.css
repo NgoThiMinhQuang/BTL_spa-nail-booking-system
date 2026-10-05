@@ -707,3 +707,4 @@
 .adm-svc-group label input{flex:none;width:15px;height:15px;accent-color:var(--nh-primary)}
 .adm-svc-group label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .adm-svc-group label em{font-style:normal;color:var(--nh-muted);font-size:12px;white-space:nowrap}
+#nailhouse .sidebar{overflow-y:auto;scrollbar-width:thin}

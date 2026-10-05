@@ -466,6 +466,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.title = 'NailHouse · Quản trị';
   }, []);
 
+  /* Token chết (request() đã xoá token và bắn sự kiện) → logout state để
+     về màn đăng nhập, thay vì kẹt ở trang trắng không dữ liệu. */
+  useEffect(() => {
+    const onUnauthorized = () => dispatch({ type: 'logout' });
+    window.addEventListener('nailhouse:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('nailhouse:unauthorized', onUnauthorized);
+  }, []);
+
   const { reloadToken, user } = state;
 
   /* Vòng tải chính: mọi nhóm dữ liệu dùng chung cho các trang. */

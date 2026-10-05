@@ -138,6 +138,8 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'logout':
       try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('nailhouse_staff_token');
+        localStorage.removeItem('nailhouse_token');
       } catch {}
       resetPages();
       return {
@@ -273,9 +275,19 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   const payload = await response.json().catch(() => null) as
     { message?: string; data?: T } | null;
 
-  /* 401 = token hết hạn hoặc sai vai trò. Báo rõ để giao diện đưa người
-     dùng về màn đăng nhập, thay vì hiện thông báo chung chung. */
+  /* 401 = token hết hạn hoặc sai vai trò. Xoá phiên cũ rồi báo để app
+     đưa về màn đăng nhập. Trước đây user còn nằm trong localStorage trong
+     khi token đã mất/hết hạn (đổi key token, đăng xuất nơi khác) — app
+     kẹt ở trạng thái "đã đăng nhập nhưng API nào cũng 401", hiện lỗi
+     "không kết nối được dữ liệu" mà đăng nhập lại cũng không hết vì
+     không ai xoá phiên cũ. */
   if (response.status === 401) {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('nailhouse_staff_token');
+      localStorage.removeItem('nailhouse_token');
+    } catch { /* bỏ qua */ }
+    window.dispatchEvent(new Event('nailhouse:staff-unauthorized'));
     throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
   }
   if (!response.ok) throw new Error(payload?.message || 'Không thể tải dữ liệu.');
@@ -321,6 +333,14 @@ const AppContext = createContext<Store | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const seq = useRef(0);
+
+  /* Token chết (hết hạn, bị khoá, sai key sau khi đổi) → đưa về đăng nhập.
+     apiRequest đã xoá phiên cũ và bắn sự kiện, ở đây chỉ cần logout state. */
+  useEffect(() => {
+    const onUnauthorized = () => dispatch({ type: 'logout' });
+    window.addEventListener('nailhouse:staff-unauthorized', onUnauthorized);
+    return () => window.removeEventListener('nailhouse:staff-unauthorized', onUnauthorized);
+  }, []);
 
   /* Dashboard: một vòng tải duy nhất, chạy khi đổi nhân viên / ngày / chế độ. */
   const { staffId, date, calendarMode, reloadToken, selected } = state;
