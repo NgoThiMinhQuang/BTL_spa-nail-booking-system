@@ -117,9 +117,9 @@ function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter:
         )}
         <View style={styles.actionsRow}>
           {isUpcoming && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.pinkButton]}><Text style={styles.actionText}>Đổi lịch hẹn</Text></Pressable>}
-          {isUpcoming && <Pressable disabled={busy} onPress={askCancel} style={[styles.actionButton, styles.redButton]}><Text style={styles.actionText}>Hủy</Text></Pressable>}
-          {isCompleted && <Pressable disabled={busy} onPress={() => { setShowReview((v) => !v); setMessage(''); }} style={[styles.actionButton, styles.greenButton]}><Text style={styles.actionText}>Đánh giá</Text></Pressable>}
-          {filter === 'cancelled' && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.grayButton]}><Text style={styles.grayButtonText}>Đặt lại</Text></Pressable>}
+          {isUpcoming && <Pressable disabled={busy} onPress={askCancel} style={[styles.actionButton, styles.redButton, busy && styles.disabledButton]}><Text style={styles.actionText}>Hủy</Text></Pressable>}
+          {isCompleted && <Pressable disabled={busy} onPress={() => { setShowReview((v) => !v); setMessage(''); }} style={[styles.actionButton, styles.greenButton, busy && styles.disabledButton]}><Text style={styles.actionText}>Đánh giá</Text></Pressable>}
+          {filter === 'cancelled' && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.pinkButton]}><Text style={styles.actionText}>Đặt lại</Text></Pressable>}
           <Pressable hitSlop={10} onPress={() => setFavorite((value) => !value)} style={styles.favButton}>
             <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={19} color="#D97991" />
           </Pressable>
@@ -142,7 +142,7 @@ function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter:
               onChangeText={setComment}
               multiline
             />
-            <Pressable disabled={busy} onPress={sendReview} style={[styles.actionButton, styles.greenButton, styles.reviewSend]}>
+            <Pressable disabled={busy} onPress={sendReview} style={[styles.actionButton, styles.greenButton, styles.reviewSend, busy && styles.disabledButton]}>
               <Text style={styles.actionText}>{busy ? 'Đang gửi…' : 'Gửi đánh giá'}</Text>
             </Pressable>
           </View>
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   cancelReason: { color: '#A89A9E', fontSize: 12, fontStyle: 'italic', marginTop: 2 },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   favButton: { marginLeft: 'auto', padding: 4 },
-  actionButton: { minWidth: 84, height: 34, paddingHorizontal: 12, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, pinkButton: { backgroundColor: '#F3A8B9' }, greenButton: { backgroundColor: '#86CBAE' }, grayButton: { backgroundColor: '#F0EAEC' }, redButton: { backgroundColor: '#E08080' }, actionText: { color: '#FFF', fontSize: 13, fontWeight: '700' }, grayButtonText: { color: '#8D6570', fontSize: 13, fontWeight: '700' },
+  actionButton: { minWidth: 84, height: 34, paddingHorizontal: 12, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, pinkButton: { backgroundColor: '#D56B81' }, greenButton: { backgroundColor: '#43A66E' }, grayButton: { backgroundColor: '#F0EAEC' }, redButton: { backgroundColor: '#CE4A62' }, disabledButton: { opacity: 0.45 }, actionText: { color: '#FFF', fontSize: 13, fontWeight: '700' }, grayButtonText: { color: '#8D6570', fontSize: 13, fontWeight: '700' },
   state: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, emptyIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FBE7EC', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, stateTitle: { color: '#372E31', fontSize: 18, fontWeight: '700', marginTop: 10 }, stateText: { color: '#8A7C80', fontSize: 14, lineHeight: 24, textAlign: 'center', marginTop: 7 },
   retryButton: { marginTop: 16, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: '#F7DFE5' }, retryText: { color: '#9A5065', fontWeight: '800', fontSize: 14 }, bookButton: { marginTop: 18, height: 44, paddingHorizontal: 24, borderRadius: 22, backgroundColor: '#D56B81', alignItems: 'center', justifyContent: 'center' }, bookText: { color: '#4D3540', fontWeight: '800', fontSize: 14 },
   cardMessage: { color: '#9A5065', fontSize: 13, marginTop: 6 },
