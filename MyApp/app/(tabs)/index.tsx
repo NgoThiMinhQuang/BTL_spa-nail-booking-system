@@ -59,9 +59,9 @@ export default function HomeScreen() {
         </ScrollView>
 
         <SectionHeader title="Mẫu nail thịnh hành" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-          {home.trendingDesigns.map((item) => <NailCard key={item.id} title={item.name} imageUrl={item.imageUrl} />)}
-        </ScrollView>
+        <View style={styles.verticalList}>
+          {home.trendingDesigns.slice(0, 3).map((item, index) => <NailCard key={item.id} title={item.name} imageUrl={item.imageUrl} isReversed={index % 2 !== 0} index={index} />)}
+        </View>
 
         <FeaturedArtists artists={home.featuredArtists} />
 
@@ -72,4 +72,4 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({ safeArea: { flex: 1, backgroundColor: '#FFFCF9' }, container: { paddingBottom: 42 }, center: { flex: 1, backgroundColor: '#FFFCF9', alignItems: 'center', justifyContent: 'center', padding: 28 }, loadingText: { color: '#786C70', fontSize: 14, marginTop: 12 }, errorTitle: { color: '#493B40', fontSize: 18, fontWeight: '800', marginTop: 12 }, errorText: { color: '#806F75', fontSize: 14, marginTop: 5 }, retryButton: { marginTop: 16, backgroundColor: '#397B76', paddingHorizontal: 22, paddingVertical: 10, borderRadius: 20 }, retryText: { color: '#FFF', fontWeight: '800' }, sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 30, marginBottom: 14 }, sectionTitle: { color: '#2F2529', fontSize: 19, fontWeight: '800' }, seeAll: { color: '#C75B7A', fontSize: 14, fontWeight: '600' }, horizontalList: { paddingHorizontal: 16, paddingBottom: 3, gap: 14 }, noAppointment: { marginHorizontal: 16, padding: 18, borderRadius: 14, backgroundColor: '#EDF4F1', flexDirection: 'row', alignItems: 'center', gap: 14 }, noAppointmentTitle: { color: '#385852', fontSize: 14, fontWeight: '800' }, noAppointmentText: { color: '#6F8580', fontSize: 12, marginTop: 4 } });
+const styles = StyleSheet.create({ safeArea: { flex: 1, backgroundColor: '#FFFCF9' }, container: { paddingBottom: 42 }, center: { flex: 1, backgroundColor: '#FFFCF9', alignItems: 'center', justifyContent: 'center', padding: 28 }, loadingText: { color: '#786C70', fontSize: 14, marginTop: 12 }, errorTitle: { color: '#493B40', fontSize: 18, fontWeight: '800', marginTop: 12 }, errorText: { color: '#806F75', fontSize: 14, marginTop: 5 }, retryButton: { marginTop: 16, backgroundColor: '#397B76', paddingHorizontal: 22, paddingVertical: 10, borderRadius: 20 }, retryText: { color: '#FFF', fontWeight: '800' }, sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 30, marginBottom: 14 }, sectionTitle: { color: '#2F2529', fontSize: 19, fontWeight: '800' }, seeAll: { color: '#C75B7A', fontSize: 14, fontWeight: '600' }, horizontalList: { paddingHorizontal: 16, paddingBottom: 3, gap: 14 }, verticalList: { paddingHorizontal: 16, gap: 16 }, noAppointment: { marginHorizontal: 16, padding: 18, borderRadius: 14, backgroundColor: '#EDF4F1', flexDirection: 'row', alignItems: 'center', gap: 14 }, noAppointmentTitle: { color: '#385852', fontSize: 14, fontWeight: '800' }, noAppointmentText: { color: '#6F8580', fontSize: 12, marginTop: 4 } });
