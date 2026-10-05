@@ -2,15 +2,79 @@
    Ma trận tuần dựng từ bảng staff_schedule: mỗi dòng một nhân viên, mỗi cột một
    ngày. Ô trống là ngày không có ca; ô có ca ghi rõ giờ và số lịch hẹn đã nhận. */
 
+import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp, today, weekAround } from '../store';
+import { sendAdmin } from '../lib/admin-api';
 import { fmtDayShort, timeToMinutes, weekdayShort } from '../lib/utils';
+import type { ScheduleRequestItem } from '../store';
+
+const ACTION_TEXT: Record<ScheduleRequestItem['action'], string> = {
+  ADD: 'Thêm ca',
+  UPDATE: 'Đổi ca',
+  REMOVE: 'Xoá ca',
+};
+
+function ScheduleRequestRow({ item, onDone }: { item: ScheduleRequestItem; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  async function review(approve: boolean) {
+    const note = approve
+      ? (window.prompt('Ghi chú duyệt (không bắt buộc):', '') ?? '')
+      : (window.prompt('Lý do từ chối:', '') ?? '');
+    if (!approve && !note.trim()) {
+      setMessage('Từ chối cần ghi rõ lý do.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    const result = await sendAdmin(
+      `/schedule-requests/${item.id}/${approve ? 'approve' : 'reject'}`,
+      'PATCH',
+      { note: note.trim() || null },
+    );
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <tr key={item.id}>
+      <td><strong>{item.workDate}</strong><small>{weekdayShort(item.workDate)}</small></td>
+      <td><strong>{item.staffName}</strong><small>{item.specialty ?? '—'}</small></td>
+      <td>{ACTION_TEXT[item.action]}</td>
+      <td>
+        {item.action === 'REMOVE' ? (
+          <span className="adm-none">Xoá ca ngày này</span>
+        ) : (
+          <strong>{item.startTime.slice(0, 5)} – {item.endTime.slice(0, 5)}</strong>
+        )}
+      </td>
+      <td>
+        {item.affectedBookings > 0
+          ? <span className="badge cancelled"><i />{item.affectedBookings} lịch vướng</span>
+          : <span className="badge completed"><i />Không vướng</span>}
+      </td>
+      <td>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="button" disabled={busy} onClick={() => review(true)}>Duyệt</button>
+          <button className="button secondary" disabled={busy} onClick={() => review(false)}>Từ chối</button>
+        </div>
+        {message && <p className="adm-error">{message}</p>}
+      </td>
+    </tr>
+  );
+}
 
 export function AdminWorkSchedulePage() {
-  const { state, anchorDate, setAnchorDate } = useApp();
-  const { shifts, staff } = state;
+  const { state, anchorDate, setAnchorDate, reload } = useApp();
+  const { shifts, staff, scheduleRequests } = state;
 
   const week = weekAround(anchorDate);
   const isThisWeek = week[0] <= today() && today() <= week[6];
@@ -41,8 +105,45 @@ export function AdminWorkSchedulePage() {
     setAnchorDate(`${base.getFullYear()}-${month}-${day}`);
   };
 
+  const pendingRequests = scheduleRequests
+    .filter((item) => item.status === 'PENDING')
+    .sort((a, b) => a.workDate.localeCompare(b.workDate));
+
   return (
     <>
+      <Panel>
+        <SectionHeading
+          icon={<Icon name="schedule" />}
+          title="Yêu cầu đổi ca chờ duyệt"
+          subtitle={pendingRequests.length > 0
+            ? `${pendingRequests.length} yêu cầu của nhân viên`
+            : 'Không có yêu cầu mới'}
+        />
+
+        {pendingRequests.length === 0 ? (
+          <EmptyState
+            title="Không có yêu cầu đổi ca"
+            detail="Nhân viên xin thêm, đổi hoặc bớt ca sẽ hiện ở đây để duyệt."
+          />
+        ) : (
+          <div className="table-scroll">
+            <table className="adm-table adm-table-wide">
+              <thead>
+                <tr>
+                  <th>Ngày</th><th>Nhân viên</th><th>Loại</th>
+                  <th>Ca mới</th><th>Lịch vướng</th><th>Duyệt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingRequests.map((item) => (
+                  <ScheduleRequestRow key={item.id} item={item} onDone={reload} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
       <div className="adm-tiles adm-tiles-4">
         <StatTile tone="rose" icon="calendar" label="Ca trong tuần" value={totalShifts} note="tổng số ca đã xếp" />
         <StatTile tone="sage" icon="schedule" label="Lịch hẹn trong ca" value={totalBookings} note="chờ xác nhận và đã nhận" />

@@ -6,7 +6,9 @@ import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
+import { sendAdmin } from '../lib/admin-api';
 import { fmtDate, fmtNum, formatVND, moneyShort } from '../lib/utils';
+import type { PaymentItem } from '../store';
 
 const METHOD_LABEL: Record<string, string> = {
   CASH: 'Tiền mặt',
@@ -21,7 +23,7 @@ function monthLabel(month: string): string {
 }
 
 export function AdminPaymentsPage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { payments, paymentMonths, paymentTotals } = state;
 
   const [status, setStatus] = useState('');
@@ -39,6 +41,61 @@ export function AdminPaymentsPage() {
 
   const peak = Math.max(...paymentMonths.map((item) => item.paidAmount), 1);
 
+  /* Ghi nhận / sửa thanh toán. PAID thì backend tự chốt đúng tổng nên ô
+     số tiền để trống được; DEPOSITED bắt buộc nhập số cọc. */
+  const [form, setForm] = useState({
+    bookingId: '', payStatus: 'PAID', amount: '', method: 'CASH', note: '',
+  });
+  const [editing, setEditing] = useState<PaymentItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const set = (key: keyof typeof form) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  function startEdit(payment: PaymentItem) {
+    setEditing(payment);
+    setForm({
+      bookingId: payment.bookingId, payStatus: payment.paymentStatus,
+      amount: String(payment.amount), method: payment.paymentMethod, note: '',
+    });
+    setFeedback('');
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setForm({ bookingId: '', payStatus: 'PAID', amount: '', method: 'CASH', note: '' });
+    setFeedback('');
+  }
+
+  async function submitPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.bookingId.trim() && !editing) {
+      setFeedback('Cần nhập mã lịch hẹn.');
+      return;
+    }
+    setBusy(true);
+    setFeedback('');
+    const body: Record<string, unknown> = {
+      status: form.payStatus,
+      method: form.method,
+      note: form.note.trim() || undefined,
+    };
+    if (form.amount.trim()) body.amount = Number(form.amount);
+    const result = editing
+      ? await sendAdmin(`/payments/${editing.id}`, 'PATCH', body)
+      : await sendAdmin(`/bookings/${form.bookingId.trim()}/payment`, 'POST', body);
+    setBusy(false);
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setFeedback(editing ? 'Đã cập nhật thanh toán.' : 'Đã ghi nhận thanh toán.');
+    cancelEdit();
+    reload();
+  }
+
   return (
     <>
       <div className="adm-tiles adm-tiles-4">
@@ -51,6 +108,72 @@ export function AdminPaymentsPage() {
         <StatTile tone="lavender" icon="services" label="Tổng giá trị" value={moneyShort(paymentTotals.all)}
           note={`${payments.length} giao dịch`} />
       </div>
+
+      <Panel style={{ marginBottom: 18 }}>
+        <SectionHeading
+          icon={<Icon name="card" />}
+          title={editing ? `Sửa thanh toán lịch #${editing.bookingId}` : 'Ghi nhận thanh toán'}
+          subtitle={editing
+            ? 'Đổi trạng thái, số tiền hoặc hình thức trả'
+            : 'Thu tiền tại quầy cho một lịch hẹn'}
+        />
+        <form className="adm-form" onSubmit={submitPayment} style={{ padding: '0 16px 16px' }}>
+          <div className="adm-form-row">
+            <label className="adm-field">
+              <span>Mã lịch hẹn</span>
+              <input
+                value={form.bookingId} onChange={set('bookingId')}
+                placeholder="Ví dụ: 294" disabled={busy || !!editing}
+                inputMode="numeric"
+              />
+            </label>
+            <label className="adm-field">
+              <span>Trạng thái</span>
+              <select value={form.payStatus} onChange={set('payStatus')} disabled={busy}>
+                <option value="PAID">Đã thanh toán đủ</option>
+                <option value="DEPOSITED">Đặt cọc một phần</option>
+                <option value="UNPAID">Chưa thanh toán</option>
+              </select>
+            </label>
+          </div>
+          <div className="adm-form-row">
+            <label className="adm-field">
+              <span>Số tiền (đ) — PAID để trống = thu đủ tổng</span>
+              <input
+                value={form.amount} onChange={set('amount')}
+                placeholder="Ví dụ: 100000" disabled={busy}
+                inputMode="numeric"
+              />
+            </label>
+            <label className="adm-field">
+              <span>Hình thức</span>
+              <select value={form.method} onChange={set('method')} disabled={busy}>
+                <option value="CASH">Tiền mặt</option>
+                <option value="BANK_TRANSFER">Chuyển khoản</option>
+                <option value="ONLINE">Online</option>
+              </select>
+            </label>
+          </div>
+          <label className="adm-field">
+            <span>Ghi chú</span>
+            <input
+              value={form.note} onChange={set('note')}
+              placeholder="Ví dụ: khách chuyển khoản thiếu..." disabled={busy}
+            />
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="button" type="submit" disabled={busy}>
+              {editing ? 'Lưu thay đổi' : 'Ghi nhận'}
+            </button>
+            {editing && (
+              <button className="button secondary" type="button" disabled={busy} onClick={cancelEdit}>
+                Hủy sửa
+              </button>
+            )}
+          </div>
+          {feedback && <p className="adm-error">{feedback}</p>}
+        </form>
+      </Panel>
 
       <Panel style={{ marginBottom: 18 }}>
         <SectionHeading
@@ -120,6 +243,7 @@ export function AdminPaymentsPage() {
                   <th>Số tiền</th>
                   <th>Hình thức</th>
                   <th>Trạng thái</th>
+                  <th>Sửa</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,6 +263,11 @@ export function AdminPaymentsPage() {
                         : payment.paymentStatus === 'DEPOSITED' ? 'pending' : 'cancelled'}`}>
                         <i />{payment.statusText}
                       </span>
+                    </td>
+                    <td>
+                      <button className="button secondary" onClick={() => startEdit(payment)}>
+                        Sửa
+                      </button>
                     </td>
                   </tr>
                 ))}

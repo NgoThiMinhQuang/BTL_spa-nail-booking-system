@@ -1,98 +1,161 @@
 /* ===== Trang Yêu cầu nghỉ =====
-   Database chưa có bảng yêu cầu nghỉ riêng; nhân viên nghỉ được ghi bằng
-   staff_schedule.status = 'OFF'. Trang này đọc đúng những dòng đó và làm rõ
-   điều đó ở phần phụ đề để không ai hiểu nhầm là dữ liệu khác. */
+   Nhân viên xin nghỉ, Admin duyệt hoặc từ chối ở đây. Duyệt khi còn lịch
+   của khách trong khoảng nghỉ sẽ bị backend chặn (409) kèm danh sách lịch
+   cần xử lý — phải đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước. */
 
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
-import { useApp, today } from '../store';
-import { fmtDay, weekdayShort } from '../lib/utils';
+import { useApp } from '../store';
+import { sendAdmin } from '../lib/admin-api';
+import { fmtDay } from '../lib/utils';
+import type { LeaveItem } from '../store';
+
+type Filter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
+
+const TABS: { key: Filter; label: string }[] = [
+  { key: 'PENDING', label: 'Chờ duyệt' },
+  { key: 'APPROVED', label: 'Đã duyệt' },
+  { key: 'REJECTED', label: 'Đã từ chối' },
+  { key: 'ALL', label: 'Tất cả' },
+];
+
+const STATUS_TEXT: Record<LeaveItem['status'], string> = {
+  PENDING: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Đã từ chối',
+};
+
+function LeaveRow({ item, onDone }: { item: LeaveItem; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  async function review(approve: boolean) {
+    const note = approve
+      ? (window.prompt('Ghi chú duyệt (không bắt buộc):', '') ?? '')
+      : (window.prompt('Lý do từ chối:', '') ?? '');
+    if (!approve && !note.trim()) {
+      setMessage('Từ chối cần ghi rõ lý do.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    const result = await sendAdmin(
+      `/leave-requests/${item.id}/${approve ? 'approve' : 'reject'}`,
+      'PATCH',
+      { note: note.trim() || null },
+    );
+    setBusy(false);
+    if (!result.ok) {
+      /* 409 kèm danh sách lịch vướng: hiện thẳng để Admin đi xử lý. */
+      setMessage(result.message);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <tr key={item.id}>
+      <td>
+        <strong>{fmtDay(item.startDatetime.slice(0, 10))}</strong>
+        <small>{item.startDatetime.slice(11, 16)} – {item.endDatetime.slice(11, 16)} ngày {fmtDay(item.endDatetime.slice(0, 10))}</small>
+      </td>
+      <td>
+        <strong>{item.staffName}</strong>
+        <small>{item.specialty ?? '—'}</small>
+      </td>
+      <td>{item.reason ?? <span className="adm-none">—</span>}</td>
+      <td>
+        {item.affectedBookings > 0
+          ? (
+            <span className="badge cancelled" title={item.affectedList.map((b) => `#${b.id} ${b.startsAt.slice(11, 16)} ${b.serviceName} — ${b.customerName}`).join('\n')}>
+              <i />{item.affectedBookings} lịch cần xử lý
+            </span>
+          )
+          : <span className="badge completed"><i />Không ảnh hưởng</span>}
+      </td>
+      <td>
+        <span className={`badge ${item.status === 'PENDING' ? 'pending' : item.status === 'APPROVED' ? 'completed' : 'cancelled'}`}>
+          <i />{STATUS_TEXT[item.status]}
+        </span>
+        {item.reviewerName && <small> bởi {item.reviewerName}</small>}
+      </td>
+      <td>
+        {item.status === 'PENDING' ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="button" disabled={busy} onClick={() => review(true)}>Duyệt</button>
+            <button className="button secondary" disabled={busy} onClick={() => review(false)}>Từ chối</button>
+          </div>
+        ) : (
+          <span className="adm-none">{item.reviewNote ?? '—'}</span>
+        )}
+        {message && <p className="adm-error">{message}</p>}
+      </td>
+    </tr>
+  );
+}
 
 export function AdminLeavePage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { leave } = state;
 
-  const [scope, setScope] = useState<'upcoming' | 'all'>('upcoming');
+  const [filter, setFilter] = useState<Filter>('PENDING');
 
-  const day = today();
   const rows = leave
-    .filter((item) => (scope === 'upcoming' ? item.workDate >= day : true))
-    .sort((a, b) => a.workDate.localeCompare(b.workDate));
+    .filter((item) => filter === 'ALL' || item.status === filter)
+    .sort((a, b) => b.startDatetime.localeCompare(a.startDatetime));
 
-  const todayCount = leave.filter((item) => item.workDate === day).length;
-  const affected = leave
-    .filter((item) => item.workDate >= day)
-    .reduce((sum, item) => sum + item.affectedBookings, 0);
+  const pending = leave.filter((item) => item.status === 'PENDING');
+  const blocked = pending.reduce((sum, item) => sum + item.affectedBookings, 0);
 
   return (
     <>
       <div className="adm-tiles adm-tiles-4">
-        <StatTile tone="rose" icon="pause" label="Nghỉ hôm nay" value={todayCount}
-          note={todayCount > 0 ? 'cần bố trí người thay' : 'ai cũng đang làm'} />
-        <StatTile tone="gold" icon="calendar" label="Nghỉ sắp tới" value={rows.length}
-          note="từ hôm nay trở đi" />
-        <StatTile tone="lavender" icon="schedule" label="Lịch bị ảnh hưởng" value={affected}
-          note="khách đang chờ trong ca nghỉ" />
-        <StatTile tone="sage" icon="adminStaff" label="Tổng số ngày nghỉ" value={leave.length}
-          note="toàn bộ lịch sử" />
+        <StatTile tone="rose" icon="pause" label="Chờ duyệt" value={pending.length}
+          note={pending.length > 0 ? 'cần xử lý' : 'không có yêu cầu mới'} />
+        <StatTile tone="gold" icon="calendar" label="Lịch vướng nghỉ" value={blocked}
+          note="khách cần đổi người/giờ" />
+        <StatTile tone="sage" icon="schedule" label="Đã duyệt" value={leave.filter((i) => i.status === 'APPROVED').length}
+          note="yêu cầu nghỉ thành công" />
+        <StatTile tone="lavender" icon="ban" label="Đã từ chối" value={leave.filter((i) => i.status === 'REJECTED').length}
+          note="yêu cầu không duyệt" />
       </div>
 
       <Panel>
         <SectionHeading
           icon={<Icon name="pause" />}
           title="Yêu cầu nghỉ"
-          subtitle="Nguồn: staff_schedule có trạng thái OFF — chưa có bảng yêu cầu riêng"
+          subtitle="Nhân viên xin nghỉ — Admin duyệt mới có hiệu lực"
         >
           <div className="mode-tabs">
-            <button className={scope === 'upcoming' ? 'active' : ''}
-              onClick={() => setScope('upcoming')}>Sắp tới</button>
-            <button className={scope === 'all' ? 'active' : ''}
-              onClick={() => setScope('all')}>Tất cả</button>
+            {TABS.map((tab) => (
+              <button key={tab.key} className={filter === tab.key ? 'active' : ''}
+                onClick={() => setFilter(tab.key)}>{tab.label}</button>
+            ))}
           </div>
         </SectionHeading>
 
         {rows.length === 0 ? (
           <EmptyState
-            title={scope === 'upcoming' ? 'Không có ai nghỉ sắp tới' : 'Chưa có ngày nghỉ nào'}
-            detail="Nhân viên nghỉ sẽ hiện ở đây khi ca được xếp trạng thái OFF."
+            title={filter === 'PENDING' ? 'Không có yêu cầu chờ duyệt' : 'Chưa có yêu cầu nào'}
+            detail="Yêu cầu nghỉ của nhân viên sẽ hiện ở đây."
           />
         ) : (
           <div className="table-scroll">
-            <table className="adm-table">
+            <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th>Ngày</th><th>Thứ</th><th>Nhân viên</th>
-                  <th>Chuyên môn</th><th>Lịch bị ảnh hưởng</th>
+                  <th>Khoảng nghỉ</th><th>Nhân viên</th><th>Lý do</th>
+                  <th>Lịch ảnh hưởng</th><th>Trạng thái</th><th>Duyệt</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong>{fmtDay(item.workDate)}</strong>
-                      {item.workDate === day && <small>Hôm nay</small>}
-                    </td>
-                    <td>{weekdayShort(item.workDate)}</td>
-                    <td><strong>{item.staffName}</strong></td>
-                    <td>{item.specialty ?? <span className="adm-none">—</span>}</td>
-                    <td>
-                      {item.affectedBookings > 0
-                        ? <span className="badge cancelled"><i />{item.affectedBookings} lịch cần đổi</span>
-                        : <span className="badge completed"><i />Không ảnh hưởng</span>}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((item) => <LeaveRow key={item.id} item={item} onDone={reload} />)}
               </tbody>
             </table>
           </div>
         )}
       </Panel>
-
-      <p className="app-note">
-        Muốn cho nhân viên nghỉ, vào trang <strong>Lịch làm việc</strong> và đổi trạng thái ca
-        sang Nghỉ. Trang này chỉ đọc, chưa có nút duyệt/từ chối.
-      </p>
     </>
   );
 }

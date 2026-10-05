@@ -6,14 +6,81 @@ import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
+import { sendAdmin } from '../lib/admin-api';
 import { fmtNum, formatVND, moneyShort } from '../lib/utils';
+import type { CategoryItem } from '../store';
 
 export function AdminCategoriesPage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { categories, services } = state;
 
   const [term, setTerm] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+
+  const [editing, setEditing] = useState<CategoryItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [form, setForm] = useState({ name: '', description: '', status: 'ACTIVE' });
+
+  const set = (key: keyof typeof form) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  function openCreate() {
+    setEditing(null);
+    setForm({ name: '', description: '', status: 'ACTIVE' });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  function openEdit(item: CategoryItem) {
+    setOpenId(null);
+    setEditing(item);
+    setForm({ name: item.name, description: item.description ?? '', status: item.status ?? 'ACTIVE' });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  async function submitCategory(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFeedback('');
+    const body = { name: form.name.trim(), description: form.description.trim(), status: form.status };
+    const result = editing
+      ? await sendAdmin(`/catalog/categories/${editing.id}`, 'PUT', body)
+      : await sendAdmin('/catalog/categories', 'POST', body);
+    setBusy(false);
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setCreating(false);
+    reload();
+  }
+
+  async function toggleStatus(item: CategoryItem) {
+    const next = (item.status ?? 'ACTIVE') === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const result = await sendAdmin(`/catalog/categories/${item.id}/status`, 'PATCH', { status: next });
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    reload();
+  }
+
+  async function removeCategory(item: CategoryItem) {
+    /* Backend chặn khi danh mục còn dịch vụ (409) nên chỉ hỏi lại cho
+       chắc, thông điệp lỗi hiện nguyên văn. */
+    if (!window.confirm(`Xoá danh mục "${item.name}"? Danh mục còn dịch vụ thì không xoá được.`)) return;
+    const result = await sendAdmin(`/catalog/categories/${item.id}`, 'DELETE');
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setOpenId(null);
+    reload();
+  }
 
   const rows = categories
     .filter((item) => item.name.toLowerCase().includes(term.toLowerCase()))
@@ -47,7 +114,10 @@ export function AdminCategoriesPage() {
           icon={<Icon name="tag" />}
           title="Danh mục dịch vụ"
           subtitle={`${rows.length} trong ${categories.length} danh mục`}
-        />
+        >
+          <button className="button" onClick={openCreate}>＋ Thêm danh mục</button>
+        </SectionHeading>
+        {feedback && !creating && <p className="adm-error" style={{ padding: '0 16px' }}>{feedback}</p>}
 
         <div className="adm-tools">
           <div className="search">
@@ -79,6 +149,16 @@ export function AdminCategoriesPage() {
                 <div className="adm-person-meta">
                   <span><Icon name="dollar" /> {formatVND(item.totalPrice)}</span>
                   <span><Icon name="services" /> {item.serviceCount}</span>
+                  {(item.status ?? 'ACTIVE') === 'ACTIVE'
+                    ? <span className="badge completed"><i />Đang mở</span>
+                    : <span className="badge cancelled"><i />Tạm ẩn</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}
+                  onClick={(e) => e.stopPropagation()}>
+                  <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
+                  <button className="button secondary" onClick={() => toggleStatus(item)}>
+                    {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Ẩn' : 'Mở'}
+                  </button>
                 </div>
               </button>
             ))}
@@ -110,7 +190,53 @@ export function AdminCategoriesPage() {
 
             <div className="adm-modal-foot">
               <button className="button secondary" onClick={() => setOpenId(null)}>Đóng</button>
+              {open && (
+                <>
+                  <button className="button secondary" onClick={() => openEdit(open)}>Sửa</button>
+                  <button className="button secondary" onClick={() => removeCategory(open)}>Xoá</button>
+                </>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hộp thêm / sửa danh mục */}
+      {creating && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
+          onClick={() => setCreating(false)}>
+          <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>{editing ? `Sửa danh mục "${editing.name}"` : 'Thêm danh mục mới'}</h3>
+            <form className="adm-form" onSubmit={submitCategory}>
+              <label className="adm-field">
+                <span>Tên danh mục</span>
+                <input value={form.name} onChange={set('name')} disabled={busy}
+                  placeholder="Ví dụ: Sơn gel" />
+              </label>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Trạng thái</span>
+                  <select value={form.status} onChange={set('status')} disabled={busy}>
+                    <option value="ACTIVE">Đang mở</option>
+                    <option value="INACTIVE">Tạm ẩn</option>
+                  </select>
+                </label>
+                <span />
+              </div>
+              <label className="adm-field">
+                <span>Mô tả</span>
+                <textarea value={form.description} onChange={set('description')} disabled={busy}
+                  rows={3} placeholder="Mô tả ngắn…" />
+              </label>
+              {feedback && <p className="adm-error">{feedback}</p>}
+              <div className="adm-modal-foot">
+                <button className="button secondary" type="button" disabled={busy}
+                  onClick={() => setCreating(false)}>Hủy</button>
+                <button className="button" type="submit" disabled={busy}>
+                  {editing ? 'Lưu thay đổi' : 'Thêm danh mục'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

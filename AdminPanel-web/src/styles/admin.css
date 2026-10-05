@@ -668,3 +668,5 @@
 @media(max-width:760px){
   .adm-tiles-4,.adm-tiles-3,.adm-tiles-2{grid-template-columns:minmax(0,1fr)}
 }
+.adm-error{margin:6px 0 0;font-size:12px;color:#b3261e}
+.adm-ok{margin:6px 0 0;font-size:12px;color:#2e7d32}

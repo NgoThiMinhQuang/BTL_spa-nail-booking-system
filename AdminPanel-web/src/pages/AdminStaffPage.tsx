@@ -7,14 +7,109 @@ import { Icon } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
+import { sendAdmin } from '../lib/admin-api';
 import { fmtNum, fmtRating, moneyShort } from '../lib/utils';
+import type { StaffItem } from '../store';
 
 export function AdminStaffPage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { staff, services } = state;
 
   const [term, setTerm] = useState('');
   const [specialty, setSpecialty] = useState('all');
+
+  const [editing, setEditing] = useState<StaffItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [form, setForm] = useState({
+    fullName: '', phone: '', email: '', password: '',
+    specialty: '', experienceYears: '1', serviceIds: [] as string[],
+  });
+
+  const set = (key: 'fullName' | 'phone' | 'email' | 'password' | 'specialty' | 'experienceYears') => (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  function toggleService(id: string) {
+    setForm((prev) => ({
+      ...prev,
+      serviceIds: prev.serviceIds.includes(id)
+        ? prev.serviceIds.filter((s) => s !== id)
+        : [...prev.serviceIds, id],
+    }));
+  }
+
+  function openCreate() {
+    setEditing(null);
+    setForm({
+      fullName: '', phone: '', email: '', password: '',
+      specialty: '', experienceYears: '1', serviceIds: [],
+    });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  function openEdit(item: StaffItem) {
+    setEditing(item);
+    setForm({
+      fullName: item.name, phone: item.phone, email: item.email ?? '', password: '',
+      specialty: item.specialty ?? '', experienceYears: String(item.experienceYears),
+      serviceIds: services.filter((s) => item.serviceNames.includes(s.name)).map((s) => s.id),
+    });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  async function submitStaff(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFeedback('');
+    const body: Record<string, unknown> = {
+      fullName: form.fullName.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim() || undefined,
+      specialty: form.specialty.trim(),
+      experienceYears: Number(form.experienceYears) || 0,
+      serviceIds: form.serviceIds.map(Number),
+    };
+    /* Mật khẩu: tạo mới bắt buộc, sửa thì để trống nghĩa là giữ nguyên. */
+    if (!editing || form.password) body.password = form.password;
+    const result = editing
+      ? await sendAdmin(`/catalog/staff/${editing.id}`, 'PUT', body)
+      : await sendAdmin('/catalog/staff', 'POST', body);
+    setBusy(false);
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setCreating(false);
+    reload();
+  }
+
+  async function toggleStatus(item: StaffItem) {
+    /* Backend chặn khoá khi còn lịch tương lai (409) nên ở đây chỉ hỏi
+       lại cho chắc, thông điệp lỗi hiện nguyên văn. */
+    const next = (item.status ?? 'ACTIVE') === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    if (next === 'INACTIVE'
+      && !window.confirm(`Khoá tài khoản "${item.name}"? Nhân viên còn lịch chưa xong thì không khoá được.`)) return;
+    const result = await sendAdmin(`/catalog/staff/${item.id}/status`, 'PATCH', { status: next });
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    reload();
+  }
+
+  async function removeStaff(item: StaffItem) {
+    if (!window.confirm(`Xoá nhân viên "${item.name}"? Người đã từng phục vụ thì không xoá được, chỉ khoá được.`)) return;
+    const result = await sendAdmin(`/catalog/staff/${item.id}`, 'DELETE');
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    reload();
+  }
 
   const specialties = Array.from(new Set(
     staff.map((item) => item.specialty).filter((value): value is string => Boolean(value)),
@@ -51,7 +146,10 @@ export function AdminStaffPage() {
           icon={<Icon name="adminStaff" />}
           title="Danh sách nhân viên"
           subtitle={`${rows.length} trong ${staff.length} nhân viên`}
-        />
+        >
+          <button className="button" onClick={openCreate}>＋ Thêm nhân viên</button>
+        </SectionHeading>
+        {feedback && !creating && <p className="adm-error" style={{ padding: '0 16px' }}>{feedback}</p>}
 
         <div className="adm-tools">
           <div className="search">
@@ -113,11 +211,94 @@ export function AdminStaffPage() {
                   </span>
                   <span className="adm-person-phone">{item.phone}</span>
                 </div>
+                {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
+                  <p className="adm-error">Tài khoản đang bị khoá — không đăng nhập được.</p>
+                )}
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
+                  <button className="button secondary" onClick={() => toggleStatus(item)}>
+                    {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở khoá'}
+                  </button>
+                  <button className="button secondary" onClick={() => removeStaff(item)}>Xoá</button>
+                </div>
               </article>
             ))}
           </div>
         )}
       </Panel>
+
+      {/* Hộp thêm / sửa nhân viên */}
+      {creating && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
+          onClick={() => setCreating(false)}>
+          <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>{editing ? `Sửa nhân viên "${editing.name}"` : 'Thêm nhân viên mới'}</h3>
+            <form className="adm-form" onSubmit={submitStaff}>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Họ tên</span>
+                  <input value={form.fullName} onChange={set('fullName')} disabled={busy}
+                    placeholder="Ví dụ: Nguyễn Thị Lan" />
+                </label>
+                <label className="adm-field">
+                  <span>Số điện thoại (tài khoản đăng nhập)</span>
+                  <input value={form.phone} onChange={set('phone')} disabled={busy}
+                    placeholder="Ví dụ: 0901000006" inputMode="tel" />
+                </label>
+              </div>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Email</span>
+                  <input value={form.email} onChange={set('email')} disabled={busy}
+                    placeholder="Không bắt buộc" inputMode="email" />
+                </label>
+                <label className="adm-field">
+                  <span>{editing ? 'Mật khẩu mới (để trống = giữ nguyên)' : 'Mật khẩu'}</span>
+                  <input type="password" value={form.password}
+                    onChange={set('password')} disabled={busy} />
+                </label>
+              </div>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Chuyên môn</span>
+                  <input value={form.specialty} onChange={set('specialty')} disabled={busy}
+                    placeholder="Ví dụ: Sơn gel & Nail Art" />
+                </label>
+                <label className="adm-field">
+                  <span>Kinh nghiệm (năm)</span>
+                  <input value={form.experienceYears} onChange={set('experienceYears')}
+                    disabled={busy} inputMode="numeric" />
+                </label>
+              </div>
+              <div className="adm-field">
+                <span>Dịch vụ thực hiện được</span>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {services.map((service) => (
+                    <label key={service.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={form.serviceIds.includes(service.id)}
+                        disabled={busy}
+                        onChange={() => toggleService(service.id)}
+                      />
+                      {service.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {feedback && <p className="adm-error">{feedback}</p>}
+              <div className="adm-modal-foot">
+                <button className="button secondary" type="button" disabled={busy}
+                  onClick={() => setCreating(false)}>Hủy</button>
+                <button className="button" type="submit" disabled={busy}>
+                  {editing ? 'Lưu thay đổi' : 'Thêm nhân viên'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

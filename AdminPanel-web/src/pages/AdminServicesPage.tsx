@@ -9,7 +9,9 @@ import { useState } from 'react';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { Icon } from '../components/Icon';
 import { useApp } from '../store';
+import { sendAdmin } from '../lib/admin-api';
 import { fmtNum, fmtRating, formatVND, moneyShort, safeImage } from '../lib/utils';
+import type { ServiceItem } from '../store';
 
 type SortKey = 'popular' | 'revenue' | 'price' | 'name';
 
@@ -21,7 +23,7 @@ const SORTS: { key: SortKey; label: string }[] = [
 ];
 
 export function AdminServicesPage() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const { services, categories } = state;
 
   const [term, setTerm] = useState('');
@@ -29,6 +31,89 @@ export function AdminServicesPage() {
   const [onlyActive, setOnlyActive] = useState(false);
   const [sort, setSort] = useState<SortKey>('popular');
   const [detailId, setDetailId] = useState<string | null>(null);
+
+  /* Thêm / sửa dịch vụ. Đổi giá ở đây không làm đổi lịch cũ vì lịch nào
+     cũng chụp giá lúc đặt — xem BR36. */
+  const [editing, setEditing] = useState<ServiceItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [form, setForm] = useState({
+    name: '', categoryId: '', price: '', duration: '60',
+    bufferTime: '0', description: '', status: 'ACTIVE',
+  });
+
+  const set = (key: keyof typeof form) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  function openCreate() {
+    setEditing(null);
+    setForm({ name: '', categoryId: '', price: '', duration: '60', bufferTime: '0', description: '', status: 'ACTIVE' });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  function openEdit(service: ServiceItem) {
+    setDetailId(null);
+    setEditing(service);
+    setForm({
+      name: service.name, categoryId: service.categoryId ?? '',
+      price: String(service.price), duration: String(service.duration),
+      bufferTime: String(service.bufferTime ?? 0),
+      description: service.description ?? '', status: service.status,
+    });
+    setFeedback('');
+    setCreating(true);
+  }
+
+  async function submitService(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setFeedback('');
+    const body = {
+      name: form.name.trim(),
+      categoryId: form.categoryId || null,
+      price: Number(form.price),
+      duration: Number(form.duration),
+      bufferTime: Number(form.bufferTime) || 0,
+      description: form.description.trim(),
+      status: form.status,
+    };
+    const result = editing
+      ? await sendAdmin(`/catalog/services/${editing.id}`, 'PUT', body)
+      : await sendAdmin('/catalog/services', 'POST', body);
+    setBusy(false);
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setCreating(false);
+    reload();
+  }
+
+  async function toggleStatus(service: ServiceItem) {
+    const next = service.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const result = await sendAdmin(`/catalog/services/${service.id}/status`, 'PATCH', { status: next });
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    reload();
+  }
+
+  async function removeService(service: ServiceItem) {
+    /* Backend chặn khi dịch vụ đã có lịch hoặc đang làm add-on (409) nên
+       ở đây chỉ hỏi lại cho chắc, thông điệp lỗi hiện nguyên văn. */
+    if (!window.confirm(`Xoá dịch vụ "${service.name}"? Dịch vụ đã có lịch hẹn thì không xoá được.`)) return;
+    const result = await sendAdmin(`/catalog/services/${service.id}`, 'DELETE');
+    if (!result.ok) {
+      setFeedback(result.message);
+      return;
+    }
+    setDetailId(null);
+    reload();
+  }
 
   const rows = services
     .filter((service) =>
@@ -69,7 +154,10 @@ export function AdminServicesPage() {
           icon={<Icon name="services" />}
           title="Danh mục dịch vụ"
           subtitle={`${rows.length} trong ${services.length} dịch vụ`}
-        />
+        >
+          <button className="button" onClick={openCreate}>＋ Thêm dịch vụ</button>
+        </SectionHeading>
+        {feedback && !creating && <p className="adm-error" style={{ padding: '0 16px' }}>{feedback}</p>}
 
         {/* Danh mục: dùng đúng bộ tab của app nhân viên */}
         <div className="svc-tabs" style={{ padding: '0 16px' }}>
@@ -122,6 +210,7 @@ export function AdminServicesPage() {
                   <th>Doanh thu</th>
                   <th>Đánh giá</th>
                   <th>Trạng thái</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,6 +243,16 @@ export function AdminServicesPage() {
                       <span className={`badge ${service.status === 'ACTIVE' ? 'completed' : 'cancelled'}`}>
                         <i />{service.status === 'ACTIVE' ? 'Đang mở' : 'Tạm ẩn'}
                       </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button className="button secondary" onClick={(e) => { e.stopPropagation(); openEdit(service); }}>
+                          Sửa
+                        </button>
+                        <button className="button secondary" onClick={(e) => { e.stopPropagation(); toggleStatus(service); }}>
+                          {service.status === 'ACTIVE' ? 'Ẩn' : 'Mở'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -200,7 +299,84 @@ export function AdminServicesPage() {
 
             <div className="adm-modal-foot">
               <button className="button secondary" onClick={() => setDetailId(null)}>Đóng</button>
+              {detail && (
+                <>
+                  <button className="button secondary" onClick={() => openEdit(detail)}>Sửa</button>
+                  <button className="button secondary" onClick={() => toggleStatus(detail)}>
+                    {detail.status === 'ACTIVE' ? 'Tạm ẩn' : 'Mở bán'}
+                  </button>
+                  <button className="button secondary" onClick={() => removeService(detail)}>Xoá</button>
+                </>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hộp thêm / sửa dịch vụ */}
+      {creating && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
+          onClick={() => setCreating(false)}>
+          <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>{editing ? `Sửa dịch vụ "${editing.name}"` : 'Thêm dịch vụ mới'}</h3>
+            <form className="adm-form" onSubmit={submitService}>
+              <label className="adm-field">
+                <span>Tên dịch vụ</span>
+                <input value={form.name} onChange={set('name')} disabled={busy}
+                  placeholder="Ví dụ: Sơn gel cao cấp" />
+              </label>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Danh mục</span>
+                  <select value={form.categoryId} onChange={set('categoryId')} disabled={busy}>
+                    <option value="">— Chưa phân loại —</option>
+                    {categories.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="adm-field">
+                  <span>Trạng thái</span>
+                  <select value={form.status} onChange={set('status')} disabled={busy}>
+                    <option value="ACTIVE">Đang mở bán</option>
+                    <option value="INACTIVE">Tạm ẩn</option>
+                  </select>
+                </label>
+              </div>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Giá (đ)</span>
+                  <input value={form.price} onChange={set('price')} disabled={busy}
+                    inputMode="numeric" placeholder="Ví dụ: 200000" />
+                </label>
+                <label className="adm-field">
+                  <span>Thời lượng (phút)</span>
+                  <input value={form.duration} onChange={set('duration')} disabled={busy}
+                    inputMode="numeric" />
+                </label>
+              </div>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Nghỉ sau dịch vụ (phút)</span>
+                  <input value={form.bufferTime} onChange={set('bufferTime')} disabled={busy}
+                    inputMode="numeric" />
+                </label>
+                <span />
+              </div>
+              <label className="adm-field">
+                <span>Mô tả</span>
+                <textarea value={form.description} onChange={set('description')} disabled={busy}
+                  rows={3} placeholder="Mô tả ngắn cho khách xem…" />
+              </label>
+              {feedback && <p className="adm-error">{feedback}</p>}
+              <div className="adm-modal-foot">
+                <button className="button secondary" type="button" disabled={busy}
+                  onClick={() => setCreating(false)}>Hủy</button>
+                <button className="button" type="submit" disabled={busy}>
+                  {editing ? 'Lưu thay đổi' : 'Thêm dịch vụ'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

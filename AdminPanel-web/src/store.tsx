@@ -201,6 +201,7 @@ export interface ServiceItem {
 export interface CategoryItem {
   id: string; name: string; description: string | null;
   serviceCount: number; totalPrice: number;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface StaffItem {
@@ -210,6 +211,7 @@ export interface StaffItem {
   bookingCount: number; completedCount: number; revenue: number;
   serviceCount: number; serviceNames: string[];
   rating: number | null; reviewCount: number;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface CustomerItem {
@@ -241,8 +243,22 @@ export interface ShiftItem {
 }
 
 export interface LeaveItem {
-  id: string; workDate: string; startTime: string; endTime: string;
-  staffName: string; specialty: string | null; affectedBookings: number;
+  id: string; staffId: string; staffName: string; specialty: string | null;
+  startDatetime: string; endDatetime: string; reason: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewNote: string | null; reviewerName: string | null;
+  affectedBookings: number;
+  affectedList: {
+    id: string; startsAt: string; endsAt: string;
+    serviceName: string; customerName: string;
+  }[];
+}
+
+export interface ScheduleRequestItem {
+  id: string; staffId: string; staffName: string; specialty: string | null;
+  workDate: string; startTime: string; endTime: string;
+  action: 'ADD' | 'UPDATE' | 'REMOVE'; status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  affectedBookings: number;
 }
 
 export interface ReviewItem {
@@ -287,6 +303,7 @@ export interface AdminState {
   customerStats: CustomerStats;
   shifts: ShiftItem[];
   leave: LeaveItem[];
+  scheduleRequests: ScheduleRequestItem[];
   reviews: ReviewItem[];
   reviewStats: { total: number; average: number | null; five: number; four: number; low: number };
   payments: PaymentItem[];
@@ -336,6 +353,7 @@ export const initialState: AdminState = {
   customerStats: { total: 0, totalSpending: 0, noShowCount: 0, completedCount: 0 },
   shifts: [],
   leave: [],
+  scheduleRequests: [],
   reviews: [],
   reviewStats: { total: 0, average: null, five: 0, four: 0, low: 0 },
   payments: [],
@@ -455,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [services, staff, customers, shifts, leave, reviews, payments, reports] =
+        const [services, staff, customers, shifts, leave, scheduleRequests, reviews, payments, reports] =
           await Promise.all([
             /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
          gọi /services không tồn tại nên trang Dịch vụ của Admin trắng. */
@@ -464,6 +482,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
             getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
             getJson<{ data: LeaveItem[] }>('/leave'),
+            getJson<{ data: ScheduleRequestItem[] }>('/schedule-requests'),
             getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
             getJson<{
               data: PaymentItem[];
@@ -483,6 +502,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       customerStats: customers.meta,
             shifts: shifts.data,
             leave: leave.data,
+            scheduleRequests: scheduleRequests.data,
             reviews: reviews.data,
             reviewStats: reviews.meta,
             payments: payments.data,
