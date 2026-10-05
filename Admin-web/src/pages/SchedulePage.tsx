@@ -1,12 +1,12 @@
 /* ===== Trang lịch làm việc: ngày / tuần / tháng ===== */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { DayTimeline } from '../components/DayTimeline';
 import { WeekGrid } from '../components/WeekGrid';
 import { Icon } from '../components/Icon';
 import { MiniCalendar } from '../components/MiniCalendar';
-import { useApp, type CalendarMode } from '../store';
+import { apiRequest, useApp, type CalendarMode } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
 import { longDate, localDate, STATUS_LABELS, STATUS_ORDER } from '../lib/utils';
 import type { Booking, BookingStatus } from '../types';
@@ -171,6 +171,7 @@ export function SchedulePage() {
         <div className="schedule-aside">
           <WorkdayCard />
           <MiniCalendar />
+          <LeaveRequestPanel />
           {upcoming.length > 0 && (
             <section className="panel upcoming-panel">
               <div className="section-heading"><h2>Lịch sắp tới</h2></div>
@@ -194,8 +195,146 @@ export function SchedulePage() {
   );
 }
 
-function usePeriodCaption() {
-  const { state } = useApp();
+interface LeaveRequest {
+  id: string;
+  startDatetime: string;
+  endDatetime: string;
+  reason: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewNote: string | null;
+  reviewerName: string | null;
+}
+
+const LEAVE_STATUS: Record<LeaveRequest['status'], string> = {
+  PENDING: 'Chờ duyệt',
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Đã từ chối',
+};
+
+/* Xin nghỉ phép: nhân viên gửi khoảng nghỉ, quản trị duyệt mới có hiệu
+   lực. Trước đây không có màn hình nào gọi API này nên nhân viên không
+   xin nghỉ được từ giao diện. */
+function LeaveRequestPanel() {
+  const [items, setItems] = useState<LeaveRequest[]>([]);
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [open, setOpen] = useState(false);
+
+  async function load() {
+    try {
+      const data = await apiRequest<{ data: LeaveRequest[] }>('/api/staff/leave-requests');
+      setItems(data.data);
+    } catch {
+      /* Lỗi tải danh sách không chặn form gửi mới. */
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!start || !end) {
+      setMessage('Hãy chọn thời gian bắt đầu và kết thúc.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      /* datetime-local ra 'YYYY-MM-DDTHH:mm' — backend nhận 'YYYY-MM-DD HH:mm'. */
+      await apiRequest('/api/staff/leave-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDatetime: start.replace('T', ' '),
+          endDatetime: end.replace('T', ' '),
+          reason: reason.trim() || undefined,
+        }),
+      });
+      setStart('');
+      setEnd('');
+      setReason('');
+      setOpen(false);
+      setMessage('Đã gửi yêu cầu. Quản trị duyệt thì kỳ nghỉ mới có hiệu lực.');
+      await load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pending = items.filter((item) => item.status === 'PENDING').length;
+
+  return (
+    <section className="panel leave-panel">
+      <div className="section-heading">
+        <h2>Xin nghỉ phép</h2>
+        {pending > 0 && <span className="period-caption">{pending} chờ duyệt</span>}
+      </div>
+      {!open ? (
+        <button className="booking-soft" onClick={() => { setOpen(true); setMessage(''); }}>
+          ＋ Gửi yêu cầu nghỉ
+        </button>
+      ) : (
+        <form className="leave-form" onSubmit={submit}>
+          <label>
+            <span>Từ lúc</span>
+            <input type="datetime-local" value={start}
+              onChange={(e) => setStart(e.target.value)} disabled={busy} />
+          </label>
+          <label>
+            <span>Đến lúc</span>
+            <input type="datetime-local" value={end}
+              onChange={(e) => setEnd(e.target.value)} disabled={busy} />
+          </label>
+          <label>
+            <span>Lý do (không bắt buộc)</span>
+            <input value={reason} maxLength={500}
+              onChange={(e) => setReason(e.target.value)} disabled={busy}
+              placeholder="Ví dụ: việc gia đình…" />
+          </label>
+          <div className="leave-actions">
+            <button type="button" className="booking-soft" disabled={busy}
+              onClick={() => setOpen(false)}>Hủy</button>
+            <button type="submit" className="booking-primary" disabled={busy}>
+              {busy ? 'Đang gửi…' : 'Gửi yêu cầu'}
+            </button>
+          </div>
+        </form>
+      )}
+      {message && <p className="booking-action-note">{message}</p>}
+      {items.length > 0 && (
+        <ul className="leave-list">
+          {items.slice(0, 5).map((item) => (
+            <li key={item.id}>
+              <div>
+                <strong>
+                  {String(item.startDatetime).slice(0, 16).replace('T', ' ')}
+                  {' → '}
+                  {String(item.endDatetime).slice(0, 16).replace('T', ' ')}
+                </strong>
+                <small>
+                  {LEAVE_STATUS[item.status]}
+                  {item.reviewerName ? ` bởi ${item.reviewerName}` : ''}
+                  {item.reviewNote ? ` — ${item.reviewNote}` : ''}
+                </small>
+              </div>
+              <span className={`badge ${item.status === 'PENDING' ? 'pending'
+                : item.status === 'APPROVED' ? 'completed' : 'cancelled'}`}>
+                <i />{LEAVE_STATUS[item.status]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function usePeriodCaption() {  const { state } = useApp();
   const dates = useMemo(() => {
     const anchor = new Date(`${state.date}T12:00:00`);
     let count = 1;
