@@ -1,5 +1,6 @@
 import { fetchBookings } from '@/features/booking/booking.service';
 import type { Booking } from '@/features/booking/booking.types';
+import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -64,10 +65,21 @@ export default function BookingsScreen() {
   const [error, setError] = useState('');
   const [now] = useState(() => Date.now());
 
+  /* Hiện đúng lý do thay vì một câu chung chung. Trước đây mọi lỗi đều hiện
+     "kiểm tra kết nối máy chủ" nên không phân biệt được mất mạng (API_URL sai)
+     với token sai (đăng nhập nhân viên trên app khách bị 403). */
+  const toMessage = (e: unknown) => {
+    if (e instanceof ApiError) {
+      if (e.status === 401) return 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.';
+      return e.message || `Máy chủ trả lỗi ${e.status}.`;
+    }
+    return 'Không thể tải lịch hẹn. Hãy kiểm tra kết nối máy chủ.';
+  };
+
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try { setBookings(await fetchBookings()); setError(''); }
-    catch { setError('Không thể tải lịch hẹn. Hãy kiểm tra kết nối máy chủ.'); }
+    catch (e) { setError(toMessage(e)); }
     finally { setRefreshing(false); }
   }, []);
 
@@ -75,7 +87,7 @@ export default function BookingsScreen() {
     let active = true;
     fetchBookings()
       .then((data) => { if (active) { setBookings(data); setError(''); } })
-      .catch(() => { if (active) setError('Không thể tải lịch hẹn. Hãy kiểm tra kết nối máy chủ.'); })
+      .catch((e) => { if (active) setError(toMessage(e)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []));
