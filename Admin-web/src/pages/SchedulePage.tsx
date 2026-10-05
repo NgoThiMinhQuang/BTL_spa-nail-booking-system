@@ -225,8 +225,9 @@ function LeaveRequestPanel() {
 
   async function load() {
     try {
-      const data = await apiRequest<{ data: LeaveRequest[] }>('/api/staff/leave-requests');
-      setItems(data.data);
+      /* apiRequest đã bóc sẵn .data nên kiểu là mảng, không phải { data }. */
+      const rows = await apiRequest<LeaveRequest[]>('/api/staff/leave-requests');
+      setItems(Array.isArray(rows) ? rows : []);
     } catch {
       /* Lỗi tải danh sách không chặn form gửi mới. */
     }
