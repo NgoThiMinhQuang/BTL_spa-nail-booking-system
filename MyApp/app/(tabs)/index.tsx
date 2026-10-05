@@ -4,6 +4,7 @@ import { CategoryMenu } from '@/components/home/CategoryMenu';
 import { FeaturedArtists } from '@/components/home/FeaturedArtists';
 import { Header } from '@/components/home/Header';
 import { NailCard } from '@/components/home/NailCard';
+import { ReviewSection } from '@/components/home/ReviewSection';
 import { ServiceCard } from '@/components/home/ServiceCard';
 import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeData } from '@/features/home/home.types';
@@ -64,6 +65,9 @@ export default function HomeScreen() {
         </View>
 
         <FeaturedArtists artists={home.featuredArtists} />
+
+        <SectionHeader title="Khách hàng nói gì về chúng tôi" />
+        <ReviewSection />
 
         <SectionHeader title="Lịch hẹn sắp tới của bạn" onPress={() => router.push('/bookings')} />
         {home.upcomingAppointment ? <AppointmentCard appointment={home.upcomingAppointment} /> : <View style={styles.noAppointment}><Ionicons name="calendar-outline" size={25} color="#6B8F88" /><View><Text style={styles.noAppointmentTitle}>Bạn chưa có lịch hẹn sắp tới</Text><Text style={styles.noAppointmentText}>Chọn dịch vụ yêu thích và đặt lịch ngay nhé.</Text></View></View>}
