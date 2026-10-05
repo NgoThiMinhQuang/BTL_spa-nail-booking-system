@@ -276,8 +276,8 @@ function LeaveRequestPanel() {
         {pending > 0 && <span className="period-caption">{pending} chờ duyệt</span>}
       </div>
       {!open ? (
-        <button className="booking-soft" onClick={() => { setOpen(true); setMessage(''); }}>
-          ＋ Gửi yêu cầu nghỉ
+        <button className="leave-open" onClick={() => { setOpen(true); setMessage(''); }}>
+          <span aria-hidden="true">＋</span> Gửi yêu cầu nghỉ
         </button>
       ) : (
         <form className="leave-form" onSubmit={submit}>
@@ -298,9 +298,9 @@ function LeaveRequestPanel() {
               placeholder="Ví dụ: việc gia đình…" />
           </label>
           <div className="leave-actions">
-            <button type="button" className="booking-soft" disabled={busy}
-              onClick={() => setOpen(false)}>Hủy</button>
-            <button type="submit" className="booking-primary" disabled={busy}>
+            <button type="button" className="leave-cancel" disabled={busy}
+              onClick={() => setOpen(false)}>Hủy bỏ</button>
+            <button type="submit" className="leave-submit" disabled={busy}>
               {busy ? 'Đang gửi…' : 'Gửi yêu cầu'}
             </button>
           </div>

@@ -10,12 +10,25 @@
 @media(max-width:1200px){.schedule-toolbar{gap:8px;padding:12px}.mode-tabs button{padding:9px 17px}.schedule-toolbar select{min-width:140px;font-size:11px}.schedule-stats article{gap:10px;padding:15px 12px}.schedule-stats .stat-icon{width:42px;height:42px}.schedule-stats p{font-size:10px}.schedule-stats small{font-size:9px}.schedule-columns{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:13px}.schedule-table td{padding:12px 6px}.schedule-table thead th{font-size:9px;padding:10px 6px}.schedule-person{min-width:114px;gap:6px}.schedule-person strong{font-size:10px}.schedule-person .avatar{width:28px;height:28px}.schedule-service{min-width:70px;font-size:10px}.schedule-table td:first-child>strong{font-size:11px}.schedule-table .badge{font-size:7px}.schedule-list .period-caption{max-width:125px}.booking-person .avatar{width:38px;height:38px}.booking-person h3{font-size:12px}.contact-pill{font-size:9px;padding:8px}.booking-info dl>div{grid-template-columns:85px 1fr;font-size:10px}.schedule-bottom{grid-template-columns:1fr}.schedule-services .service-image{width:62px;height:76px}.schedule-page .page-heading{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}}
 @media(max-width:960px){.schedule-columns{grid-template-columns:1fr}.schedule-aside{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}.schedule-quote{margin-top:0}.schedule-bottom{grid-template-columns:1fr 1fr}.schedule-stats{gap:10px}.schedule-stats article{display:flex}.schedule-stats small{margin-left:5px}.schedule-stats .stat-icon{width:34px;height:34px}.schedule-toolbar select{margin-left:0}.schedule-page .page-heading h1{font-size:27px}.schedule-table td{font-size:11px}.schedule-table .badge{font-size:9px}.schedule-person strong{font-size:11px}.schedule-person .avatar{width:35px;height:35px}.schedule-detail .section-heading h2{font-size:14px}}
 @media(max-width:600px){.schedule-page .page-heading{margin:-16px -12px 14px;padding:20px 12px;min-height:105px}.schedule-page .page-heading h1{font-size:26px}.schedule-page .subtitle{font-size:11px;max-width:270px}.schedule-toolbar{gap:8px;padding:10px}.schedule-date{flex:1;padding:8px}.schedule-date input{font-size:12px;max-width:145px}.schedule-toolbar .today-button{padding:9px 12px;font-size:10px}.period-arrows{gap:3px}.schedule-toolbar .icon-button{width:27px;height:27px}.mode-tabs{gap:3px;flex:1}.mode-tabs button{font-size:11px;padding:9px 13px;flex:1}.schedule-toolbar select{min-width:0;width:140px;font-size:10px;padding:9px 6px}.schedule-stats{gap:9px;margin-bottom:14px}.schedule-stats article{min-height:90px;padding:12px 9px;gap:9px}.schedule-stats .stat-icon{width:37px;height:37px}.schedule-stats strong{font-size:28px}.schedule-stats p{font-size:11px}.schedule-stats small{font-size:9px}.schedule-aside,.schedule-bottom{display:grid;grid-template-columns:1fr}.schedule-table{min-width:535px}.schedule-table-wrap{padding:0 9px}.schedule-list .section-heading{padding:15px 12px}.schedule-page .section-heading h2{font-size:15px}.schedule-list .period-caption{font-size:9px;max-width:110px}.schedule-search{padding:0 12px 12px}.schedule-search input{font-size:10px}.schedule-search>span{font-size:9px}.schedule-list-footer{font-size:8px;padding:11px 12px}.schedule-quote{min-height:105px}.booking-person .avatar{width:51px;height:51px}.booking-person h3{font-size:14px}.booking-info dl>div{grid-template-columns:100px 1fr;font-size:12px}.booking-info dl>div dt{font-size:11px}.contact-pill{font-size:11px;padding:9px 12px}.schedule-tip{font-size:11px}.schedule-services .service-image{width:60px;height:83px}.schedule-services .service-card h3{font-size:11px}.schedule-services .service-meta strong{font-size:12px}.month-calendar{padding:0 8px 8px}.month-day,.month-blank{min-height:76px;padding:6px 2px}.month-booking{font-size:7px}.month-day>strong{font-size:11px}.agenda-day{grid-template-columns:59px 1fr}.agenda-booking{min-width:140px}.agenda-items{padding-left:9px}}
-.leave-panel{display:grid;gap:10px}
-.leave-form{display:grid;gap:8px}
-.leave-form label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
-.leave-form input{border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff;font:inherit}
+
+.leave-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.leave-list li strong{display:block;font-weight:600}
+.leave-list li small{color:var(--muted)}
+.leave-panel{display:grid;gap:12px}
+.leave-open{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:10px;border:1px dashed #dba6b5;background:#fdf3f6;color:var(--nh-primary-dark);font-weight:600;font-size:14px;cursor:pointer}
+.leave-open:hover{background:var(--nh-blush)}
+.leave-form{display:grid;gap:10px}
+.leave-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:var(--ink)}
+.leave-form input{border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:#fff;font:inherit;font-size:14px;color:var(--ink);width:100%}
+.leave-form input:focus{outline:none;border-color:var(--rose);box-shadow:0 0 0 3px rgba(166,95,97,.15)}
+.leave-form input:disabled{opacity:.55}
 .leave-actions{display:flex;gap:8px}
-.leave-actions button{flex:1}
+.leave-submit{flex:1.2;min-height:44px;border-radius:10px;border:0;background:#c74a70;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.leave-submit:hover{background:#b53f63}
+.leave-submit:disabled{opacity:.45;cursor:wait}
+.leave-cancel{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:600;font-size:14px;cursor:pointer}
+.leave-cancel:hover{background:#f2eeea}
+.leave-cancel:disabled{opacity:.45;cursor:wait}
 .leave-list{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:8px}
 .leave-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
 .leave-list li strong{display:block;font-weight:600}
