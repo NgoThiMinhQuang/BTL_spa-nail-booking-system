@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  addCustomerImage,
   cancelBooking,
   createBooking,
   createReview,
@@ -7,6 +8,10 @@ import {
   getBookings,
   updateBookingStatus,
 } from '../controllers/booking.controller.js';
+/* addAddon nằm ở controller quản trị nhưng đã chia nhánh actorRole STAFF /
+   ADMIN ngay trong hàm — nhân viên thêm lúc PROCESSING, quản trị thêm khi
+   chưa PAID. Dùng chung một hàm để hai vai trò không lệch luật. */
+import { addAddon } from '../controllers/booking-admin.controller.js';
 import { authenticate, requireCustomer, requireStaff } from '../lib/auth.js';
 
 const router = Router();
@@ -30,9 +35,18 @@ router.patch('/:id/cancel', authenticate, requireCustomer, cancelBooking);
 /* Khách đánh giá lịch đã hoàn thành, mỗi lịch một lần. */
 router.post('/:bookingId/review', authenticate, requireCustomer, createReview);
 
+/* Ảnh mẫu khách gửi kèm lịch của chính mình. */
+router.post('/:id/images', authenticate, requireCustomer, addCustomerImage);
+
 /* Nhân viên bắt đầu / hoàn thành lịch được phân công cho mình. Nhân viên
    tự lấy danh tính từ token nên không có đường gọi chéo lịch của
    người khác. */
 router.patch('/:id/status', authenticate, requireStaff, updateBookingStatus);
+
+/* Nhân viên thêm dịch vụ phát sinh khi khách đang được phục vụ
+   (PROCESSING) — đúng luồng Staff: Processing → thêm phát sinh →
+   Completed. Luật STAFF nằm sẵn trong addAddon, trước đây đường này chỉ
+   có ở /api/admin nên nhánh đó không bao giờ chạy được. */
+router.post('/:id/addons', authenticate, requireStaff, addAddon);
 
 export default router;

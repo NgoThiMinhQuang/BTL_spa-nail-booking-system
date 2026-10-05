@@ -7,7 +7,6 @@ import { NailCard } from '@/components/home/NailCard';
 import { ServiceCard } from '@/components/home/ServiceCard';
 import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeData } from '@/features/home/home.types';
-import { me } from '@/features/auth/auth.service';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -26,9 +25,10 @@ export default function HomeScreen() {
   const loadHome = async () => {
     try {
       setError('');
-      const user = await me();
-      const customerId = user?.customerId || '1';
-      setHome(await fetchHomeData(customerId));
+      /* Không truyền customerId nữa: backend lấy đúng người đang đăng nhập
+         từ token. Trước đây truyền id trên query nên chỉ cần đổi số là đọc
+         được hồ sơ của khách khác. */
+      setHome(await fetchHomeData());
     } catch {
       setError('Không thể tải dữ liệu từ máy chủ.');
     } finally {

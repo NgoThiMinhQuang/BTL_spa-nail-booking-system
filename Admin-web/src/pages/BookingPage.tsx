@@ -32,6 +32,39 @@ export function BookingPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  /* Thêm dịch vụ phát sinh khi khách đang được phục vụ (PROCESSING).
+     Backend chỉ cho nhân viên được phân công thêm lúc này — gọi đường
+     /api/bookings/:id/addons với token nhân viên. */
+  const [addonService, setAddonService] = useState('');
+  const [addonQty, setAddonQty] = useState(1);
+  const [addonMsg, setAddonMsg] = useState('');
+
+  async function addAddon() {
+    if (!addonService) { setAddonMsg('Hãy chọn dịch vụ phát sinh.'); return; }
+    setBusy(true);
+    setAddonMsg('');
+    try {
+      const response = await fetch(`/api/bookings/${b?.id}/addons`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceId: Number(addonService), quantity: addonQty }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setAddonMsg(payload.message ?? 'Không thêm được dịch vụ phát sinh.');
+      } else {
+        setAddonMsg(`Đã thêm ${payload.data.name} ×${payload.data.quantity}.`);
+        setAddonService('');
+        setAddonQty(1);
+        reload();
+      }
+    } catch {
+      setAddonMsg('Mất kết nối tới máy chủ.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function advance(nextStatus: 'PROCESSING' | 'COMPLETED') {
     setBusy(true);
     setError('');
@@ -217,6 +250,42 @@ export function BookingPage() {
               <button className="booking-soft" disabled>× Hủy lịch hẹn</button>
               <a href={`tel:${b.phone}`}>☎ Liên hệ khách hàng</a>
             </div>
+            {/* Dịch vụ phát sinh: chỉ khi đang phục vụ (PROCESSING), đúng
+                luồng Staff. Backend chặn các trạng thái khác nên ở đây chỉ
+                ẩn cho gọn, không phải bảo mật. */}
+            {b.status === 'PROCESSING' && (
+              <div className="booking-addon">
+                <label htmlFor="addon-service">Dịch vụ phát sinh</label>
+                <select
+                  id="addon-service"
+                  value={addonService}
+                  disabled={busy}
+                  onChange={(e) => setAddonService(e.target.value)}
+                >
+                  <option value="">— Chọn dịch vụ —</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.name} — {money(s.price)}
+                    </option>
+                  ))}
+                </select>
+                <div className="booking-addon-row">
+                  <input
+                    type="number"
+                    aria-label="Số lượng"
+                    min={1}
+                    max={20}
+                    value={addonQty}
+                    disabled={busy}
+                    onChange={(e) => setAddonQty(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                  />
+                  <button className="booking-soft" disabled={busy} onClick={addAddon}>
+                    ＋ Thêm phát sinh
+                  </button>
+                </div>
+                {addonMsg && <p className="booking-action-note">{addonMsg}</p>}
+              </div>
+            )}
             {error
               ? <p className="booking-action-note is-error">{error}</p>
               : <p className="booking-action-note">

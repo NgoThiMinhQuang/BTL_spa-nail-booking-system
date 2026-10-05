@@ -17,9 +17,9 @@
 
 import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
-import { canStaffTransition, canTransition } from '../lib/booking-state.js';
+import { canStaffTransition, canTransition, isCancelWindowOpen } from '../lib/booking-state.js';
 import {
-  createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
+  actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
 } from '../lib/booking-service.js';
 import { freeSlotsForStaff } from '../lib/staff-availability.js';
 
@@ -262,16 +262,14 @@ export async function cancelBooking(req, res, next) {
     }
 
     /* Đã xác nhận rồi thì phải còn trên 2 giờ mới hủy được — cửa hàng cần
-       thời gian sắp xếp lại nhân viên. */
-    if (booking.status === 'CONFIRMED') {
-      const hoursLeft = (new Date(booking.startsAt).getTime() - Date.now()) / 3600000;
-      if (hoursLeft < CANCEL_WINDOW_HOURS) {
-        await connection.rollback();
-        return res.status(409).json({
-          message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
-            + `nên không thể tự hủy. Vui lòng liên hệ cửa hàng.`,
-        });
-      }
+       thời gian sắp xếp lại nhân viên. Đúng 2:00:00 cũng không (xem
+       isCancelWindowOpen). */
+    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
+          + `nên không thể tự hủy. Vui lòng liên hệ cửa hàng.`,
+      });
     }
 
     await connection.query(
@@ -298,6 +296,54 @@ export async function cancelBooking(req, res, next) {
     next(error);
   } finally {
     connection.release();
+  }
+}
+
+/* ================================================================
+   Ảnh mẫu khách gửi kèm lịch hẹn
+   ---------------------------------------------------------------
+   Mobile gọi POST /api/bookings/:id/images ngay sau khi đặt lịch.
+   Trước đây backend không có đường này cho khách (ảnh chỉ có ở
+   /api/admin), mà Mobile lại `.catch(() => null)` nên lỗi bị nuốt:
+   khách tưởng ảnh đã gửi thành công nhưng thật ra mất âm thầm.
+
+   Chỉ chủ lịch gửi được, và chỉ khi lịch còn "sống" — lịch đã hủy,
+   khách không đến hoặc đã xong thì ảnh mẫu không còn ý nghĩa.
+   Mỗi lịch tối đa 6 ảnh, giống giới hạn ảnh đánh giá.
+   ================================================================ */
+export async function addCustomerImage(req, res, next) {
+  try {
+    const bookingId = Number(req.params.id);
+    const url = String(req.body?.url ?? '').trim().slice(0, 255);
+    if (!Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+    if (!url) return res.status(400).json({ message: 'Cần đường dẫn ảnh.' });
+
+    const [[booking]] = await pool.query(
+      `SELECT booking_id, customer_id AS customerId, status
+         FROM booking WHERE booking_id = ? LIMIT 1`, [bookingId]);
+    if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    if (booking.customerId !== req.user.customerId) {
+      return res.status(403).json({ message: 'Bạn không có quyền gửi ảnh cho lịch hẹn này.' });
+    }
+    if (['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(booking.status)) {
+      return res.status(409).json({
+        message: 'Lịch đã kết thúc nên không gửi thêm được ảnh mẫu.',
+      });
+    }
+
+    const [[count]] = await pool.query(
+      'SELECT COUNT(*) AS n FROM booking_image WHERE booking_id = ?', [bookingId]);
+    if (Number(count.n) >= 6) {
+      return res.status(409).json({ message: 'Mỗi lịch hẹn chỉ gửi được tối đa 6 ảnh mẫu.' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO booking_image (booking_id, image_url) VALUES (?,?)', [bookingId, url]);
+    res.status(201).json({ data: { id: String(result.insertId), url } });
+  } catch (error) {
+    next(error);
   }
 }
 
@@ -358,11 +404,11 @@ export async function updateBookingStatus(req, res, next) {
 
     const set = ['status = ?'];
     const params = [nextStatus];
-    /* Ghi lại thời lượng thực tế khi hoàn thành để báo cáo "thời gian phục
-       vụ trung bình" phản ánh đúng việc thực tế. */
+    /* Thời gian phục vụ thật: từ lúc bấm "bắt đầu" đến lúc bấm "hoàn
+       thành", không phải thời lượng dự kiến. */
     if (nextStatus === 'COMPLETED') {
       set.push('actual_duration = ?');
-      params.push(booking.serviceDuration);
+      params.push(await actualServiceMinutes(connection, id, booking.serviceDuration));
     }
     params.push(id);
     await connection.query(`UPDATE booking SET ${set.join(', ')} WHERE booking_id = ?`, params);

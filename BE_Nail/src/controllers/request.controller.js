@@ -428,7 +428,8 @@ export async function approveScheduleRequest(req, res, next) {
 
     await connection.beginTransaction();
     const [[request]] = await connection.query(
-      `SELECT schedule_request_id, staff_id AS staffId, work_date AS workDate,
+      `SELECT schedule_request_id, staff_id AS staffId,
+              DATE_FORMAT(work_date, '%Y-%m-%d') AS workDate,
               start_time AS startTime, end_time AS endTime, action, status
          FROM staff_schedule_request WHERE schedule_request_id = ? LIMIT 1 FOR UPDATE`, [id],
     );
@@ -440,6 +441,54 @@ export async function approveScheduleRequest(req, res, next) {
     if (request.status !== 'PENDING') {
       await connection.rollback();
       return res.status(409).json({ message: 'Yêu cầu này đã được xử lý.' });
+    }
+
+    /* Ca mới (hoặc xoá ca) không được bỏ rơi lịch đã có khách: nhân viên
+       có lịch 15:00 mà ca bị sửa thành 08:00–12:00 thì lịch đó không còn
+       ai phục vụ. Admin phải đổi nhân viên, đổi giờ hoặc hủy các lịch đó
+       trước rồi duyệt — giống luật duyệt nghỉ phép. */
+    const day = String(request.workDate).slice(0, 10);
+    const [stranded] = await connection.query(
+      `SELECT b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
+              s.service_name AS serviceName,
+              COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName
+         FROM booking b
+         JOIN services s ON s.service_id = b.service_id
+         LEFT JOIN customer c ON c.customer_id = b.customer_id
+         LEFT JOIN users u ON u.user_id = c.user_id
+        WHERE b.staff_id = ? AND DATE(b.start_time) = ?
+          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+          ${request.action === 'REMOVE'
+            ? ''
+            : 'AND NOT (b.start_time >= ? AND b.end_time <= ?)'}
+        ORDER BY b.start_time LIMIT 50`,
+      request.action === 'REMOVE'
+        ? [request.staffId, day]
+        : [
+          request.staffId, day,
+          `${day} ${String(request.startTime).slice(0, 8)}`,
+          `${day} ${String(request.endTime).slice(0, 8)}`,
+        ],
+    );
+
+    if (stranded.length) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: request.action === 'REMOVE'
+          ? `Nhân viên này đang có ${stranded.length} lịch trong ngày ${day}. `
+            + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt xoá ca.'
+          : `Ca mới (${String(request.startTime).slice(0, 5)}–${String(request.endTime).slice(0, 5)} `
+            + `ngày ${day}) bỏ rơi ${stranded.length} lịch đã có khách. `
+            + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt.',
+        reason: 'CONFLICTING_BOOKINGS',
+        bookings: stranded.map((row) => ({
+          id: String(row.id),
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          serviceName: row.serviceName,
+          customerName: row.customerName,
+        })),
+      });
     }
 
     if (request.action === 'REMOVE') {
@@ -473,6 +522,10 @@ export async function approveScheduleRequest(req, res, next) {
   } catch (error) {
     await connection.rollback();
     next(error);
+  } finally {
+    /* Không có finally này thì connection không bao giờ trả về pool:
+       duyệt nhiều lần là pool hết connection và backend treo. */
+    connection.release();
   }
 }
 

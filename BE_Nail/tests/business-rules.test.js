@@ -26,12 +26,25 @@ import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 
 import {
-  ALLOWED_TRANSITIONS, canStaffTransition, canTransition,
+  ALLOWED_TRANSITIONS, canStaffTransition, canTransition, isCancelWindowOpen,
 } from '../src/lib/booking-state.js';
 import {
-  PAYMENT_TRANSITIONS, canPaymentTransition, finalAmount,
+  PAYMENT_TRANSITIONS, canPaymentTransition, finalAmount, resolvePaymentAmount,
 } from '../src/lib/payment-state.js';
+import {
+  actualServiceMinutes, createBooking as createBookingTx, momentOf,
+} from '../src/lib/booking-service.js';
 import { clockOfMinutes, minutesOfClock } from '../src/lib/staff-availability.js';
+import * as dbConfig from '../src/config/database.js';
+/* Controller test chạy trên database test nhờ _setPoolForTests (xem
+   src/config/database.js): mọi test bên dưới gọi controller nhưng không
+   chạm vào database thật. */
+import { addAddon, removeAddon } from '../src/controllers/booking-admin.controller.js';
+import { addCustomerImage } from '../src/controllers/booking.controller.js';
+import { getHome } from '../src/controllers/home.controller.js';
+import { savePayment } from '../src/controllers/payment.controller.js';
+import { approveScheduleRequest } from '../src/controllers/request.controller.js';
+import { deleteService, setStaffStatus } from '../src/controllers/catalog.controller.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -792,6 +805,391 @@ describe('Duyệt yêu cầu nghỉ', () => {
       await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
     } finally {
       await connection.end();
+    }
+  });
+});
+
+/* ================================================================
+   BẢN VÁ BẢO VỆ DỮ LIỆU
+   ---------------------------------------------------------------
+   Các test bên dưới bao phủ đúng những lỗi từng lọt qua bộ test cũ:
+   PAID trả thiếu, double-book nhánh "bất kỳ nhân viên", duyệt đổi ca
+   khi còn lịch, Staff thêm add-on, ảnh mẫu của khách, xoá add-on sau
+   PAID, thời gian phục vụ thực tế, khoá nhân viên còn lịch, xoá dịch
+   vụ đang làm add-on, và biên hủy đúng 2 giờ.
+   ================================================================ */
+
+/** Response Express giả: chỉ cần status().json() và json(). */
+function mockRes() {
+  const res = { statusCode: 200, body: null };
+  res.status = (code) => { res.statusCode = code; return res; };
+  res.json = (body) => { res.body = body; return res; };
+  return res;
+}
+
+/** next(err) của Express: test nào cũng muốn lỗi hiện ra, không nuốt. */
+function strictNext(err) {
+  if (err) throw err;
+}
+
+const dayPlus = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+describe('Bản vá bảo vệ dữ liệu', () => {
+  let testPool = null;
+  let realPool = null;
+
+  before(async () => {
+    await ensureReady();
+    realPool = dbConfig.pool;
+    testPool = mysql.createPool({
+      ...config, database: TEST_DB, connectionLimit: 10,
+      decimalNumbers: true, charset: 'utf8mb4',
+    });
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+    if (testPool) await testPool.end();
+  });
+
+  /* Nhân viên test cách ly: không đụng lịch của các test khác. */
+  async function makeStaff(n, dayOffset) {
+    const uid = 9300 + n;
+    const sid = 9300 + n;
+    const day = dayPlus(dayOffset);
+    const connection = await testPool.getConnection();
+    try {
+      await connection.query(
+        `INSERT INTO users (user_id, full_name, phone, email, password, role, status)
+         VALUES (?,?,?,?,'$2b$10$testseed','STAFF','ACTIVE')`,
+        [uid, `NV Guard ${n}`, `093300${String(n).padStart(4, '0')}`, `nvguard${n}@test.local`]);
+      await connection.query(
+        'INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (?,?,?,?)',
+        [sid, uid, 'Test', 1]);
+      await connection.query(
+        'INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (?, 1)', [sid]);
+      await connection.query(
+        `INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status)
+         VALUES (?,?, '09:00:00', '18:00:00', 'AVAILABLE')`, [sid, day]);
+    } finally {
+      connection.release();
+    }
+    return { uid, sid, day };
+  }
+
+  async function makeBooking({ customerId = 9001, staffId, status = 'PENDING', day, from = '10:00:00', to = '11:15:00' }) {
+    const [result] = await testPool.query(
+      `INSERT INTO booking
+         (customer_id, staff_id, service_id, service_price, service_duration, buffer_time,
+          start_time, end_time, status, source)
+       VALUES (?,?,?,?,?,?, ?,?,?, 'MOBILE')`,
+      [customerId, staffId, 1, 200000, 60, 15, `${day} ${from}`, `${day} ${to}`, status]);
+    return result.insertId;
+  }
+
+  /* ---------------- PAID phải bằng đúng tổng ---------------- */
+
+  test('PAID bỏ qua số tiền frontend gửi lên', () => {
+    assert.deepEqual(resolvePaymentAmount('PAID', 1, 500000), { ok: true, amount: 500000 });
+    assert.deepEqual(resolvePaymentAmount('PAID', 0, 500000), { ok: true, amount: 500000 });
+    assert.deepEqual(resolvePaymentAmount('PAID', 999999, 500000), { ok: true, amount: 500000 });
+    assert.deepEqual(resolvePaymentAmount('PAID', undefined, 500000), { ok: true, amount: 500000 });
+  });
+
+  test('UNPAID và DEPOSITED vẫn kiểm tra khoảng hợp lệ', () => {
+    assert.deepEqual(resolvePaymentAmount('DEPOSITED', 100000, 500000), { ok: true, amount: 100000 });
+    assert.equal(resolvePaymentAmount('DEPOSITED', 600000, 500000).ok, false);
+    assert.equal(resolvePaymentAmount('UNPAID', -1, 500000).ok, false);
+    assert.equal(resolvePaymentAmount('UNPAID', Number.NaN, 500000).ok, false);
+    assert.equal(resolvePaymentAmount('UNPAID', 500001, 500000).ok, false);
+  });
+
+  test('savePayment PAID với amount = 1 vẫn ghi đủ tổng', async () => {
+    const { sid, day } = await makeStaff(11, 3);
+    const bookingId = await makeBooking({ staffId: sid, day });
+    const res = mockRes();
+    await savePayment(
+      { params: { id: String(bookingId) }, body: { status: 'PAID', amount: 1, method: 'CASH' }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.amount, 200000);
+    const [[row]] = await testPool.query(
+      'SELECT amount FROM payment WHERE booking_id = ?', [bookingId]);
+    assert.equal(Number(row.amount), 200000);
+  });
+
+  /* ---------------- Khoá add-on sau PAID ---------------- */
+
+  test('removeAddon bị chặn khi lịch đã PAID', async () => {
+    const { sid, day } = await makeStaff(12, 3);
+    const bookingId = await makeBooking({ staffId: sid, day });
+    const [addon] = await testPool.query(
+      `INSERT INTO booking_addon (booking_id, service_id, service_name, quantity, price)
+       VALUES (?,?, 'Dich vu phu', 1, 50000)`, [bookingId, 2]);
+    await testPool.query(
+      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
+       VALUES (?,?, 'CASH', 'PAID', NOW())`, [bookingId, 250000]);
+
+    const res = mockRes();
+    await removeAddon(
+      { params: { id: String(bookingId), addonId: String(addon.insertId) }, user: { role: 'ADMIN', name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+    const [[kept]] = await testPool.query(
+      'SELECT COUNT(*) AS n FROM booking_addon WHERE addon_id = ?', [addon.insertId]);
+    assert.equal(Number(kept.n), 1);
+
+    /* Chưa PAID thì vẫn bỏ được (đường thành công không vỡ). */
+    await testPool.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    const res2 = mockRes();
+    await removeAddon(
+      { params: { id: String(bookingId), addonId: String(addon.insertId) }, user: { role: 'ADMIN', name: 'Admin Test' } },
+      res2, strictNext,
+    );
+    assert.equal(res2.statusCode, 200);
+    assert.equal(res2.body.data.removed, true);
+  });
+
+  /* ---------------- Duyệt đổi ca khi còn lịch ---------------- */
+
+  test('approveScheduleRequest từ chối khi ca mới bỏ rơi lịch', async () => {
+    const { sid, day } = await makeStaff(13, 5);
+    const bookingId = await makeBooking({ staffId: sid, day, from: '10:00:00', to: '11:15:00' });
+    const [request] = await testPool.query(
+      `INSERT INTO staff_schedule_request (staff_id, work_date, start_time, end_time, action, status)
+       VALUES (?,?, '08:00:00', '09:00:00', 'UPDATE', 'PENDING')`, [sid, day]);
+
+    const res = mockRes();
+    await approveScheduleRequest(
+      { params: { id: String(request.insertId) }, body: {}, user: { userId: 9004 } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.reason, 'CONFLICTING_BOOKINGS');
+    assert.equal(res.body.bookings.length, 1);
+
+    /* Xử lý lịch xong thì duyệt được. */
+    await testPool.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+    const res2 = mockRes();
+    await approveScheduleRequest(
+      { params: { id: String(request.insertId) }, body: {}, user: { userId: 9004 } },
+      res2, strictNext,
+    );
+    assert.equal(res2.statusCode, 200);
+    assert.equal(res2.body.data.status, 'APPROVED');
+  });
+
+  /* ---------------- Nhân viên thêm add-on ---------------- */
+
+  test('staff thêm add-on lúc PROCESSING, bị chặn lúc CONFIRMED', async () => {
+    const { sid, day } = await makeStaff(14, 3);
+    const doingId = await makeBooking({ staffId: sid, day, status: 'PROCESSING' });
+    const waitingId = await makeBooking({ staffId: sid, day, status: 'CONFIRMED', from: '14:00:00', to: '15:15:00' });
+
+    const staffUser = { role: 'STAFF', staffId: sid, name: 'NV Guard 14' };
+    const okRes = mockRes();
+    await addAddon(
+      { params: { id: String(doingId) }, body: { serviceId: 2, quantity: 2 }, user: staffUser },
+      okRes, strictNext,
+    );
+    assert.equal(okRes.statusCode, 201);
+    assert.equal(okRes.body.data.total, 100000);
+
+    const badRes = mockRes();
+    await addAddon(
+      { params: { id: String(waitingId) }, body: { serviceId: 2, quantity: 1 }, user: staffUser },
+      badRes, strictNext,
+    );
+    assert.equal(badRes.statusCode, 409);
+  });
+
+  test('staff không thêm được add-on vào lịch của người khác', async () => {
+    const { sid, day } = await makeStaff(15, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PROCESSING' });
+    const res = mockRes();
+    await addAddon(
+      { params: { id: String(bookingId) }, body: { serviceId: 2, quantity: 1 }, user: { role: 'STAFF', staffId: 9001, name: 'NV Khac' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 403);
+  });
+
+  /* ---------------- Ảnh mẫu của khách ---------------- */
+
+  test('khách gửi ảnh cho lịch của mình, không gửi được cho lịch người khác', async () => {
+    await testPool.query(
+      `INSERT INTO users (user_id, full_name, phone, email, password, role, status)
+       VALUES (9401, 'Khach Guard', '0934000001', 'khachguard@test.local', '$2b$10$testseed', 'CUSTOMER', 'ACTIVE')`);
+    await testPool.query('INSERT INTO customer (customer_id, user_id) VALUES (9401, 9401)');
+
+    const { sid, day } = await makeStaff(16, 3);
+    const mineId = await makeBooking({ customerId: 9001, staffId: sid, day });
+    const otherId = await makeBooking({ customerId: 9401, staffId: sid, day, from: '14:00:00', to: '15:15:00' });
+
+    const okRes = mockRes();
+    await addCustomerImage(
+      { params: { id: String(mineId) }, body: { url: 'https://cdn.test/mau.jpg' }, user: { customerId: 9001 } },
+      okRes, strictNext,
+    );
+    assert.equal(okRes.statusCode, 201);
+
+    const badRes = mockRes();
+    await addCustomerImage(
+      { params: { id: String(otherId) }, body: { url: 'https://cdn.test/mau.jpg' }, user: { customerId: 9001 } },
+      badRes, strictNext,
+    );
+    assert.equal(badRes.statusCode, 403);
+  });
+
+  /* ---------------- Khoá nhân viên còn lịch ---------------- */
+
+  test('setStaffStatus INACTIVE bị chặn khi còn lịch tương lai', async () => {
+    const { sid, day } = await makeStaff(17, 4);
+    const bookingId = await makeBooking({ staffId: sid, day });
+
+    const res = mockRes();
+    await setStaffStatus(
+      { params: { id: String(sid) }, body: { status: 'INACTIVE' }, user: { userId: 9004 } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+
+    await testPool.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+    const res2 = mockRes();
+    await setStaffStatus(
+      { params: { id: String(sid) }, body: { status: 'INACTIVE' }, user: { userId: 9004 } },
+      res2, strictNext,
+    );
+    assert.equal(res2.statusCode, 200);
+    assert.equal(res2.body.data.status, 'INACTIVE');
+  });
+
+  /* ---------------- Xoá dịch vụ đang làm add-on ---------------- */
+
+  test('deleteService bị chặn khi dịch vụ nằm trong booking_addon', async () => {
+    const { sid, day } = await makeStaff(18, 3);
+    const bookingId = await makeBooking({ staffId: sid, day });
+    await testPool.query(
+      `INSERT INTO booking_addon (booking_id, service_id, service_name, quantity, price)
+       VALUES (?,?, 'Dich vu phu', 1, 50000)`, [bookingId, 2]);
+
+    const res = mockRes();
+    await deleteService(
+      { params: { id: '2' }, user: { userId: 9004 } }, res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+  });
+
+  /* ---------------- Biên hủy đúng 2 giờ ---------------- */
+
+  test('CONFIRMED đúng 2:00:00 không hủy được, trên 2 giờ mới được', () => {
+    const now = Date.UTC(2026, 5, 1, 12, 0, 0);
+    const at = (ms) => new Date(now + ms).toISOString();
+    assert.equal(isCancelWindowOpen(at(3 * 3600000), now), true);
+    assert.equal(isCancelWindowOpen(at(2 * 3600000 + 60000), now), true);
+    assert.equal(isCancelWindowOpen(at(2 * 3600000), now), false);
+    assert.equal(isCancelWindowOpen(at(2 * 3600000 - 60000), now), false);
+    assert.equal(isCancelWindowOpen(at(-3600000), now), false);
+  });
+
+  /* ---------------- Double-book nhánh bất kỳ nhân viên ---------------- */
+
+  test('hai khách cùng đặt một giờ thì một người nhận 409', async () => {
+    /* Ngày ngoài 8 ngày seed (chỉ nhân viên cách ly có ca) để chắc chắn
+       chỉ một người đủ điều kiện — nếu không request thua sẽ rơi sang
+       nhân viên khác (đúng thiết kế) và test không còn kiểm tra được
+       việc chen nhau. */
+    const { sid, day } = await makeStaff(19, 9);
+    const startsAt = momentOf(day, '10:00');
+    const input = {
+      serviceId: 1, staffId: null, customerId: 9001,
+      startsAt, duration: 60, bufferTime: 15, price: 200000,
+      source: 'MOBILE', actorRole: 'CUSTOMER', actorName: 'Khach Test',
+    };
+
+    async function attempt() {
+      const connection = await testPool.getConnection();
+      await connection.beginTransaction();
+      try {
+        const record = await createBookingTx(connection, { ...input });
+        await connection.commit();
+        return { ok: true, record };
+      } catch (error) {
+        await connection.rollback();
+        return { ok: false, status: error.status ?? 500 };
+      } finally {
+        connection.release();
+      }
+    }
+
+    const [first, second] = await Promise.all([attempt(), attempt()]);
+    const codes = [first.ok, second.ok].sort();
+    assert.deepEqual(codes, [false, true]);
+    const loser = first.ok ? second : first;
+    assert.equal(loser.status, 409);
+
+    const [[count]] = await testPool.query(
+      `SELECT COUNT(*) AS n FROM booking
+        WHERE staff_id = ? AND DATE(start_time) = ? AND status = 'PENDING'`, [sid, day]);
+    assert.equal(Number(count.n), 1);
+  });
+
+  /* ---------------- Trang chủ không rò rỉ hồ sơ khách ---------------- */
+
+  function mockHomeReq({ token = null, query = {} } = {}) {
+    return {
+      protocol: 'http',
+      query,
+      get: (name) => {
+        if (String(name).toLowerCase() === 'host') return 'localhost:3000';
+        if (String(name).toLowerCase() === 'authorization' && token) return `Bearer ${token}`;
+        return null;
+      },
+    };
+  }
+
+  test('/api/home vô danh không trả hồ sơ dù có customerId trên query', async () => {
+    const res = mockRes();
+    await getHome(mockHomeReq({ query: { customerId: '9001' } }), res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.customer, null);
+    assert.equal(res.body.data.upcomingAppointment, null);
+    assert.ok(res.body.data.featuredServices.length > 0);
+    assert.ok(res.body.data.featuredArtists.length > 0);
+  });
+
+  test('/api/home trả đúng hồ sơ của người đang đăng nhập', async () => {
+    const { signToken } = await import('../src/lib/auth.js');
+    const token = signToken({ userId: 9001, role: 'CUSTOMER' });
+    const res = mockRes();
+    await getHome(mockHomeReq({ token, query: { customerId: '9003' } }), res, strictNext);
+    assert.equal(res.statusCode, 200);
+    /* Query đòi 9003 nhưng token là 9001 — phải trả 9001. */
+    assert.equal(res.body.data.customer.name, 'Khach Test');
+  });
+
+  /* ---------------- Thời gian phục vụ thực tế ---------------- */
+
+  test('actualServiceMinutes tính từ mốc bắt đầu, thiếu mốc thì giữ dự kiến', async () => {
+    const { sid, day } = await makeStaff(20, 3);
+    const timedId = await makeBooking({ staffId: sid, day, status: 'COMPLETED' });
+    await testPool.query(
+      `INSERT INTO booking_event (booking_id, event_type, detail, actor_role, actor_name, created_at)
+       VALUES (?, 'SERVICE_STARTED', 'Bat dau', 'STAFF', 'NV Guard 20', DATE_SUB(NOW(), INTERVAL 90 MINUTE))`,
+      [timedId]);
+
+    const connection = await testPool.getConnection();
+    try {
+      const actual = await actualServiceMinutes(connection, timedId, 60);
+      assert.ok(Math.abs(actual - 90) <= 1, `phải ra ~90 phút, nhận ${actual}`);
+
+      const plainId = await makeBooking({ staffId: sid, day, status: 'COMPLETED', from: '14:00:00', to: '15:15:00' });
+      assert.equal(await actualServiceMinutes(connection, plainId, 60), 60);
+    } finally {
+      connection.release();
     }
   });
 });

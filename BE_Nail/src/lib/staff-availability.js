@@ -84,9 +84,15 @@ export async function approvedLeaveOverlaps({ staffId, startsAt, endsAt }) {
  * Trả về `{ ok: true, staffName }` nếu nhân viên nhận được lịch,
  * hoặc `{ ok: false, reason }` bằng tiếng Việt để hiện thẳng ra giao diện.
  * `reason` luôn kèm số liệu cụ thể, không trả lời chung chung kiểu "không ổn".
+ *
+ * `forUpdate` chỉ dùng trong giao dịch tạo/sửa lịch: câu kiểm tra trùng
+ * đọc dưới dạng locking read để thấy lịch vừa được request khác commit.
+ * Nếu không, ở isolation mặc định REPEATABLE READ thì SELECT thường chỉ
+ * thấy snapshot lúc request bắt đầu — kiểm tra lại sau khi khoá cũng
+ * mù như không kiểm tra.
  */
 export async function checkStaffAvailable({
-  bookingId = null, staffId, serviceId, startsAt, endsAt, runner = pool,
+  bookingId = null, staffId, serviceId, startsAt, endsAt, runner = pool, forUpdate = false,
 }) {
   const [[staff]] = await runner.query(
     `SELECT st.staff_id, u.full_name, u.status
@@ -154,7 +160,7 @@ export async function checkStaffAvailable({
         AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
         AND b.start_time < ? AND b.end_time > ?
         AND (? IS NULL OR b.booking_id <> ?)
-      LIMIT 1`,
+      LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
     [staffId, endsAt, startsAt, bookingId, bookingId]);
 
   if (clash) {
@@ -296,8 +302,8 @@ export async function freeSlotsForStaff({
 /** Những người thỏa ba điều kiện: còn làm việc, làm được dịch vụ này,
     và có ca trong ngày. Đây là danh sách ứng viên cho lựa chọn "Bất kỳ
     nhân viên phù hợp" — cùng một bộ luật với `listAvailableStaff`. */
-export async function eligibleStaffIds({ serviceId, day }) {
-  const [rows] = await pool.query(
+export async function eligibleStaffIds({ serviceId, day, runner = pool }) {
+  const [rows] = await runner.query(
     `SELECT st.staff_id AS id
        FROM staff st
        JOIN users u ON u.user_id = st.user_id
@@ -307,6 +313,24 @@ export async function eligibleStaffIds({ serviceId, day }) {
       WHERE u.status = 'ACTIVE'
       ORDER BY u.full_name`, [serviceId, day]);
   return rows.map((row) => row.id);
+}
+
+/**
+ * Xếp ứng viên theo số lịch trong ngày (ít lịch lên trước).
+ * Tách riêng để cả `pickStaffForSlot` (chỉ xem) và `claimStaffForSlot`
+ * (chọn thật trong giao dịch) dùng chung một thứ tự.
+ */
+export async function rankedEligibleStaff({ serviceId, startsAt, runner = pool }) {
+  const day = dayOfStart(startsAt);
+  const ids = await eligibleStaffIds({ serviceId, day, runner });
+  if (!ids.length) return [];
+
+  const [busy] = await runner.query(
+    `SELECT staff_id, COUNT(*) AS n FROM booking
+      WHERE DATE(start_time) = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
+      GROUP BY staff_id`, [day]);
+  const load = new Map(busy.map((row) => [row.staff_id, Number(row.n)]));
+  return [...ids].sort((a, b) => (load.get(a) ?? 0) - (load.get(b) ?? 0) || a - b);
 }
 
 /**
@@ -320,17 +344,11 @@ export async function eligibleStaffIds({ serviceId, day }) {
  * Ưu tiên người ít lịch hơn trong ngày để lịch không dồn về một người.
  */
 export async function pickStaffForSlot({ serviceId, startsAt, endsAt, runner = pool }) {
-  const day = dayOfStart(startsAt);
-  const ids = await eligibleStaffIds({ serviceId, day });
-  if (!ids.length) return { ok: false, reason: 'Không có nhân viên nào làm được dịch vụ này trong ngày đã chọn.' };
+  const ranked = await rankedEligibleStaff({ serviceId, startsAt, runner });
+  if (!ranked.length) {
+    return { ok: false, reason: 'Không có nhân viên nào làm được dịch vụ này trong ngày đã chọn.' };
+  }
 
-  const [busy] = await runner.query(
-    `SELECT staff_id, COUNT(*) AS n FROM booking
-      WHERE DATE(start_time) = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
-      GROUP BY staff_id`, [day]);
-  const load = new Map(busy.map((row) => [row.staff_id, Number(row.n)]));
-
-  const ranked = [...ids].sort((a, b) => (load.get(a) ?? 0) - (load.get(b) ?? 0) || a - b);
   for (const id of ranked) {
     const check = await checkStaffAvailable({
       staffId: id, serviceId, startsAt, endsAt, runner,
@@ -338,6 +356,34 @@ export async function pickStaffForSlot({ serviceId, startsAt, endsAt, runner = p
     if (check.ok) return { ...check, staffId: id };
   }
   return { ok: false, reason: 'Khung giờ này không còn nhân viên phù hợp nào nhận được.' };
+}
+
+/**
+ * Chọn NHÂN VIÊN THẬT trong giao dịch tạo lịch ("Bất kỳ nhân viên phù hợp").
+ *
+ * Khác `pickStaffForSlot` ở đúng một chỗ: sau khi thấy một người còn trống
+ * thì KHOÁ nhân viên đó lại (xem lockStaffBookings) rồi HỎI LẠI khả dụng
+ * trước khi nhận. Nếu không, hai khách cùng bấm một lúc sẽ cùng thấy một
+ * người còn trống và cùng ghi lịch vào người đó — kiểm tra xong rồi mới
+ * ghi thì khoá không còn tác dụng.
+ *
+ * Người vừa bị lấy mất thì bỏ qua, xét người tiếp theo. Hết ứng viên thì
+ * trả 409 để khách chọn giờ khác.
+ */
+export async function claimStaffForSlot({ connection, serviceId, startsAt, endsAt }) {
+  const ranked = await rankedEligibleStaff({ serviceId, startsAt, runner: connection });
+  if (!ranked.length) {
+    return { ok: false, reason: 'Không có nhân viên nào làm được dịch vụ này trong ngày đã chọn.' };
+  }
+
+  for (const id of ranked) {
+    await lockStaffBookings({ connection, staffId: id, startsAt, endsAt });
+    const check = await checkStaffAvailable({
+      staffId: id, serviceId, startsAt, endsAt, runner: connection, forUpdate: true,
+    });
+    if (check.ok) return { ...check, staffId: id };
+  }
+  return { ok: false, reason: 'Khung giờ này vừa được đặt. Vui lòng chọn giờ khác.' };
 }
 
 /**
@@ -375,11 +421,16 @@ export async function freeSlotsForAnyStaff({ serviceId, day, duration, bufferTim
 /**
  * Chống đặt trùng ở tầng database, dùng chung cho mọi đường tạo lịch.
  *
- * Khoá dòng lịch của nhân viên trong giao dịch để hai request gửi cùng
- * lúc không cùng nhận một khung giờ: request thứ nhất giữ khoá, request thứ
- * hai phải chờ, đọc thấy lịch vừa ghi và nhận HTTP 409.
+ * Khoá hai thứ theo đúng thứ tự này:
+ *   1. Dòng nhân viên trong bảng staff — request thứ hai muốn đụng vào
+ *      cùng người thì phải chờ, KỂ CẢ khi chưa có lịch trùng nào. Chỉ
+ *      khoá dòng lịch trùng (SELECT ... FOR UPDATE trên tập rỗng) thì
+ *      không chặn được INSERT mới — hai request cùng thấy trống rồi cùng
+ *      ghi, đó chính là đường double-book của nhánh "bất kỳ nhân viên".
+ *   2. Các dòng lịch trùng khung giờ của người đó.
  */
 export async function lockStaffBookings({ connection, staffId, startsAt, endsAt }) {
+  await connection.query('SELECT staff_id FROM staff WHERE staff_id = ? FOR UPDATE', [staffId]);
   await connection.query(
     `SELECT booking_id FROM booking
       WHERE staff_id = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')

@@ -11,7 +11,7 @@
 
 import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
-import { canPaymentTransition, finalAmount } from '../lib/payment-state.js';
+import { canPaymentTransition, finalAmount, resolvePaymentAmount } from '../lib/payment-state.js';
 import { SETTLED_STATUSES } from '../lib/booking-state.js';
 
 const METHODS = ['CASH', 'BANK_TRANSFER', 'ONLINE'];
@@ -120,18 +120,15 @@ export async function savePayment(req, res, next) {
       }
     }
 
-    /* Số tiền: mặc định lấy tổng phải thu. Đặt cọc thì lấy số nhập. */
-    const amount = status === 'DEPOSITED'
-      ? Number(req.body.amount)
-      : Number(req.body?.amount ?? due.total);
-
-    if (!Number.isFinite(amount) || amount < 0 || amount > due.total) {
+    /* Số tiền: PAID thì backend tự đặt đúng tổng phải thu, không tin con số
+       frontend gửi lên (xem resolvePaymentAmount). Đặt cọc thì lấy số nhập. */
+    const resolved = resolvePaymentAmount(
+      status, status === 'PAID' ? due.total : (req.body?.amount ?? due.total), due.total);
+    if (!resolved.ok) {
       await connection.rollback();
-      return res.status(400).json({
-        message: `Số tiền không hợp lệ. Tổng tiền lịch này là `
-          + `${due.total.toLocaleString('vi-VN')} đ.`,
-      });
+      return res.status(400).json({ message: resolved.reason });
     }
+    const amount = resolved.amount;
 
     /* PAID thì mốc thời gian là thời điểm nhận tiền; DEPOSITED cũng có
        mốc vì khách đã trả một phần. UNPAID thì không có. */

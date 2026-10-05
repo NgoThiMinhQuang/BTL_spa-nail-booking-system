@@ -457,7 +457,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const [services, staff, customers, shifts, leave, reviews, payments, reports] =
           await Promise.all([
-            getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/services'),
+            /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
+         gọi /services không tồn tại nên trang Dịch vụ của Admin trắng. */
+      getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/catalog/services'),
             getJson<{ data: StaffItem[] }>('/staff'),
             getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
             getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),

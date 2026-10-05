@@ -2030,7 +2030,66 @@ của dịch vụ phát sinh. Không lấy giá hiện tại của dịch vụ t
 ## BR37
 
 Customer chỉ được hủy lịch `PENDING` bất cứ lúc nào. Lịch đã `CONFIRMED`
-chỉ hủy được khi còn trên 2 giờ. Các trạng thái còn lại không hủy được.
+chỉ hủy được khi còn trên 2 giờ (đúng 2:00:00 cũng không, vì đó không phải
+"trên 2 giờ"). Các trạng thái còn lại không hủy được.
+
+## BR38
+
+`PAID` nghĩa là khách đã trả đủ: backend tự đặt số tiền đúng bằng tổng
+phải thu, không tin con số frontend gửi lên. Nhờ vậy không có chuyện
+`PAID` kèm amount = 1000đ cho hoá đơn 500.000đ rồi báo cáo doanh thu sai.
+
+## BR39
+
+Đã `PAID` thì khoá cả thêm và BỎ dịch vụ phát sinh. Bỏ món phát sinh sau
+khi thu tiền làm tổng lịch giảm trong khi khoản thanh toán giữ nguyên.
+
+## BR40
+
+Nhân viên thêm được dịch vụ phát sinh qua `POST /api/bookings/:id/addons`
+khi lịch đang `PROCESSING` và được phân công cho chính mình — đúng luồng
+Staff: Processing → thêm phát sinh → Completed.
+
+## BR41
+
+Khách gửi được ảnh mẫu cho lịch của chính mình qua
+`POST /api/bookings/:id/images`, tối đa 6 ảnh, khi lịch còn chưa kết thúc.
+
+## BR42
+
+Duyệt đổi/xoá ca làm (`approveScheduleRequest`) bị chặn khi ca mới bỏ rơi
+lịch đã có khách: lịch nằm ngoài khung giờ mới (hoặc bất kỳ lịch nào trong
+ngày khi xoá ca). Admin phải xử lý các lịch đó trước rồi duyệt.
+
+## BR43
+
+Nhánh "bất kỳ nhân viên" chọn người thật trong giao dịch: khoá từng ứng
+viên theo thứ tự ít lịch nhất, hỏi lại khả dụng rồi mới nhận. Hai khách
+cùng bấm một giờ thì một người nhận `409`, không bao giờ cùng một người.
+
+## BR44
+
+`actual_duration` là thời gian từ lúc nhân viên bấm "bắt đầu" đến lúc bấm
+"hoàn thành", không phải thời lượng dự kiến. Không có mốc bắt đầu thì giữ
+thời lượng dự kiến.
+
+## BR45
+
+Không khoá (`INACTIVE`) nhân viên còn lịch `PENDING` / `CONFIRMED` /
+`PROCESSING` trong tương lai. Không xoá dịch vụ đang nằm trong
+`booking_addon` — cả hai đều trả `409` hướng sang xử lý lịch hoặc chuyển
+`INACTIVE` thay cho xoá.
+
+## BR46
+
+Production bắt buộc đặt `JWT_SECRET` riêng — server không khởi động được
+nếu thiếu. Môi trường phát triển vẫn dùng khoá mặc định kèm cảnh báo.
+
+## BR47
+
+Trang chủ (`GET /api/home`) công khai phần dùng chung (banner, dịch vụ,
+mẫu nail, nhân viên) nhưng phần cá nhân (hồ sơ, lịch sắp tới) chỉ trả cho
+đúng người đang đăng nhập lấy từ token. Không nhận `customerId` từ query.
 
 ---
 

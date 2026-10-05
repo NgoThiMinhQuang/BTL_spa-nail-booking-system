@@ -284,6 +284,19 @@ export async function deleteService(req, res, next) {
       });
     }
 
+    /* Dịch vụ chưa từng là món chính nhưng đã nằm trong booking_addon thì
+       cũng không xoá được: khoá ngoại fk_addon_service sẽ văng lỗi 500
+       thay vì một thông báo nghiệp vụ rõ ràng. */
+    const [[inAddon]] = await connection.query(
+      'SELECT COUNT(DISTINCT booking_id) AS n FROM booking_addon WHERE service_id = ?', [id]);
+    if (Number(inAddon.n) > 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Dịch vụ này đang là dịch vụ phát sinh trong ${inAddon.n} lịch hẹn `
+          + 'nên không xoá được. Hãy chuyển sang trạng thái ngừng hoạt động (INACTIVE) thay cho xoá.',
+      });
+    }
+
     await connection.query('DELETE FROM staff_service WHERE service_id = ?', [id]);
     await connection.query('DELETE FROM services WHERE service_id = ?', [id]);
     await connection.commit();
@@ -691,6 +704,22 @@ export async function setStaffStatus(req, res, next) {
     /* Không cho khóa chính mình — nếu không sẽ không còn ai vào quản trị. */
     if (staff.userId === req.user.userId) {
       return res.status(409).json({ message: 'Không thể khóa tài khoản của chính mình.' });
+    }
+
+    /* Khóa khi còn lịch tương lai thì lịch đó không còn ai phục vụ: nhân
+       viên không đăng nhập được nhưng vẫn đang được phân công. Chỉ cho
+       khóa khi đã xử lý hết lịch PENDING / CONFIRMED / PROCESSING. */
+    if (status === 'INACTIVE') {
+      const [[pending]] = await pool.query(
+        `SELECT COUNT(*) AS n FROM booking
+          WHERE staff_id = ? AND status IN ('PENDING','CONFIRMED','PROCESSING')
+            AND end_time > NOW()`, [id]);
+      if (Number(pending.n) > 0) {
+        return res.status(409).json({
+          message: `Nhân viên này còn ${pending.n} lịch chưa hoàn thành. `
+            + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi khóa tài khoản.',
+        });
+      }
     }
 
     await pool.query('UPDATE users SET status = ? WHERE user_id = ?', [status, staff.userId]);
