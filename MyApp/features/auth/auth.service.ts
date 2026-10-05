@@ -28,6 +28,24 @@ export async function login(identifier: string, password: string): Promise<Sessi
     method: 'POST',
     body: JSON.stringify({ identifier: identifier.trim(), password }),
   });
+
+  /* Kiểm tra vai trò TRƯỚC khi lưu token.
+     Ứng dụng này là của khách hàng — nhân viên và quản lý làm việc trên Web
+     Administration. Trước đây token được lưu ngay, rồi màn hình đăng nhập mới
+     đuổi nhân viên ra. Hậu quả: token nhân viên nằm lại trong máy, mọi API của
+     khách đều gửi kèm nó và bị backend trả 403. Người dùng tưởng mất kết nối
+     mà thật ra là token sai — và vì nút đăng xuất không xoá token nên app không
+     bao giờ tự hết lỗi. */
+  if (response.data.user.role !== 'CUSTOMER') {
+    await logout();
+    throw new ApiError(
+      403,
+      response.data.user.role === 'STAFF'
+        ? 'Tài khoản nhân viên dùng trên Web Administration, không dùng trên ứng dụng này. Vui lòng đăng nhập bằng tài khoản khách hàng.'
+        : 'Tài khoản quản trị chỉ dùng trên Web Administration, không dùng trên ứng dụng này.',
+    );
+  }
+
   await setToken(response.data.token);
   return response.data;
 }

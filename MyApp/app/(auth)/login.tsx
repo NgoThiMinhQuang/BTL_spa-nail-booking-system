@@ -40,11 +40,9 @@ export default function LoginScreen() {
     setBusy(true);
     setError('');
     try {
-      const { user } = await login(emailOrPhone, password);
-      if (user.role !== 'CUSTOMER') {
-        setError('Tài khoản này không dùng để đặt lịch trên ứng dụng.');
-        return;
-      }
+      /* auth.service tự kiểm tra vai trò và xoá token nếu là nhân viên/quản
+         trị, nên chỉ cần bắt lỗi ở đây là hiện được đúng lý do. */
+      await login(emailOrPhone, password);
       router.replace('/(tabs)');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Không kết nối được tới máy chủ.');

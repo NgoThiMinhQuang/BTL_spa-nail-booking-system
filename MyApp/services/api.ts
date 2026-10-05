@@ -76,6 +76,21 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+    /* 403 khi đang có token: nhiều khả năng token đó thuộc nhân viên/quản trị còn
+       sót trong máy, còn ứng dụng này chỉ dành cho khách. Hỏi lại vai trò thật
+       qua /api/auth/me thay vì đoán theo chữ trong thông điệp — chữ do backend
+       chọn và có thể đổi, còn vai trò thì không. */
+    if (response.status === 403 && token) {
+      const me = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => null);
+      if (me?.ok) {
+        const { user } = (await me.json()) as { user?: { role?: string } };
+        if (user?.role && user.role !== 'CUSTOMER') await setToken(null);
+      }
+    }
+
     throw new ApiError(response.status, payload?.message ?? `API error: ${response.status}`);
   }
   return response.json() as Promise<T>;

@@ -1,5 +1,6 @@
 import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeCustomer } from '@/features/home/home.types';
+import { logout } from '@/features/auth/auth.service';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -85,7 +86,17 @@ export default function ProfileScreen() {
         <Pressable
           onPress={() => Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất khỏi Nailora?', [
             { text: 'Hủy', style: 'cancel' },
-            { text: 'Đăng xuất', style: 'destructive', onPress: () => router.replace('/(auth)/login') }
+            {
+              text: 'Đăng xuất',
+              style: 'destructive',
+              /* Phải xoá token thật trước khi chuyển màn hình. Trước đây chỉ
+                 chuyển hướng nên token còn nằm trong máy; vào lại app là dùng lại
+                 token cũ, và nếu token đó thuộc nhân viên thì mọi API đều 403. */
+              onPress: async () => {
+                await logout();
+                router.replace('/(auth)/login');
+              },
+            }
           ])}
           style={({ pressed }) => [styles.logoutButton, pressed && styles.menuPressed]}>
           <Ionicons name="log-out-outline" size={21} color={COLORS.pink} />
