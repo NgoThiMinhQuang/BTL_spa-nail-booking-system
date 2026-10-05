@@ -16,6 +16,7 @@ export function AdminCategoriesPage() {
 
   const [term, setTerm] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all');
 
   const [editing, setEditing] = useState<CategoryItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -84,6 +85,7 @@ export function AdminCategoriesPage() {
 
   const rows = categories
     .filter((item) => item.name.toLowerCase().includes(term.toLowerCase()))
+    .filter((item) => statusFilter === 'all' || (item.status ?? 'ACTIVE') === statusFilter)
     .sort((a, b) => b.serviceCount - a.serviceCount);
 
   const open = categories.find((item) => item.id === openId);
@@ -129,39 +131,67 @@ export function AdminCategoriesPage() {
               onChange={(e) => setTerm(e.target.value)}
             />
           </div>
+          <select aria-label="Lọc theo trạng thái" value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+            <option value="all">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang mở</option>
+            <option value="INACTIVE">Tạm ẩn</option>
+          </select>
         </div>
 
         {rows.length === 0 ? (
-          <EmptyState title="Không tìm thấy danh mục" detail="Thử một từ khoá khác." />
+          <EmptyState title="Không tìm thấy danh mục" detail="Thử một từ khoá hoặc trạng thái khác." />
         ) : (
-          <div className="adm-people">
-            {rows.map((item) => (
-              <button key={item.id} className="adm-person adm-cat-card"
-                onClick={() => setOpenId(item.id)}>
-                <div className="adm-cat-head">
-                  <span className="adm-cat-icon"><Icon name="tag" /></span>
-                  <span style={{ minWidth: 0 }}>
-                    <h3>{item.name}</h3>
-                    <small>{item.serviceCount} dịch vụ</small>
-                  </span>
-                </div>
-                <p>{item.description ?? 'Chưa có mô tả cho danh mục này.'}</p>
-                <div className="adm-person-meta">
-                  <span><Icon name="dollar" /> {formatVND(item.totalPrice)}</span>
-                  <span><Icon name="services" /> {item.serviceCount}</span>
-                  {(item.status ?? 'ACTIVE') === 'ACTIVE'
-                    ? <span className="badge completed"><i />Đang mở</span>
-                    : <span className="badge cancelled"><i />Tạm ẩn</span>}
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}
-                  onClick={(e) => e.stopPropagation()}>
-                  <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
-                  <button className="button secondary" onClick={() => toggleStatus(item)}>
-                    {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Ẩn' : 'Mở'}
-                  </button>
-                </div>
-              </button>
-            ))}
+          <div className="adm-people adm-cats">
+            {rows.map((item) => {
+              const active = (item.status ?? 'ACTIVE') === 'ACTIVE';
+              const preview = services
+                .filter((service) => service.categoryId === item.id)
+                .sort((a, b) => b.bookingCount - a.bookingCount)
+                .slice(0, 3);
+              return (
+                <article key={item.id} className={`adm-person adm-cat-card${active ? '' : ' is-off'}`}>
+                  <div className="adm-cat-head">
+                    <span className="adm-cat-icon"><Icon name="tag" /></span>
+                    <span style={{ minWidth: 0 }}>
+                      <h3>{item.name}</h3>
+                      <small>{item.serviceCount} dịch vụ · {formatVND(item.totalPrice)}</small>
+                    </span>
+                    <span className={`badge ${active ? 'completed' : 'cancelled'}`}>
+                      <i />{active ? 'Đang mở' : 'Tạm ẩn'}
+                    </span>
+                  </div>
+                  <p>{item.description ?? 'Chưa có mô tả cho danh mục này.'}</p>
+                  {preview.length > 0 && (
+                    <ul className="adm-cat-preview">
+                      {preview.map((service) => (
+                        <li key={service.id}>
+                          <span>{service.name}</span>
+                          <em>{formatVND(service.price)}</em>
+                        </li>
+                      ))}
+                      {item.serviceCount > preview.length && (
+                        <li className="more">+{item.serviceCount - preview.length} dịch vụ khác</li>
+                      )}
+                    </ul>
+                  )}
+                  <div className="adm-cat-foot">
+                    <button className="adm-link" onClick={() => setOpenId(item.id)}>
+                      Chi tiết →
+                    </button>
+                    <span className="adm-cat-actions">
+                      <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
+                      <button className="button secondary" onClick={() => toggleStatus(item)}>
+                        {active ? 'Ẩn' : 'Mở'}
+                      </button>
+                      <button className="button secondary is-danger" onClick={() => removeCategory(item)}>
+                        Xoá
+                      </button>
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </Panel>
