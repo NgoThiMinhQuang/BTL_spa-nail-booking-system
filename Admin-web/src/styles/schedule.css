@@ -22,7 +22,7 @@
 .leave-form input{border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;background:#fff;font:inherit;font-size:14px;color:var(--ink);width:100%}
 .leave-form input:focus{outline:none;border-color:var(--rose);box-shadow:0 0 0 3px rgba(166,95,97,.15)}
 .leave-form input:disabled{opacity:.55}
-.leave-actions{display:flex;gap:8px;margin-top:2px}.leave-actions button{min-height:44px}
+.leave-actions{display:flex;gap:8px;margin:2px 0 0;padding:0;width:100%}.leave-actions button{min-height:44px}
 .leave-submit{flex:1;min-height:44px;border-radius:10px;border:0;background:#c74a70;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
 .leave-submit:hover{background:#b53f63}
 .leave-submit:disabled{opacity:.45;cursor:wait}
