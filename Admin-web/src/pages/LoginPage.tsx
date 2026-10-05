@@ -52,7 +52,11 @@ export function LoginPage() {
         return;
       }
 
-      localStorage.setItem('nailhouse_token', token);
+      localStorage.setItem('nailhouse_staff_token', token);
+      /* Dọn key chung cũ (hai web từng dùng chung 'nailhouse_token'):
+         token admin sót lại mà không dọn thì vẫn nằm đó, dù không còn
+         ai đọc. */
+      localStorage.removeItem('nailhouse_token');
       dispatch({
         type: 'login',
         user: { id: user.staffId, name: user.name, email: user.email, role: 'staff' } as AuthUser,

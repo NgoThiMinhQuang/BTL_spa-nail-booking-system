@@ -141,6 +141,10 @@ SELECT b.booking_id, b.customer_id,
             ELSE 'Chưa thật sự hài lòng về độ bám của sơn.' END
 FROM booking b
 WHERE b.status = 'COMPLETED'
+  /* Lịch walk-in không có customer_id: review.customer_id NOT NULL nên
+     phải bỏ qua, nếu không cả file migration chết ở đây ngay khi có một
+     lịch vãng lai hoàn thành (ví dụ do smoke test tạo ra). */
+  AND b.customer_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM review r WHERE r.booking_id = b.booking_id);
 
 -- =====================================================

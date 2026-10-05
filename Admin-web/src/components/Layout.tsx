@@ -133,6 +133,23 @@ export function Layout({
                 ? <Avatar name={state.data.profile.name} url={state.data.profile.avatar} />
                 : 'NH'}
             </span>
+            {/* Trước đây không có nút đăng xuất: token nằm lại mãi, người sau
+                mở máy vẫn dùng phiên người trước. Xoá cả token lẫn user để
+                về màn hình đăng nhập (main.tsx hiện LoginPage khi !user). */}
+            <button
+              className="account-logout"
+              aria-label="Đăng xuất"
+              title="Đăng xuất"
+              onClick={() => {
+                try {
+                  localStorage.removeItem('nailhouse_staff_token');
+                  localStorage.removeItem('nailhouse_token');
+                } catch { /* bỏ qua */ }
+                dispatch({ type: 'logout' });
+              }}
+            >
+              ⎋
+            </button>
           </div>
         </header>
 

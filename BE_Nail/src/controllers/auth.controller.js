@@ -89,6 +89,13 @@ export async function register(req, res, next) {
       /* Mỗi khách phải có đúng một hồ sơ trong bảng customer để mọi lịch
          hẹn và chỉ số tích luỹ gắn được vào một người. */
       await connection.query('INSERT INTO customer (user_id) VALUES (?)', [result.insertId]);
+      /* customer_id là auto-inc riêng của bảng customer — KHÔNG dùng
+         user_id làm customerId. Hai dãy lệch nhau ngay khi có tài khoản
+         STAFF/ADMIN xen giữa hoặc có dòng bị xoá; dùng nhầm thì token mới
+         đăng ký mang customerId sai và đặt lịch nhầm chủ tới khi login
+         lại (login đọc đúng c.customer_id). */
+      const [[customer]] = await connection.query(
+        'SELECT customer_id FROM customer WHERE user_id = ? LIMIT 1', [result.insertId]);
       await connection.commit();
 
       const token = signToken({ userId: result.insertId, role: 'CUSTOMER' });
@@ -100,7 +107,7 @@ export async function register(req, res, next) {
           email,
           avatar: null,
           role: 'CUSTOMER',
-          customerId: Number(result.insertId),
+          customerId: Number(customer.customer_id),
           staffId: null,
         }, token),
       });

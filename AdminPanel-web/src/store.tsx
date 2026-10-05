@@ -69,9 +69,10 @@ export function weekAround(anchor: string): string[] {
   });
 }
 
-/* Token đăng nhập. Mọi lệnh gọi /api/admin/* đều đính kèm token này, và
-   backend tự kiểm tra vai trò ADMIN — đây mới là lớp bảo vệ thật. */
-const TOKEN_KEY = 'nailhouse_token';
+/* Token đăng nhập. Key riêng của khu quản trị — xem giải thích ở
+   Admin-web/src/lib/auth-fetch.ts: chung key với web nhân viên thì hai
+   bên ghi đè nhau vì cùng origin. */
+const TOKEN_KEY = 'nailhouse_admin_token';
 
 export function getToken(): string | null {
   try {
@@ -387,6 +388,8 @@ export function reducer(state: AdminState, action: Action): AdminState {
       try {
         localStorage.removeItem(STORAGE_KEY);
       } catch { /* bỏ qua */ }
+      /* Xoá cả token, nếu không người sau mở lại vẫn dùng phiên cũ. */
+      clearToken();
       return { ...initialState };
 
     case 'view':

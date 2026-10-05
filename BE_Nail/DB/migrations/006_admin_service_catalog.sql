@@ -164,10 +164,10 @@ INSERT INTO tmp_plan VALUES
   -- Hôm nay: 6 lịch, trạng thái trải ra để bảng điều khiển có số thật
   (0, '09:00', 'Sơn Gel Trong Suốt',      '0901000002', '0910000001', 'COMPLETED', 'Khách yêu thích màu nude'),
   (0, '10:30', 'Nail Art Đính Đá',        '0901000003', '0910000008', 'PROCESSING', NULL),
-  (0, '11:15', 'Chăm Sóc Móng Chân',      '0901000004', '0910000004', 'CONFIRMED',  'Nhờ chăm sóc móng chân'),
+  (0, '11:15', 'Chăm Sóc Móng Chân',      '0901000005', '0910000004', 'CONFIRMED',  'Nhờ chăm sóc móng chân'),
   (0, '13:00', 'Sơn Móng French Đầu Ngón','0901000001', '0910000011', 'CONFIRMED',  NULL),
   (0, '14:30', 'Đắp Gel Trọn Bộ',         '0901000002', '0910000003', 'CONFIRMED',  NULL),
-  (0, '16:00', 'Sơn Móng Cổ Điển',        '0901000005', '0910000005', 'PENDING',    'Khách hỏi giá trước khi làm'),
+  (0, '16:00', 'Sơn Móng Cổ Điển',        '0901000001', '0910000005', 'PENDING',    'Khách hỏi giá trước khi làm'),
   -- Bảy ngày tới
   (1, '09:30', 'Nail Art Vẽ Tay',     '0901000001', '0910000002', 'CONFIRMED', NULL),
   (1, '11:00', 'Đắp Bột Mông',        '0901000002', '0910000006', 'PENDING',   NULL),
@@ -177,7 +177,7 @@ INSERT INTO tmp_plan VALUES
   (3, '09:00', 'Đắp Móng Sculpting',   '0901000002', '0910000012', 'CONFIRMED', 'Mong dài 2cm'),
   (3, '14:00', 'Ngâm Chân Paraffin',   '0901000005', '0910000013', 'CONFIRMED', NULL),
   (4, '10:30', 'Nail Art 3D Nổi',      '0901000003', '0910000014', 'PENDING',   NULL),
-  (4, '15:30', 'Sơn Móng Chân',        '0901000004', '0910000015', 'CONFIRMED', NULL),
+  (4, '15:30', 'Sơn Móng Chân',        '0901000002', '0910000007', 'CONFIRMED', NULL),
   (5, '09:00', 'Sơn Gel Cao Cấp',      '0901000001', '0910000001', 'CONFIRMED', NULL),
   (5, '11:30', 'Chăm Sóc Móng Chân',   '0901000005', '0910000002', 'CONFIRMED', NULL),
   (6, '14:00', 'Nail Art Nghệ Thuật',  '0901000003', '0910000003', 'PENDING',   NULL),

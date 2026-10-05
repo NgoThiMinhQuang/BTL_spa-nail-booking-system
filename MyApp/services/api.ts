@@ -94,7 +94,10 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => null);
       if (me?.ok) {
-        const { user } = (await me.json()) as { user?: { role?: string } };
+        /* Backend trả { data: {...} } chứ không phải { user: {...} } — đọc
+           sai key thì user luôn undefined và token sai kẹt lại mãi, mọi API
+           khách 403 vòng lặp không lối ra. */
+        const { data: user } = (await me.json()) as { data?: { role?: string } };
         if (user?.role && user.role !== 'CUSTOMER') await setToken(null);
       }
     }

@@ -23,9 +23,13 @@ const METHODS = ['CASH', 'BANK_TRANSFER', 'ONLINE'];
  *
  * Không đọc `services.price` hiện tại — đó là điểm khác biệt giữa một
  * lịch hẹn và một dịch vụ trong danh mục.
+ *
+ * Nhận `runner` để khi gọi trong giao dịch (savePayment) thì đọc cùng
+ * snapshot với các câu FOR UPDATE — đọc bằng pool riêng có thể thấy
+ * tổng cũ trong lúc một add-on vừa được thêm.
  */
-export async function amountDue(bookingId) {
-  const [[booking]] = await pool.query(
+export async function amountDue(runner, bookingId) {
+  const [[booking]] = await runner.query(
     `SELECT COALESCE(b.service_price, s.price) AS price,
             COALESCE(b.service_duration, s.duration) AS duration,
             COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime,
@@ -35,7 +39,7 @@ export async function amountDue(bookingId) {
   );
   if (!booking) return null;
 
-  const [addons] = await pool.query(
+  const [addons] = await runner.query(
     `SELECT price, quantity FROM booking_addon WHERE booking_id = ?`, [bookingId],
   );
 
@@ -64,6 +68,12 @@ export async function savePayment(req, res, next) {
     const status = String(req.body?.status ?? '').toUpperCase();
     const method = String(req.body?.method ?? '').toUpperCase();
     const note = String(req.body?.note ?? '').trim().slice(0, 255) || null;
+
+    /* Giao dịch từ đây: FOR UPDATE, chốt tiền và ghi payment phải là một
+       khối nguyên tử. Trước đây không có beginTransaction nên mỗi câu tự
+       commit riêng — khoá FOR UPDATE nhả ngay, hai lần thu tiền cùng lúc
+       race nhau, và rollback() trong catch cũng không có tác dụng. */
+    await connection.beginTransaction();
 
     const [[booking]] = await connection.query(
       `SELECT b.booking_id, b.status, b.staff_id AS staffId,
@@ -100,7 +110,7 @@ export async function savePayment(req, res, next) {
       return res.status(400).json({ message: 'Hình thức thanh toán không hợp lệ.' });
     }
 
-    const due = await amountDue(bookingId);
+    const due = await amountDue(connection, bookingId);
 
     /* Đặt cọc phải nhỏ hơn tổng tiền và lớn hơn 0 — cọc bằng đúng tổng
        thì là trả đủ, tức là PAID chứ không phải DEPOSITED. */
@@ -204,7 +214,10 @@ export async function patchPayment(req, res, next) {
       });
     }
 
-    const body = { ...req.body, amount: req.body?.amount ?? payment.amount };
+    /* Giữ số tiền cũ khi body không gửi amount — gán lại vào req.body vì
+       savePayment đọc từ đó. Trước đây tạo object mới rồi bỏ đi nên
+       DEPOSITED không amount luôn 400 dù khoản cũ đã có số tiền. */
+    req.body = { ...req.body, amount: req.body?.amount ?? payment.amount };
     req.params.id = payment.bookingId;
     return savePayment(req, res, next);
   } catch (error) {

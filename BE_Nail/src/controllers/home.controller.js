@@ -1,5 +1,5 @@
 import { pool } from '../config/database.js';
-import { loadUserFromToken, readToken } from '../lib/auth.js';
+import { loadUserFromToken, readToken, verifyToken } from '../lib/auth.js';
 
 function imageUrl(req, path) {
   if (!path || /^https?:\/\//i.test(path)) return path;
@@ -15,10 +15,17 @@ export async function getHome(req, res, next) {
        đổi con số là đọc được tên, email, số điện thoại và lịch hẹn của
        khách khác. */
     let customerId = null;
+    /* Token hỏng/hết hạn thì coi như khách vãng lai (chỉ xem phần công
+       khai). Tách hai bước: verify chữ ký không chạm DB nên lỗi nào cũng
+       nuốt được; tra hồ sơ chạm DB nên để lỗi hiện ra 500 thay vì giả vờ
+       200 che sự cố database. */
     try {
       const token = readToken(req);
-      const user = token ? await loadUserFromToken(token) : null;
-      if (user?.role === 'CUSTOMER') customerId = user.customerId;
+      const payload = token ? verifyToken(token) : null;
+      if (payload?.sub) {
+        const user = await loadUserFromToken(token);
+        if (user?.role === 'CUSTOMER') customerId = user.customerId;
+      }
     } catch {
       customerId = null;
     }

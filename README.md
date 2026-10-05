@@ -2091,6 +2091,18 @@ Trang chủ (`GET /api/home`) công khai phần dùng chung (banner, dịch vụ
 mẫu nail, nhân viên) nhưng phần cá nhân (hồ sơ, lịch sắp tới) chỉ trả cho
 đúng người đang đăng nhập lấy từ token. Không nhận `customerId` từ query.
 
+## BR48
+
+Gỡ dịch vụ khỏi nhân viên không xoá dịch vụ khỏi danh mục. Muốn xoá phải
+đi đường xoá riêng, vẫn bị chặn khi đã có lịch hẹn hoặc đang làm dịch vụ
+phát sinh.
+
+## BR49
+
+Đặt lịch được bỏ trống nhân viên — backend tự chọn người ít lịch nhất
+trong giao dịch (khoá + hỏi lại từng người). Hai khách cùng bấm một giờ
+thì một người nhận `409`.
+
 ---
 
 # 11. USE CASE CUSTOMER

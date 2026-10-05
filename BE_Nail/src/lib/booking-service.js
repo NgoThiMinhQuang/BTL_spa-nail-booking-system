@@ -29,10 +29,19 @@ export function momentOf(day, clock) {
   return new Date(year, month - 1, date, hour, minute, 0, 0);
 }
 
-/** Ngày có đúng định dạng YYYY-MM-DD không. */
+/** Ngày có đúng định dạng YYYY-MM-DD và tồn tại thật không.
+ *
+ * Date.parse("2026-02-30T00:00") vẫn pass vì JS tự lăn sang 02/03 —
+ * phải đối chiếu ngược từng thành phần mới bắt được ngày không tồn tại. */
 export function isDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
-    && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+  if (!match) return false;
+  const [, year, month, date] = match.map(Number);
+  if (month < 1 || month > 12 || date < 1 || date > 31) return false;
+  const built = new Date(year, month - 1, date);
+  return built.getFullYear() === year
+    && built.getMonth() === month - 1
+    && built.getDate() === date;
 }
 
 /**
@@ -203,8 +212,10 @@ export async function recheckAfterMove(connection, {
 }) {
   const endsAt = new Date(startsAt.getTime() + (Number(duration) + Number(bufferTime ?? 0)) * 60000);
   await lockStaffBookings({ connection, staffId, startsAt, endsAt });
+  /* Đọc locking read như nhánh tạo lịch — SELECT thường dưới REPEATABLE
+     READ không thấy lịch vừa commit của request khác. */
   const check = await checkStaffAvailable({
-    bookingId, staffId, serviceId, startsAt, endsAt, runner: connection,
+    bookingId, staffId, serviceId, startsAt, endsAt, runner: connection, forUpdate: true,
   });
   return { check, endsAt };
 }

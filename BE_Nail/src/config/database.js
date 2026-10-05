@@ -21,9 +21,13 @@ export let pool = createPoolFromEnv();
  * CHỈ DÙNG TRONG TEST: trỏ mọi controller sang database test.
  *
  * Các controller `import { pool }` nên gán lại ở đây có hiệu lực ngay
- * (ESM live binding). Không gọi hàm này ở code chạy thật.
+ * (ESM live binding). Không gọi hàm này ở code chạy thật — production
+ * mà gọi thì toàn bộ controller trỏ sang pool khác nên chặn cứng.
  */
 export function _setPoolForTests(testPool) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Không được gọi _setPoolForTests ở production.');
+  }
   pool = testPool;
 }
 

@@ -1,4 +1,5 @@
 import { pool } from '../config/database.js';
+import { escapeLike } from '../lib/sql.js';
 
 function imageUrl(req, path) {
   if (!path || /^https?:\/\//i.test(path)) return path;
@@ -17,7 +18,7 @@ export async function listServices(req, res, next) {
     }
     if (search) {
       conditions.push('(s.service_name LIKE ? OR s.description LIKE ?)');
-      const term = `%${search}%`;
+      const term = `%${escapeLike(search)}%`;
       params.push(term, term);
     }
 

@@ -90,7 +90,7 @@ CREATE TABLE customer (
     no_show_count INT NOT NULL DEFAULT 0,
     address VARCHAR(255) NULL,
     birthday DATE NULL,
-    note VARCHAR(255) NULL COMMENT 'Ghi chú nội bộ của nhân viên về khách này',
+    note TEXT NULL COMMENT 'Ghi chú nội bộ của nhân viên về khách này (tối đa 2000 ký tự theo customer.controller.js)',
 
     UNIQUE KEY uq_customer_user (user_id),
     CONSTRAINT fk_customer_user FOREIGN KEY (user_id)

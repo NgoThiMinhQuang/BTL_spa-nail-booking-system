@@ -7,7 +7,7 @@
    Authorization: Bearer <token>. Backend vẫn là nơi kiểm tra thật —
    đây chỉ là cách gửi token đi. */
 
-const TOKEN_KEY = 'nailhouse_token';
+const TOKEN_KEY = 'nailhouse_admin_token';
 
 export function installAuthFetch(): void {
   const original = window.fetch.bind(window);

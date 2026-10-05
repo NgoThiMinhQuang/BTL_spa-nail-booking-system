@@ -96,18 +96,43 @@ export function AdminDashboardPage() {
 
   const { today, pendingAll, revenue, todayBookings, staffToday, chart, topServices, todos } = overview;
 
-  async function setStatus(booking: Booking, status: string) {
+  /* Thao tác nhanh trên dòng. Chỉ những bước thuộc về quản trị:
+     Xác nhận (PENDING→CONFIRMED), Đánh dấu không đến (CONFIRMED→NO_SHOW),
+     Hủy (kèm lý do, backend bắt buộc). Hai bước CONFIRMED→PROCESSING và
+     PROCESSING→COMPLETED thuộc về nhân viên đang phục vụ — backend trả
+     403 nên ở đây không hiện nút, thay vì hiện rồi bấm là lỗi. */
+  const [actionError, setActionError] = useState('');
+
+  async function setStatus(booking: Booking, status: string, extra?: Record<string, unknown>) {
     setBusyId(booking.id);
+    setActionError('');
     try {
-      await fetch(`/api/admin/bookings/${booking.id}`, {
+      const response = await fetch(`/api/admin/bookings/${booking.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...extra }),
       });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setActionError(payload?.message ?? 'Không cập nhật được trạng thái.');
+        return;
+      }
       reload();
+    } catch {
+      setActionError('Mất kết nối tới máy chủ.');
     } finally {
       setBusyId(null);
     }
+  }
+
+  function cancelBooking(booking: Booking) {
+    const reason = window.prompt(`Lý do hủy lịch #${booking.id}:`, '');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      setActionError('Hủy lịch phải nhập lý do.');
+      return;
+    }
+    setStatus(booking, 'CANCELLED', { cancelReason: reason.trim() });
   }
 
   return (
@@ -212,6 +237,7 @@ export function AdminDashboardPage() {
           >
             <button className="text-button" onClick={() => go('admin-bookings')}>Xem tất cả →</button>
           </SectionHeading>
+          {actionError && <p className="adm-error" style={{ padding: '0 16px' }}>{actionError}</p>}
 
           {todayBookings.length === 0 ? (
             <EmptyState title="Hôm nay chưa có lịch hẹn"
@@ -260,16 +286,12 @@ export function AdminDashboardPage() {
                           )}
                           {booking.status === 'CONFIRMED' && (
                             <button className="adm-text-btn" disabled={busyId === booking.id}
-                              onClick={() => setStatus(booking, 'PROCESSING')}>Bắt đầu</button>
-                          )}
-                          {booking.status === 'PROCESSING' && (
-                            <button className="adm-text-btn" disabled={busyId === booking.id}
-                              onClick={() => setStatus(booking, 'COMPLETED')}>Xong</button>
+                              onClick={() => setStatus(booking, 'NO_SHOW')}>Không đến</button>
                           )}
                           {['PENDING', 'CONFIRMED'].includes(booking.status) && (
                             <button className="adm-icon-btn" aria-label="Huỷ lịch hẹn"
                               disabled={busyId === booking.id}
-                              onClick={() => setStatus(booking, 'CANCELLED')}>
+                              onClick={() => cancelBooking(booking)}>
                               <Icon name="ban" />
                             </button>
                           )}

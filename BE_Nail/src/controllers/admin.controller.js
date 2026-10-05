@@ -5,6 +5,7 @@
    bảng booking/payment/services rồi nối thêm nhân viên và khách hàng. */
 
 import { pool } from '../config/database.js';
+import { escapeLike } from '../lib/sql.js';
 import {
   METHOD_TEXT, PAYMENT_TEXT, SOURCE_TEXT, STATUS_TEXT, bookingCode,
 } from '../lib/booking-labels.js';
@@ -449,7 +450,8 @@ export async function listCustomers(req, res, next) {
     const params = [];
     if (q) {
       where.push('(u.full_name LIKE ? OR u.phone LIKE ? OR u.email LIKE ?)');
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      const keyword = `%${escapeLike(q)}%`;
+      params.push(keyword, keyword, keyword);
     }
     if (status === 'ACTIVE' || status === 'INACTIVE') {
       where.push('u.status = ?');
@@ -487,7 +489,8 @@ export async function listCustomers(req, res, next) {
       ORDER BY ${sort === 'spend' ? 'totalSpending DESC, name ASC'
         : sort === 'bookings' ? 'bookingCount DESC, name ASC'
         : sort === 'noshow' ? 'noShowCount DESC, bookingCount DESC'
-        : 'u.created_at DESC, name ASC'}`, params);
+        : 'u.created_at DESC, name ASC'}
+      LIMIT 2000`, params);
 
     /* Tổng chi tiêu chỉ tính payment PAID — cùng một định nghĩa với từng
        khách, nên cộng lại từ danh sách là ra tổng cửa hàng. */
@@ -642,6 +645,14 @@ export async function listSchedule(req, res, next) {
 
     if (!isDate(from) || !isDate(to)) {
       return res.status(400).json({ message: 'Khoảng ngày không hợp lệ.' });
+    }
+
+    /* Chặn khoảng quá rộng: from=2000 to=2030 sẽ kéo ma trận khổng lồ.
+       62 ngày (2 tháng) đủ cho mọi màn hình quản trị hiện có. */
+    const spanDays = Math.round(
+      (new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000);
+    if (spanDays < 0 || spanDays > 62) {
+      return res.status(400).json({ message: 'Khoảng ngày tối đa 62 ngày.' });
     }
 
     const [rows] = await pool.query(`SELECT

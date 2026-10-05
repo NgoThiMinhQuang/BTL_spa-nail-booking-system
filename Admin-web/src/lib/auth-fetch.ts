@@ -6,7 +6,11 @@
    cầu; backend tự xác định nhân viên đang đăng nhập nên không thể xem
    lịch của người khác chỉ bằng cách đổi con số trên thanh địa chỉ. */
 
-const TOKEN_KEY = 'nailhouse_token';
+/* Mỗi web một key riêng: /staff và /admin cùng origin (localhost:3000)
+   nên chung localStorage. Trước đây cả hai cùng 'nailhouse_token' —
+   đăng nhập bên quản trị ghi đè token nhân viên và ngược lại, rồi bên
+   còn lại 403 hàng loạt mà không hiểu vì sao. */
+const TOKEN_KEY = 'nailhouse_staff_token';
 
 export function installAuthFetch(): void {
   const original = window.fetch.bind(window);

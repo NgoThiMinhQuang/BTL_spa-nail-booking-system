@@ -208,3 +208,31 @@ xong:
 - Ảnh review trên ứng dụng nhận đường dẫn, chưa có bước chọn ảnh từ máy.
 - Đổi mật khẩu chưa bắt buộc sau lần đăng nhập đầu tiên dù cột
   `users.password_changed_at` đã có sẵn để dùng.
+## 10. Dot ra soat toan bo (3 subagent: backend, hop dong API, schema)
+
+- savePayment thieu beginTransaction: FOR UPDATE vo tac dung, rollback vo nghia. Da them transaction + doc tong tien trong connection.
+- register tra customerId = user_id: sai khi day so lech. Da doc lai customer_id that.
+- removeServiceFromStaff tu xoa dich vu (ke ca FK addon -> 500). Nay chi go gan; xoa di duong deleteService.
+- patchPayment tao object fallback roi bo: DEPOSITED khong amount luon 400. Da gan lai req.body.
+- recheckAfterMove thieu forUpdate; approvedLeaveOverlaps doc ngoai tx (lech snapshot). Da them runner + forUpdate.
+- Mobile bo trong staffId -> 400 (NaN), giet luong auto-claim. Da parse truoc khi Number().
+- patchBooking staffId 'abc' -> NaN, null im lang khong go. Da validate + cho go phan cong tuong minh.
+- admin addImage khong gioi han/validate. Da giong luat khach (6 anh, lich song).
+- updateStaff email trung -> 500; assignServices service ao -> 500. Da 409/404.
+- Cot TIME co the ve dang Date tuy driver: approveScheduleRequest slice sai. Da chuan hoa timeText().
+- listCustomers/listSchedule khong LIMIT/khoang. Da LIMIT 2000 + khoang toi da 62 ngay.
+- LIKE chua escape %/_; _setPoolForTests khong guard; isDate nhan 2026-02-30. Da sua het.
+- customer.note VARCHAR(255) vs code 2000; nail_designs ENUM HIDDEN. Migration 015 + Database.sql -> TEXT/INACTIVE.
+- deleteCategory them guard nail_designs (FK RESTRICT -> 500).
+- Seed demo: sua 3 phan cong sai chuyen mon, phone 0910000015 khong ton tai, 009 backfill LEFT JOIN walk-in.
+- /api/home lo ho so khach qua query customerId (IDOR). Tach cong khai/ca nhan theo token.
+- AdminPanel goi /api/admin/services khong ton tai -> /catalog/services.
+- MyApp api.ts doc sai key {user} thay vi {data}: token sai ket lai. Da sua.
+- Hai web chung key token + thieu nut dang xuat: tach key staff/admin, them nut, logout xoa token.
+- Dashboard Admin nut Bat dau/Xong/Huy (thieu ly do) luon 403/400. Chi giu Xac nhan/Khong den/Huy co ly do.
+- Menu Admin hien Bat dau/Hoan thanh mo ConfirmDialog cung CONFIRMED -> 409. Da go theo luat phan quyen.
+- ConfirmDialog pre-check doc HTTP ok thay vi data.ok -> khong bao gio chan. Da doc data.
+- Nut Danh gia chet + thieu nut Huy tren app khach. Da noi submitReview/cancelBooking + form sao + binh luan.
+- memberSince khong ton tai -> hien lan cuoi ghe (lastVisit).
+- uploads/ public la chu y thiet ke (anh can URL cong khai cho <img>), khong phai loi.
+- 005 backfill review chet khi co lich walk-in COMPLETED (customer_id NULL, review.customer_id NOT NULL). Nguyen nhan truc tiep: 3 lich 'Khach thu nghiem' do smoke test tao. Da them AND b.customer_id IS NOT NULL.

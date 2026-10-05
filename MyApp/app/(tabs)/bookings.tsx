@@ -1,10 +1,10 @@
-import { fetchBookings } from '@/features/booking/booking.service';
+import { cancelBooking, fetchBookings, submitReview } from '@/features/booking/booking.service';
 import type { Booking } from '@/features/booking/booking.types';
 import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Filter = 'upcoming' | 'completed' | 'cancelled';
@@ -23,12 +23,67 @@ function formatAppointment(value: string) {
   return { date: `${weekday}, ${calendarDate}`, time };
 }
 
-function BookingCard({ booking, filter }: { booking: Booking; filter: Filter }) {
+function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter: Filter; onChanged: () => void }) {
   const [favorite, setFavorite] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showReview, setShowReview] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
   const starts = formatAppointment(booking.startsAt);
   const ends = formatAppointment(booking.endsAt);
   const isUpcoming = filter === 'upcoming';
   const isCompleted = filter === 'completed';
+
+  /* Hủy lịch của chính mình. Luật ở backend (PENDING luôn được,
+     CONFIRMED còn trên 2 giờ) nên ở đây chỉ hỏi lại cho chắc, lỗi hiện
+     nguyên văn để khách biết vì sao. */
+  function askCancel() {
+    Alert.alert(
+      'Hủy lịch hẹn',
+      `Hủy lịch ${booking.serviceName ?? ''} lúc ${starts.time} ngày ${starts.date}?`,
+      [
+        { text: 'Giữ lại', style: 'cancel' },
+        {
+          text: 'Hủy lịch', style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            setMessage('');
+            try {
+              await cancelBooking(booking.id);
+              onChanged();
+            } catch (e) {
+              setMessage(e instanceof ApiError ? e.message : 'Không hủy được. Hãy thử lại.');
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  /* Đánh giá sau khi hoàn thành — mỗi lịch một lần, backend chặn đánh
+     giá trùng (409). Trước đây nút này không gắn gì nên bấm không có
+     tác dụng. */
+  async function sendReview() {
+    if (!rating) {
+      setMessage('Hãy chọn số sao đánh giá.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await submitReview(booking.id, { rating, comment: comment.trim() || undefined });
+      setShowReview(false);
+      setMessage('Cảm ơn đánh giá của bạn!');
+      onChanged();
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : 'Không gửi được đánh giá. Hãy thử lại.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <View style={styles.card}>
@@ -49,9 +104,33 @@ function BookingCard({ booking, filter }: { booking: Booking; filter: Filter }) 
         <View style={styles.bottomRow}>
           <Text numberOfLines={1} style={styles.staffText}>Nhân viên: {booking.staffName ?? 'Đang cập nhật'}</Text>
           {isUpcoming && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.pinkButton]}><Text style={styles.actionText}>Đổi lịch hẹn</Text></Pressable>}
-          {isCompleted && <Pressable style={[styles.actionButton, styles.greenButton]}><Text style={styles.actionText}>Đánh giá</Text></Pressable>}
+          {isUpcoming && <Pressable disabled={busy} onPress={askCancel} style={[styles.actionButton, styles.redButton]}><Text style={styles.actionText}>Hủy</Text></Pressable>}
+          {isCompleted && <Pressable disabled={busy} onPress={() => { setShowReview((v) => !v); setMessage(''); }} style={[styles.actionButton, styles.greenButton]}><Text style={styles.actionText}>Đánh giá</Text></Pressable>}
           {filter === 'cancelled' && <Pressable onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })} style={[styles.actionButton, styles.grayButton]}><Text style={styles.grayButtonText}>Đặt lại</Text></Pressable>}
         </View>
+        {!!message && <Text style={styles.cardMessage}>{message}</Text>}
+        {isCompleted && showReview && (
+          <View style={styles.reviewBox}>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable key={star} hitSlop={8} onPress={() => setRating(star)}>
+                  <Ionicons name={star <= rating ? 'star' : 'star-outline'} size={26} color="#E5A62B" />
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Chia sẻ cảm nhận (không bắt buộc)…"
+              placeholderTextColor="#B5A5AF"
+              value={comment}
+              onChangeText={setComment}
+              multiline
+            />
+            <Pressable disabled={busy} onPress={sendReview} style={[styles.actionButton, styles.greenButton, styles.reviewSend]}>
+              <Text style={styles.actionText}>{busy ? 'Đang gửi…' : 'Gửi đánh giá'}</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -120,7 +199,7 @@ export default function BookingsScreen() {
         {loading && <View style={styles.state}><ActivityIndicator size="large" color="#D56B81" /><Text style={styles.stateText}>Đang tải lịch hẹn...</Text></View>}
         {!loading && !!error && <View style={styles.state}><Ionicons name="cloud-offline-outline" size={38} color="#C66B7F" /><Text style={styles.stateTitle}>Không thể tải dữ liệu</Text><Text style={styles.stateText}>{error}</Text><Pressable style={styles.retryButton} onPress={refresh}><Text style={styles.retryText}>Thử lại</Text></Pressable></View>}
         {!loading && !error && visibleBookings.length === 0 && <View style={styles.state}><View style={styles.emptyIcon}><Ionicons name="calendar-outline" size={36} color="#D5738A" /></View><Text style={styles.stateTitle}>Chưa có lịch hẹn</Text><Text style={styles.stateText}>{filter === 'upcoming' ? 'Bạn chưa có lịch hẹn sắp tới.' : filter === 'completed' ? 'Chưa có lịch hẹn đã hoàn thành.' : 'Bạn chưa hủy lịch hẹn nào.'}</Text>{filter === 'upcoming' && <Pressable style={styles.bookButton} onPress={() => router.push('/booking/select-service')}><Text style={styles.bookText}>Đặt lịch ngay</Text></Pressable>}</View>}
-        {visibleBookings.map((booking) => <BookingCard key={booking.id} booking={booking} filter={filter} />)}
+        {visibleBookings.map((booking) => <BookingCard key={booking.id} booking={booking} filter={filter} onChanged={refresh} />)}
       </ScrollView>
     </SafeAreaView>
   );
@@ -142,7 +221,12 @@ const styles = StyleSheet.create({
   price: { color: '#242022', fontSize: 20, fontWeight: '900', marginBottom: 8 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }, metaText: { color: '#756A6D', fontSize: 14, fontWeight: '500' },
   bottomRow: { minHeight: 40, marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 }, staffText: { flex: 1, color: '#84787B', fontSize: 14 },
-  actionButton: { minWidth: 92, height: 36, paddingHorizontal: 12, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, pinkButton: { backgroundColor: '#F3A8B9' }, greenButton: { backgroundColor: '#86CBAE' }, grayButton: { backgroundColor: '#F0EAEC' }, actionText: { color: '#FFF', fontSize: 13, fontWeight: '800' }, grayButtonText: { color: '#8D6570', fontSize: 13, fontWeight: '800' },
+  actionButton: { minWidth: 92, height: 36, paddingHorizontal: 12, borderRadius: 11, alignItems: 'center', justifyContent: 'center' }, pinkButton: { backgroundColor: '#F3A8B9' }, greenButton: { backgroundColor: '#86CBAE' }, grayButton: { backgroundColor: '#F0EAEC' }, redButton: { backgroundColor: '#E08080' }, actionText: { color: '#FFF', fontSize: 13, fontWeight: '800' }, grayButtonText: { color: '#8D6570', fontSize: 13, fontWeight: '800' },
   state: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }, emptyIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FBE7EC', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, stateTitle: { color: '#372E31', fontSize: 19, fontWeight: '800', marginTop: 10 }, stateText: { color: '#8A7C80', fontSize: 14, lineHeight: 24, textAlign: 'center', marginTop: 7 },
   retryButton: { marginTop: 16, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: '#F7DFE5' }, retryText: { color: '#9A5065', fontWeight: '800', fontSize: 14 }, bookButton: { marginTop: 18, height: 44, paddingHorizontal: 24, borderRadius: 22, backgroundColor: '#D56B81', alignItems: 'center', justifyContent: 'center' }, bookText: { color: '#4D3540', fontWeight: '800', fontSize: 14 },
+  cardMessage: { color: '#9A5065', fontSize: 13, marginTop: 6 },
+  reviewBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F3E2E7', gap: 8 },
+  starsRow: { flexDirection: 'row', gap: 6 },
+  reviewInput: { minHeight: 64, borderWidth: 1, borderColor: '#EFE5EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#261B20', backgroundColor: '#FFF', textAlignVertical: 'top' },
+  reviewSend: { alignSelf: 'flex-start' },
 });

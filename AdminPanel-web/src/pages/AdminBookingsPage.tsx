@@ -61,18 +61,16 @@ const MENU_BY_STATUS: Record<string, { key: string; label: string; icon: IconNam
     { key: 'cancel', label: 'Hủy lịch', icon: 'ban', danger: true },
   ],
   CONFIRMED: [
-    { key: 'confirm', label: 'Bắt đầu', icon: 'play' },
     { key: 'staff', label: 'Đổi nhân viên', icon: 'adminStaff' },
     { key: 'reschedule', label: 'Đổi thời gian', icon: 'calendar' },
     { key: 'noshow', label: 'Đánh dấu không đến', icon: 'ban' },
     { key: 'cancel', label: 'Hủy lịch', icon: 'ban', danger: true },
   ],
-  /* Dịch vụ đã bắt đầu: chỉ xem và ghi nhận kết quả, không đổi người, đổi
-     giờ hay hủy (mục 25). Backend cũng chặn, không chỉ ẩn nút ở đây. */
-  PROCESSING: [
-    { key: 'confirm', label: 'Hoàn thành', icon: 'done' },
-    { key: 'noshow', label: 'Đánh dấu không đến', icon: 'ban' },
-  ],
+  /* Dịch vụ đã bắt đầu: Admin không bấm "Hoàn thành" (CONFIRMED→PROCESSING
+     và PROCESSING→COMPLETED thuộc về nhân viên đang phục vụ, backend trả
+     403) và cũng không đánh dấu không đến (PROCESSING→NO_SHOW bị chặn).
+     Chỉ xem chi tiết và ghi nhận thanh toán ở trang hoá đơn. */
+  PROCESSING: [],
   /* Xong rồi thì chỉ xem (mục 26). */
   COMPLETED: [
     { key: 'payment', label: 'Xem thanh toán', icon: 'card' },

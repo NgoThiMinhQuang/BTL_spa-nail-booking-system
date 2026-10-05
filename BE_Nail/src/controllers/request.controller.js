@@ -27,6 +27,15 @@ function readMoment(value) {
   return new Date(text.replace(' ', 'T'));
 }
 
+/* Cột TIME driver có thể trả về chuỗi 'HH:mm:ss' hoặc object Date tuỳ
+   cấu hình — chuẩn hoá về 'HH:mm:ss' trước khi ghép vào câu so sánh.
+   Nếu lọt object Date vào String().slice(0,8) sẽ ra "Wed Oct " và điều
+   kiện chặn duyệt ca sai hoàn toàn. */
+function timeText(value) {
+  if (value instanceof Date) return value.toTimeString().slice(0, 8);
+  return String(value).slice(0, 8);
+}
+
 /**
  * Nhân viên xin nghỉ. Chỉ tạo được cho chính mình — staffId lấy từ token.
  * Không có đường tự duyệt: nhân viên tạo ở trạng thái PENDING và không
@@ -466,8 +475,8 @@ export async function approveScheduleRequest(req, res, next) {
         ? [request.staffId, day]
         : [
           request.staffId, day,
-          `${day} ${String(request.startTime).slice(0, 8)}`,
-          `${day} ${String(request.endTime).slice(0, 8)}`,
+          `${day} ${timeText(request.startTime)}`,
+          `${day} ${timeText(request.endTime)}`,
         ],
     );
 
@@ -477,7 +486,7 @@ export async function approveScheduleRequest(req, res, next) {
         message: request.action === 'REMOVE'
           ? `Nhân viên này đang có ${stranded.length} lịch trong ngày ${day}. `
             + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt xoá ca.'
-          : `Ca mới (${String(request.startTime).slice(0, 5)}–${String(request.endTime).slice(0, 5)} `
+          : `Ca mới (${timeText(request.startTime).slice(0, 5)}–${timeText(request.endTime).slice(0, 5)} `
             + `ngày ${day}) bỏ rơi ${stranded.length} lịch đã có khách. `
             + 'Vui lòng đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước khi duyệt.',
         reason: 'CONFLICTING_BOOKINGS',

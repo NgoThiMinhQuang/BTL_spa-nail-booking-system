@@ -60,8 +60,8 @@ const dayOfStart = (startsAt) => dayOf(startsAt);
    ================================================================ */
 
 /** Có yêu cầu nghỉ đã duyệt nào chồng lên khoảng thời gian này không? */
-export async function approvedLeaveOverlaps({ staffId, startsAt, endsAt }) {
-  const [rows] = await pool.query(
+export async function approvedLeaveOverlaps({ staffId, startsAt, endsAt, runner = pool }) {
+  const [rows] = await runner.query(
     `SELECT lr.leave_request_id AS id, lr.start_datetime AS startDatetime,
             lr.end_datetime AS endDatetime, lr.reason,
             COALESCE(u.full_name, 'Nhân viên') AS staffName
@@ -132,8 +132,10 @@ export async function checkStaffAvailable({
   }
 
   /* Nghỉ đã được duyệt: đây là lý do nghỉ cần bảng riêng thay vì chỉ ghi
-     ca OFF — một ca OFF không cho biết ai xin nghỉ và Admin duyệt lúc nào. */
-  const leave = await approvedLeaveOverlaps({ staffId, startsAt, endsAt });
+     ca OFF — một ca OFF không cho biết ai xin nghỉ và Admin duyệt lúc nào.
+     Đọc bằng runner của giao dịch đang xét để cùng snapshot với kiểm tra
+     trùng lịch (cũng locking read). */
+  const leave = await approvedLeaveOverlaps({ staffId, startsAt, endsAt, runner });
   if (leave) {
     return {
       ok: false,

@@ -50,7 +50,9 @@ export function LoginPage() {
         return;
       }
 
-      localStorage.setItem('nailhouse_token', token);
+      localStorage.setItem('nailhouse_admin_token', token);
+      /* Dọn key chung cũ — xem Admin-web LoginPage: hai web từng chung key. */
+      localStorage.removeItem('nailhouse_token');
       dispatch({
         type: 'login',
         user: { id: user.userId, name: user.name, email: user.email, role: 'admin' } as AuthUser,

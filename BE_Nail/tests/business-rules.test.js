@@ -1,20 +1,20 @@
-/* ===== Test nghiệp vụ lịch hẹn =====
+/* ===== Test nghiá»‡p vá»¥ lá»‹ch háº¹n =====
 
-   Chạy bằng:  node --test tests/
+   Cháº¡y báº±ng:  node --test tests/
 
-   Bộ test này dựng một database riêng (nail_management_test), nạp
-   Databasse.sql rồi chạy các migration, nên không đụng vào dữ liệu
-   thật của dự án. Sau đó kiểm tra đúng những luật dễ sai nhất:
+   Bá»™ test nÃ y dá»±ng má»™t database riÃªng (nail_management_test), náº¡p
+   Databasse.sql rá»“i cháº¡y cÃ¡c migration, nÃªn khÃ´ng Ä‘á»¥ng vÃ o dá»¯ liá»‡u
+   tháº­t cá»§a dá»± Ã¡n. Sau Ä‘Ã³ kiá»ƒm tra Ä‘Ãºng nhá»¯ng luáº­t dá»… sai nháº¥t:
 
-     - Máy trạng thái lịch hẹn (chuyển nào được, chuyển nào bị chặn)
-     - Chống đặt trùng, tính cả khoảng nghỉ giữa hai lịch
-     - Khung giờ còn trống (lỗi so sánh timestamp với phút)
-     - Chụp giá: đổi giá dịch vụ không làm đổi lịch cũ
-     - Máy trạng thái thanh toán
-     - Doanh thu chỉ tính lịch đã thu tiền
+     - MÃ¡y tráº¡ng thÃ¡i lá»‹ch háº¹n (chuyá»ƒn nÃ o Ä‘Æ°á»£c, chuyá»ƒn nÃ o bá»‹ cháº·n)
+     - Chá»‘ng Ä‘áº·t trÃ¹ng, tÃ­nh cáº£ khoáº£ng nghá»‰ giá»¯a hai lá»‹ch
+     - Khung giá» cÃ²n trá»‘ng (lá»—i so sÃ¡nh timestamp vá»›i phÃºt)
+     - Chá»¥p giÃ¡: Ä‘á»•i giÃ¡ dá»‹ch vá»¥ khÃ´ng lÃ m Ä‘á»•i lá»‹ch cÅ©
+     - MÃ¡y tráº¡ng thÃ¡i thanh toÃ¡n
+     - Doanh thu chá»‰ tÃ­nh lá»‹ch Ä‘Ã£ thu tiá»n
 
-   Mỗi test tự dựng lại dữ liệu cần thiết nên chạy độc lập, không phụ
-   thuộc thứ tự. */
+   Má»—i test tá»± dá»±ng láº¡i dá»¯ liá»‡u cáº§n thiáº¿t nÃªn cháº¡y Ä‘á»™c láº­p, khÃ´ng phá»¥
+   thuá»™c thá»© tá»±. */
 
 import 'dotenv/config';
 import assert from 'node:assert/strict';
@@ -32,19 +32,25 @@ import {
   PAYMENT_TRANSITIONS, canPaymentTransition, finalAmount, resolvePaymentAmount,
 } from '../src/lib/payment-state.js';
 import {
-  actualServiceMinutes, createBooking as createBookingTx, momentOf,
+  actualServiceMinutes, createBooking as createBookingTx, isDate, momentOf,
 } from '../src/lib/booking-service.js';
 import { clockOfMinutes, minutesOfClock } from '../src/lib/staff-availability.js';
 import * as dbConfig from '../src/config/database.js';
-/* Controller test chạy trên database test nhờ _setPoolForTests (xem
-   src/config/database.js): mọi test bên dưới gọi controller nhưng không
-   chạm vào database thật. */
+/* Controller test cháº¡y trÃªn database test nhá» _setPoolForTests (xem
+   src/config/database.js): má»i test bÃªn dÆ°á»›i gá»i controller nhÆ°ng khÃ´ng
+   cháº¡m vÃ o database tháº­t. */
 import { addAddon, removeAddon } from '../src/controllers/booking-admin.controller.js';
 import { addCustomerImage } from '../src/controllers/booking.controller.js';
 import { getHome } from '../src/controllers/home.controller.js';
 import { savePayment } from '../src/controllers/payment.controller.js';
+import { patchPayment } from '../src/controllers/payment.controller.js';
+import { register } from '../src/controllers/auth.controller.js';
+import { createBooking as createCustomerBooking } from '../src/controllers/booking.controller.js';
 import { approveScheduleRequest } from '../src/controllers/request.controller.js';
 import { deleteService, setStaffStatus } from '../src/controllers/catalog.controller.js';
+import {
+  assignServices, deleteCategory, removeServiceFromStaff, updateStaff,
+} from '../src/controllers/catalog.controller.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -62,57 +68,57 @@ let db;
 let setupPromise = null;
 
 /**
- * Dựng database test một lần, các lần gọi sau dùng lại kết quả.
+ * Dá»±ng database test má»™t láº§n, cÃ¡c láº§n gá»i sau dÃ¹ng láº¡i káº¿t quáº£.
  *
- * Mọi test gọi `connect()` đều phải chờ việc dựng xong, nên không phụ thuộc
- * thứ tự mà trình chạy test thi hành hook — trước đây có test chạy trước khi
- * dữ liệu sẵn sàng và báo lỗi khoá ngoại rất khó hiểu.
+ * Má»i test gá»i `connect()` Ä‘á»u pháº£i chá» viá»‡c dá»±ng xong, nÃªn khÃ´ng phá»¥ thuá»™c
+ * thá»© tá»± mÃ  trÃ¬nh cháº¡y test thi hÃ nh hook â€” trÆ°á»›c Ä‘Ã¢y cÃ³ test cháº¡y trÆ°á»›c khi
+ * dá»¯ liá»‡u sáºµn sÃ ng vÃ  bÃ¡o lá»—i khoÃ¡ ngoáº¡i ráº¥t khÃ³ hiá»ƒu.
  */
 function ensureReady() {
   setupPromise ??= setup();
   return setupPromise;
 }
 
-/** Kết nối tới database test (tự chờ dựng xong nếu chưa). */
+/** Káº¿t ná»‘i tá»›i database test (tá»± chá» dá»±ng xong náº¿u chÆ°a). */
 async function connect() {
   await ensureReady();
   const connection = await mysql.createConnection({ ...config, database: TEST_DB });
   const [[row]] = await connection.query('SELECT COUNT(*) AS n FROM staff');
   if (!row.n) {
-    /* Phải đóng kết nối trước khi ném lỗi: kết nối còn mở thì node không
-       bao giờ thoát, và toàn bộ output của lần chạy sẽ bị nuốt. */
+    /* Pháº£i Ä‘Ã³ng káº¿t ná»‘i trÆ°á»›c khi nÃ©m lá»—i: káº¿t ná»‘i cÃ²n má»Ÿ thÃ¬ node khÃ´ng
+       bao giá» thoÃ¡t, vÃ  toÃ n bá»™ output cá»§a láº§n cháº¡y sáº½ bá»‹ nuá»‘t. */
     await connection.end();
     throw new Error(
-      'Bảng staff trong database test bị trống dù đã seed. '
-      + 'Có khả năng hai tiến trình test cùng chạy trên một database test.');
+      'Báº£ng staff trong database test bá»‹ trá»‘ng dÃ¹ Ä‘Ã£ seed. '
+      + 'CÃ³ kháº£ nÄƒng hai tiáº¿n trÃ¬nh test cÃ¹ng cháº¡y trÃªn má»™t database test.');
   }
   return connection;
 }
 
 async function setup() {
-  /* 1. Tạo database test nếu chưa có.
-     Dùng IF NOT EXISTS thay vì DROP/CREATE: xoá cả database phải chờ
-     mọi kết nối khác đóng hết nên rất chậm và dễ treo khi còn ai đang
-     mở database. Bên trong, Database.sql vẫn xoá và dựng lại từng bảng
-     nên dữ liệu cũ trong đó không ảnh hưởng. */
+  /* 1. Táº¡o database test náº¿u chÆ°a cÃ³.
+     DÃ¹ng IF NOT EXISTS thay vÃ¬ DROP/CREATE: xoÃ¡ cáº£ database pháº£i chá»
+     má»i káº¿t ná»‘i khÃ¡c Ä‘Ã³ng háº¿t nÃªn ráº¥t cháº­m vÃ  dá»… treo khi cÃ²n ai Ä‘ang
+     má»Ÿ database. BÃªn trong, Database.sql váº«n xoÃ¡ vÃ  dá»±ng láº¡i tá»«ng báº£ng
+     nÃªn dá»¯ liá»‡u cÅ© trong Ä‘Ã³ khÃ´ng áº£nh hÆ°á»Ÿng. */
   const admin = await mysql.createConnection(config);
   await admin.query(
     `CREATE DATABASE IF NOT EXISTS ${TEST_DB} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   await admin.end();
 
-  /* 2. Nạp schema gốc rồi chạy các migration theo đúng thứ tự mà
-      `npm run db:migrate` sẽ chạy.
+  /* 2. Náº¡p schema gá»‘c rá»“i cháº¡y cÃ¡c migration theo Ä‘Ãºng thá»© tá»± mÃ 
+      `npm run db:migrate` sáº½ cháº¡y.
 
-      Database.sql cố ý ghi cứng tên database là nail_management để chạy
-      tay không cần tham số. Ở đây thay bằng tên database test, đồng thời
-      cắt bỏ phần đầu file (DROP/CREATE DATABASE và USE) để không bao
-      giờ xoá nhầm database thật khi chạy npm test. */
+      Database.sql cá»‘ Ã½ ghi cá»©ng tÃªn database lÃ  nail_management Ä‘á»ƒ cháº¡y
+      tay khÃ´ng cáº§n tham sá»‘. á»ž Ä‘Ã¢y thay báº±ng tÃªn database test, Ä‘á»“ng thá»i
+      cáº¯t bá» pháº§n Ä‘áº§u file (DROP/CREATE DATABASE vÃ  USE) Ä‘á»ƒ khÃ´ng bao
+      giá» xoÃ¡ nháº§m database tháº­t khi cháº¡y npm test. */
   db = await mysql.createConnection({ ...config, database: TEST_DB });
   const raw = await fs.readFile(path.join(root, 'DB/Database.sql'), 'utf8');
   const start = raw.indexOf('DROP TABLE IF EXISTS');
-  /* Cắt từ `DROP TABLE IF EXISTS` nên phải bật lại câu tắt kiểm tra khoá
-     ngoại (nằm ở phần đầu file, đã bị cắt) — không có nó thì không xoá
-     được bảng cha như `users` khi bảng con còn tham chiếu. */
+  /* Cáº¯t tá»« `DROP TABLE IF EXISTS` nÃªn pháº£i báº­t láº¡i cÃ¢u táº¯t kiá»ƒm tra khoÃ¡
+     ngoáº¡i (náº±m á»Ÿ pháº§n Ä‘áº§u file, Ä‘Ã£ bá»‹ cáº¯t) â€” khÃ´ng cÃ³ nÃ³ thÃ¬ khÃ´ng xoÃ¡
+     Ä‘Æ°á»£c báº£ng cha nhÆ° `users` khi báº£ng con cÃ²n tham chiáº¿u. */
   await db.query('SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n'
     + raw.slice(start).replaceAll('nail_management', TEST_DB));
 
@@ -120,20 +126,20 @@ async function setup() {
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
   for (const file of files) {
     await db.query(await fs.readFile(path.join(dir, file), 'utf8'));
-    /* Chặn lỗi rất dễ gặp: một file migration lỡ viết `USE <database>;` sẽ
-       đổi database đang dùng giữa chừng, và mọi câu lệnh phía sau chạy vào
-       database khác — thường là database THẬT. Lỗi này không báo gì,
-       chỉ thấy dữ liệu test "tự biến mất". */
+    /* Cháº·n lá»—i ráº¥t dá»… gáº·p: má»™t file migration lá»¡ viáº¿t `USE <database>;` sáº½
+       Ä‘á»•i database Ä‘ang dÃ¹ng giá»¯a chá»«ng, vÃ  má»i cÃ¢u lá»‡nh phÃ­a sau cháº¡y vÃ o
+       database khÃ¡c â€” thÆ°á»ng lÃ  database THáº¬T. Lá»—i nÃ y khÃ´ng bÃ¡o gÃ¬,
+       chá»‰ tháº¥y dá»¯ liá»‡u test "tá»± biáº¿n máº¥t". */
     const [[where]] = await db.query('SELECT DATABASE() AS name');
     if (where.name !== TEST_DB) {
       throw new Error(
-        `Migration ${file} đã đổi sang database "${where.name}" `
-        + `thay vì "${TEST_DB}". File đó nhiều khả năng có câu \`USE ...;\` `
-        + 'cần bỏ đi.');
+        `Migration ${file} Ä‘Ã£ Ä‘á»•i sang database "${where.name}" `
+        + `thay vÃ¬ "${TEST_DB}". File Ä‘Ã³ nhiá»u kháº£ nÄƒng cÃ³ cÃ¢u \`USE ...;\` `
+        + 'cáº§n bá» Ä‘i.');
     }
   }
 
-  /* 3. Dữ liệu tối thiểu cho test. */
+  /* 3. Dá»¯ liá»‡u tá»‘i thiá»ƒu cho test. */
   await seed(db);
   await db.end();
 
@@ -142,14 +148,14 @@ async function setup() {
 
 before(ensureReady);
 
-/* Giữ database test lại giữa các lần chạy. Lần sau Database.sql dựng lại
-   toàn bộ bảng nên vẫn sạch, nhưng khỏi phải chờ DROP DATABASE — thao tác
-   đó chậm và treo nếu còn kết nối nào chưa đóng. Muốn dọn thì chạy:
+/* Giá»¯ database test láº¡i giá»¯a cÃ¡c láº§n cháº¡y. Láº§n sau Database.sql dá»±ng láº¡i
+   toÃ n bá»™ báº£ng nÃªn váº«n sáº¡ch, nhÆ°ng khá»i pháº£i chá» DROP DATABASE â€” thao tÃ¡c
+   Ä‘Ã³ cháº­m vÃ  treo náº¿u cÃ²n káº¿t ná»‘i nÃ o chÆ°a Ä‘Ã³ng. Muá»‘n dá»n thÃ¬ cháº¡y:
       DROP DATABASE nail_management_test;
 
-   Đồng thời đóng luôn connection pool của src/config/database.js: pool
-   giữ socket mở nên nếu không đóng, node sẽ không bao giờ thoát dù test
-   đã chạy xong. */
+   Äá»“ng thá»i Ä‘Ã³ng luÃ´n connection pool cá»§a src/config/database.js: pool
+   giá»¯ socket má»Ÿ nÃªn náº¿u khÃ´ng Ä‘Ã³ng, node sáº½ khÃ´ng bao giá» thoÃ¡t dÃ¹ test
+   Ä‘Ã£ cháº¡y xong. */
 after(async () => {
   const { pool } = await import('../src/config/database.js');
   await pool.end();
@@ -158,8 +164,8 @@ after(async () => {
 async function seed(connection) {
   const hash = await bcrypt.hash('Test@1234', 10);
 
-  /* Dọn dữ liệu test cũ trước. Database.sql đã dựng lại bảng nên thường
-     không còn gì, nhưng dọn ở đây cho phép chạy lại seed() an toàn. */
+  /* Dá»n dá»¯ liá»‡u test cÅ© trÆ°á»›c. Database.sql Ä‘Ã£ dá»±ng láº¡i báº£ng nÃªn thÆ°á»ng
+     khÃ´ng cÃ²n gÃ¬, nhÆ°ng dá»n á»Ÿ Ä‘Ã¢y cho phÃ©p cháº¡y láº¡i seed() an toÃ n. */
   await connection.query('SET FOREIGN_KEY_CHECKS = 0');
   for (const table of ['booking_event', 'booking_image', 'booking_addon', 'review_images',
     'review', 'payment', 'booking', 'staff_leave_request', 'staff_schedule_request',
@@ -168,7 +174,7 @@ async function seed(connection) {
   }
   await connection.query('SET FOREIGN_KEY_CHECKS = 1');
 
-  /* Tài khoản: 1 khách, 2 nhân viên, 1 quản trị, 1 nhân viên đã khoá. */
+  /* TÃ i khoáº£n: 1 khÃ¡ch, 2 nhÃ¢n viÃªn, 1 quáº£n trá»‹, 1 nhÃ¢n viÃªn Ä‘Ã£ khoÃ¡. */
   await connection.query(
     `INSERT INTO users (user_id, full_name, phone, email, password, role, status) VALUES
        (9001, 'Khach Test',    '0911000001', 'khach@test.local', ?, 'CUSTOMER', 'ACTIVE'),
@@ -189,8 +195,8 @@ async function seed(connection) {
        (9003, 9005, NULL, 0)`);
 
   /* Dich vu: 60 phut + 15 phut nghi = 75 phut chiem lich.
-     ON DUPLICATE vì Database.sql đã có sẵn 3 dịch vụ mẫu (mã 1..3) và
-     dùng lại chúng cho gọn, không cần tạo mã riêng. */
+     ON DUPLICATE vÃ¬ Database.sql Ä‘Ã£ cÃ³ sáºµn 3 dá»‹ch vá»¥ máº«u (mÃ£ 1..3) vÃ 
+     dÃ¹ng láº¡i chÃºng cho gá»n, khÃ´ng cáº§n táº¡o mÃ£ riÃªng. */
   await connection.query(
     `INSERT INTO services
        (service_id, category_id, service_name, price, duration, buffer_time, status)
@@ -213,34 +219,34 @@ async function seed(connection) {
              UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7) d`,
   );
 
-  /* Kiểm tra ngay: nếu seed hỏng mà không báo, các test phía dưới sẽ hỏng
-     theo kiểu khó hiểu (lỗi khoá ngoại ở test chứ không phải ở seed). */
+  /* Kiá»ƒm tra ngay: náº¿u seed há»ng mÃ  khÃ´ng bÃ¡o, cÃ¡c test phÃ­a dÆ°á»›i sáº½ há»ng
+     theo kiá»ƒu khÃ³ hiá»ƒu (lá»—i khoÃ¡ ngoáº¡i á»Ÿ test chá»© khÃ´ng pháº£i á»Ÿ seed). */
   for (const table of ['users', 'staff', 'customer', 'staff_schedule']) {
     const [row] = await connection.query(`SELECT COUNT(*) AS n FROM ${table}`);
-    if (!row[0].n) throw new Error(`seed(): bảng ${table} không có dữ liệu`);
+    if (!row[0].n) throw new Error(`seed(): báº£ng ${table} khÃ´ng cÃ³ dá»¯ liá»‡u`);
   }
 }
 
 /* ================================================================
-   1. MÁY TRẠNG THÁI LỊCH HẸN
+   1. MÃY TRáº NG THÃI Lá»ŠCH Háº¸N
    ================================================================ */
 
-describe('Máy trạng thái lịch hẹn', () => {
-  test('luồng chính đi đúng thứ tự', () => {
+describe('MÃ¡y tráº¡ng thÃ¡i lá»‹ch háº¹n', () => {
+  test('luá»“ng chÃ­nh Ä‘i Ä‘Ãºng thá»© tá»±', () => {
     assert.equal(canTransition('PENDING', 'CONFIRMED').ok, true);
     assert.equal(canTransition('CONFIRMED', 'PROCESSING').ok, true);
     assert.equal(canTransition('PROCESSING', 'COMPLETED').ok, true);
   });
 
-  test('các nhánh phụ đúng nghiệp vụ', () => {
+  test('cÃ¡c nhÃ¡nh phá»¥ Ä‘Ãºng nghiá»‡p vá»¥', () => {
     assert.equal(canTransition('PENDING', 'CANCELLED').ok, true);
     assert.equal(canTransition('CONFIRMED', 'CANCELLED').ok, true);
     assert.equal(canTransition('CONFIRMED', 'NO_SHOW').ok, true);
   });
 
-  test('các đường đi sai đều bị chặn', () => {
-    /* Những đường này trước đây lọt lên vì mỗi controller tự liệt kê
-       trạng thái riêng. */
+  test('cÃ¡c Ä‘Æ°á»ng Ä‘i sai Ä‘á»u bá»‹ cháº·n', () => {
+    /* Nhá»¯ng Ä‘Æ°á»ng nÃ y trÆ°á»›c Ä‘Ã¢y lá»t lÃªn vÃ¬ má»—i controller tá»± liá»‡t kÃª
+       tráº¡ng thÃ¡i riÃªng. */
     const forbidden = [
       ['PENDING', 'COMPLETED'],
       ['PENDING', 'PROCESSING'],
@@ -253,65 +259,65 @@ describe('Máy trạng thái lịch hẹn', () => {
     ];
     for (const [from, to] of forbidden) {
       const result = canTransition(from, to);
-      assert.equal(result.ok, false, `KHÔNG được phép ${from} → ${to}`);
-      assert.ok(result.reason.length > 0, 'phải kèm lý do để hiện ra giao diện');
+      assert.equal(result.ok, false, `KHÃ”NG Ä‘Æ°á»£c phÃ©p ${from} â†’ ${to}`);
+      assert.ok(result.reason.length > 0, 'pháº£i kÃ¨m lÃ½ do Ä‘á»ƒ hiá»‡n ra giao diá»‡n');
     }
   });
 
-  test('trạng thái kết thúc không đi được đâu nữa', () => {
+  test('tráº¡ng thÃ¡i káº¿t thÃºc khÃ´ng Ä‘i Ä‘Æ°á»£c Ä‘Ã¢u ná»¯a', () => {
     for (const end of ['COMPLETED', 'CANCELLED', 'NO_SHOW']) {
       assert.deepEqual(ALLOWED_TRANSITIONS[end], []);
       for (const to of ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED', 'NO_SHOW']) {
-        assert.equal(canTransition(end, to).ok, false, `${end} → ${to} phải bị chặn`);
+        assert.equal(canTransition(end, to).ok, false, `${end} â†’ ${to} pháº£i bá»‹ cháº·n`);
       }
     }
   });
 
-  test('không chuyển sang trạng thái không tồn tại', () => {
+  test('khÃ´ng chuyá»ƒn sang tráº¡ng thÃ¡i khÃ´ng tá»“n táº¡i', () => {
     assert.equal(canTransition('PENDING', 'FOO').ok, false);
     assert.equal(canTransition('PENDING', '').ok, false);
   });
 
-  test('nhân viên chỉ được bắt đầu và hoàn thành', () => {
+  test('nhÃ¢n viÃªn chá»‰ Ä‘Æ°á»£c báº¯t Ä‘áº§u vÃ  hoÃ n thÃ nh', () => {
     assert.equal(canStaffTransition('CONFIRMED', 'PROCESSING').ok, true);
     assert.equal(canStaffTransition('PROCESSING', 'COMPLETED').ok, true);
-    /* Xác nhận, hủy, đánh dấu không đến không phải việc của nhân viên. */
+    /* XÃ¡c nháº­n, há»§y, Ä‘Ã¡nh dáº¥u khÃ´ng Ä‘áº¿n khÃ´ng pháº£i viá»‡c cá»§a nhÃ¢n viÃªn. */
     assert.equal(canStaffTransition('PENDING', 'CONFIRMED').ok, false);
     assert.equal(canStaffTransition('CONFIRMED', 'CANCELLED').ok, false);
     assert.equal(canStaffTransition('CONFIRMED', 'NO_SHOW').ok, false);
   });
 
-  test('nhân viên không bỏ qua bước bắt buộc', () => {
+  test('nhÃ¢n viÃªn khÃ´ng bá» qua bÆ°á»›c báº¯t buá»™c', () => {
     assert.equal(canStaffTransition('PENDING', 'COMPLETED').ok, false);
     assert.equal(canStaffTransition('PENDING', 'PROCESSING').ok, false);
   });
 });
 
 /* ================================================================
-   2. ĐỔI ĐƠN VỊ THỜI GIAN
+   2. Äá»”I ÄÆ N Vá»Š THá»œI GIAN
    ---------------------------------------------------------------
-   Đây là lỗi gốc của phần khung giờ còn trống: một vế là timestamp Unix
-   (new Date(...).getTime()) còn vế kia là `minute * 60000` — lệch đơn
-   vị nên phần kiểm tra trùng lịch cho kết quả tuỳ tiện.
+   ÄÃ¢y lÃ  lá»—i gá»‘c cá»§a pháº§n khung giá» cÃ²n trá»‘ng: má»™t váº¿ lÃ  timestamp Unix
+   (new Date(...).getTime()) cÃ²n váº¿ kia lÃ  `minute * 60000` â€” lá»‡ch Ä‘Æ¡n
+   vá»‹ nÃªn pháº§n kiá»ƒm tra trÃ¹ng lá»‹ch cho káº¿t quáº£ tuá»³ tiá»‡n.
    ================================================================ */
 
-describe('Đổi đơn vị thời gian', () => {
-  test('Date và chuỗi HH:mm cho cùng số phút', () => {
+describe('Äá»•i Ä‘Æ¡n vá»‹ thá»i gian', () => {
+  test('Date vÃ  chuá»—i HH:mm cho cÃ¹ng sá»‘ phÃºt', () => {
     assert.equal(minutesOfClock(new Date(2026, 0, 5, 9, 30)), 570);
     assert.equal(minutesOfClock('09:30:00'), 570);
     assert.equal(minutesOfClock('09:30'), 570);
   });
 
-  test('giữa khoảng giờ qua nửa đêm vẫn đúng', () => {
-    /* Ca đêm 22:00 – 02:00: '02:00' là 120 phút trong ngày, không phải
-       24:00. Hàm chỉ dùng để so trong cùng một ngày nên nhất quán là đủ. */
+  test('giá»¯a khoáº£ng giá» qua ná»­a Ä‘Ãªm váº«n Ä‘Ãºng', () => {
+    /* Ca Ä‘Ãªm 22:00 â€“ 02:00: '02:00' lÃ  120 phÃºt trong ngÃ y, khÃ´ng pháº£i
+       24:00. HÃ m chá»‰ dÃ¹ng Ä‘á»ƒ so trong cÃ¹ng má»™t ngÃ y nÃªn nháº¥t quÃ¡n lÃ  Ä‘á»§. */
     assert.equal(minutesOfClock('00:00'), 0);
     assert.equal(minutesOfClock('23:45'), 1425);
     assert.equal(clockOfMinutes(1425), '23:45');
     assert.equal(clockOfMinutes(570), '09:30');
   });
 
-  test('vòng lặp qua lại không lệch', () => {
+  test('vÃ²ng láº·p qua láº¡i khÃ´ng lá»‡ch', () => {
     for (let minute = 0; minute < 1440; minute += 7) {
       assert.equal(minutesOfClock(clockOfMinutes(minute)), minute);
     }
@@ -319,45 +325,45 @@ describe('Đổi đơn vị thời gian', () => {
 });
 
 /* ================================================================
-   3. CHỐNG ĐẶT TRÙNG
+   3. CHá»NG Äáº¶T TRÃ™NG
    ================================================================ */
 
-describe('Chống đặt trùng lịch', () => {
-  /** Khoảng [from, to) có chồng [a, b) không — cùng công thức backend dùng. */
+describe('Chá»‘ng Ä‘áº·t trÃ¹ng lá»‹ch', () => {
+  /** Khoáº£ng [from, to) cÃ³ chá»“ng [a, b) khÃ´ng â€” cÃ¹ng cÃ´ng thá»©c backend dÃ¹ng. */
   const overlaps = (from, to, a, b) => from < b && to > a;
 
-  test('lịch nằm trong lịch khác thì trùng', () => {
-    /* A: 09:00–10:15  →  540–615
-       B: 09:30–10:30  →  570–630
-       B bắt đầu lúc 09:30, tức là A còn đang phục vụ → trùng. */
+  test('lá»‹ch náº±m trong lá»‹ch khÃ¡c thÃ¬ trÃ¹ng', () => {
+    /* A: 09:00â€“10:15  â†’  540â€“615
+       B: 09:30â€“10:30  â†’  570â€“630
+       B báº¯t Ä‘áº§u lÃºc 09:30, tá»©c lÃ  A cÃ²n Ä‘ang phá»¥c vá»¥ â†’ trÃ¹ng. */
     assert.equal(overlaps(570, 630, 540, 615), true);
-    /* B bắt đầu trước khi A kết thúc → trùng. */
+    /* B báº¯t Ä‘áº§u trÆ°á»›c khi A káº¿t thÃºc â†’ trÃ¹ng. */
     assert.equal(overlaps(600, 660, 540, 615), true);
   });
 
-  test('khung giờ chạm đúng giờ kết thúc thì không trùng', () => {
-    /* A: 09:00–10:15, trong đó 10:00–10:15 là khoảng nghỉ của nhân viên.
-       B bắt đầu 10:00 → vẫn trùng, vì nhân viên còn bị chiếm tới 10:15. */
-    assert.equal(overlaps(600, 660, 540, 615), true, '10:00 vẫn nằm trong khoảng bị chiếm');
-    /* B bắt đầu đúng 10:15 → hợp lệ. */
-    assert.equal(overlaps(615, 675, 540, 615), false, '10:15 là khung giờ hợp lệ đầu tiên');
+  test('khung giá» cháº¡m Ä‘Ãºng giá» káº¿t thÃºc thÃ¬ khÃ´ng trÃ¹ng', () => {
+    /* A: 09:00â€“10:15, trong Ä‘Ã³ 10:00â€“10:15 lÃ  khoáº£ng nghá»‰ cá»§a nhÃ¢n viÃªn.
+       B báº¯t Ä‘áº§u 10:00 â†’ váº«n trÃ¹ng, vÃ¬ nhÃ¢n viÃªn cÃ²n bá»‹ chiáº¿m tá»›i 10:15. */
+    assert.equal(overlaps(600, 660, 540, 615), true, '10:00 váº«n náº±m trong khoáº£ng bá»‹ chiáº¿m');
+    /* B báº¯t Ä‘áº§u Ä‘Ãºng 10:15 â†’ há»£p lá»‡. */
+    assert.equal(overlaps(615, 675, 540, 615), false, '10:15 lÃ  khung giá» há»£p lá»‡ Ä‘áº§u tiÃªn');
   });
 
-  test('hai khoảng liền nhau không trùng', () => {
+  test('hai khoáº£ng liá»n nhau khÃ´ng trÃ¹ng', () => {
     assert.equal(overlaps(615, 690, 540, 615), false);
   });
 
-  test('lịch trùng hoàn toàn bị phát hiện', () => {
+  test('lá»‹ch trÃ¹ng hoÃ n toÃ n bá»‹ phÃ¡t hiá»‡n', () => {
     assert.equal(overlaps(540, 615, 540, 615), true);
   });
 });
 
 /* ================================================================
-   4. CHỤP GIÁ (SNAPSHOT)
+   4. CHá»¤P GIÃ (SNAPSHOT)
    ================================================================ */
 
-describe('Chụp giá và thời lượng', () => {
-  test('đổi giá dịch vụ không làm đổi lịch cũ', async () => {
+describe('Chá»¥p giÃ¡ vÃ  thá»i lÆ°á»£ng', () => {
+  test('Ä‘á»•i giÃ¡ dá»‹ch vá»¥ khÃ´ng lÃ m Ä‘á»•i lá»‹ch cÅ©', async () => {
     const connection = await connect();
     try {
       const tomorrow = new Date();
@@ -369,7 +375,7 @@ describe('Chụp giá và thời lượng', () => {
          ON DUPLICATE KEY UPDATE end_time = '18:00:00'`, [day],
       );
 
-      /* Tạo lịch như lúc khách đặt: chụp giá 200.000 / 60 phút. */
+      /* Táº¡o lá»‹ch nhÆ° lÃºc khÃ¡ch Ä‘áº·t: chá»¥p giÃ¡ 200.000 / 60 phÃºt. */
       const [created] = await connection.query(
         `INSERT INTO booking
            (customer_id, staff_id, service_id, service_price, service_duration, buffer_time,
@@ -378,7 +384,7 @@ describe('Chụp giá và thời lượng', () => {
         [`${day} 11:00:00`, `${day} 12:15:00`],
       );
 
-      /* Admin đổi giá và thời lượng của dịch vụ. */
+      /* Admin Ä‘á»•i giÃ¡ vÃ  thá»i lÆ°á»£ng cá»§a dá»‹ch vá»¥. */
       await connection.query(
         `UPDATE services SET price = 300000, duration = 90, buffer_time = 20
           WHERE service_id = 1`);
@@ -391,11 +397,11 @@ describe('Chụp giá và thời lượng', () => {
           WHERE b.booking_id = ?`, [created.insertId],
       );
 
-      assert.equal(Number(row.price), 200000, 'lịch cũ phải giữ giá lúc đặt');
-      assert.equal(Number(row.duration), 60, 'lịch cũ phải giữ thời lượng lúc đặt');
+      assert.equal(Number(row.price), 200000, 'lá»‹ch cÅ© pháº£i giá»¯ giÃ¡ lÃºc Ä‘áº·t');
+      assert.equal(Number(row.duration), 60, 'lá»‹ch cÅ© pháº£i giá»¯ thá»i lÆ°á»£ng lÃºc Ä‘áº·t');
       assert.equal(Number(row.bufferTime), 15);
 
-      /* Lịch mới phải nhận giá mới. */
+      /* Lá»‹ch má»›i pháº£i nháº­n giÃ¡ má»›i. */
       const [fresh] = await connection.query(
         `INSERT INTO booking
            (customer_id, staff_id, service_id, service_price, service_duration, buffer_time,
@@ -405,7 +411,7 @@ describe('Chụp giá và thời lượng', () => {
       );
       assert.ok(fresh.insertId > 0);
 
-      /* Trả lại dịch vụ về giá cũ cho các test sau. */
+      /* Tráº£ láº¡i dá»‹ch vá»¥ vá» giÃ¡ cÅ© cho cÃ¡c test sau. */
       await connection.query(
         `UPDATE services SET price = 200000, duration = 60, buffer_time = 15 WHERE service_id = 1`);
       await connection.query('DELETE FROM booking WHERE booking_id IN (?, ?)',
@@ -415,13 +421,13 @@ describe('Chụp giá và thời lượng', () => {
     }
   });
 
-  test('end_time = start + thời lượng + khoảng nghỉ', async () => {
+  test('end_time = start + thá»i lÆ°á»£ng + khoáº£ng nghá»‰', async () => {
     const connection = await connect();
     try {
       const [row] = await connection.query(
         `SELECT TIMESTAMPDIFF(MINUTE, start_time, end_time) AS span
            FROM booking WHERE booking_id = (SELECT MAX(booking_id) FROM booking)`);
-      /* Nếu có lịch nào từ dữ liệu cũ thì span phải bằng duration + buffer. */
+      /* Náº¿u cÃ³ lá»‹ch nÃ o tá»« dá»¯ liá»‡u cÅ© thÃ¬ span pháº£i báº±ng duration + buffer. */
       if (row.length) {
         const [[check]] = await connection.query(
           `SELECT TIMESTAMPDIFF(MINUTE, b.start_time, b.end_time) AS span,
@@ -439,47 +445,47 @@ describe('Chụp giá và thời lượng', () => {
 });
 
 /* ================================================================
-   5. MÁY TRẠNG THÁI THANH TOÁN
+   5. MÃY TRáº NG THÃI THANH TOÃN
    ================================================================ */
 
-describe('Máy trạng thái thanh toán', () => {
-  test('các bước đi hợp lệ', () => {
+describe('MÃ¡y tráº¡ng thÃ¡i thanh toÃ¡n', () => {
+  test('cÃ¡c bÆ°á»›c Ä‘i há»£p lá»‡', () => {
     assert.equal(canPaymentTransition('UNPAID', 'DEPOSITED').ok, true);
     assert.equal(canPaymentTransition('UNPAID', 'PAID').ok, true);
     assert.equal(canPaymentTransition('DEPOSITED', 'PAID').ok, true);
   });
 
-  test('PAID không quay lại được — không có nghiệp vụ hoàn tiền', () => {
+  test('PAID khÃ´ng quay láº¡i Ä‘Æ°á»£c â€” khÃ´ng cÃ³ nghiá»‡p vá»¥ hoÃ n tiá»n', () => {
     assert.equal(canPaymentTransition('PAID', 'UNPAID').ok, false);
     assert.equal(canPaymentTransition('PAID', 'DEPOSITED').ok, false);
     assert.deepEqual(PAYMENT_TRANSITIONS.PAID, []);
   });
 
-  test('DEPOSITED không lùi về UNPAID', () => {
+  test('DEPOSITED khÃ´ng lÃ¹i vá» UNPAID', () => {
     assert.equal(canPaymentTransition('DEPOSITED', 'UNPAID').ok, false);
   });
 
-  test('ghi đè cùng trạng thái được phép', () => {
+  test('ghi Ä‘Ã¨ cÃ¹ng tráº¡ng thÃ¡i Ä‘Æ°á»£c phÃ©p', () => {
     assert.equal(canPaymentTransition('DEPOSITED', 'DEPOSITED').ok, true);
   });
 });
 
 /* ================================================================
-   6. TÍNH TIỀN CÓ SỐ LƯỢNG
+   6. TÃNH TIá»€N CÃ“ Sá» LÆ¯á»¢NG
    ---------------------------------------------------------------
-   booking_addon có cột quantity. Cộng SUM(price) sẽ tính thiếu: 3 món
-   cùng loại giá 40.000 là 120.000 chứ không phải 40.000.
+   booking_addon cÃ³ cá»™t quantity. Cá»™ng SUM(price) sáº½ tÃ­nh thiáº¿u: 3 mÃ³n
+   cÃ¹ng loáº¡i giÃ¡ 40.000 lÃ  120.000 chá»© khÃ´ng pháº£i 40.000.
    ================================================================ */
 
-describe('Tính tiền dịch vụ phát sinh', () => {
-  test('nhân với số lượng', () => {
+describe('TÃ­nh tiá»n dá»‹ch vá»¥ phÃ¡t sinh', () => {
+  test('nhÃ¢n vá»›i sá»‘ lÆ°á»£ng', () => {
     assert.equal(finalAmount({
       servicePrice: 200000,
       addons: [{ price: 40000, quantity: 3 }],
     }), 320000);
   });
 
-  test('cộng nhiều món khác loại', () => {
+  test('cá»™ng nhiá»u mÃ³n khÃ¡c loáº¡i', () => {
     assert.equal(finalAmount({
       servicePrice: 200000,
       addons: [
@@ -489,22 +495,22 @@ describe('Tính tiền dịch vụ phát sinh', () => {
     }), 410000);
   });
 
-  test('không có món phát sinh thì bằng giá dịch vụ', () => {
+  test('khÃ´ng cÃ³ mÃ³n phÃ¡t sinh thÃ¬ báº±ng giÃ¡ dá»‹ch vá»¥', () => {
     assert.equal(finalAmount({ servicePrice: 150000 }), 150000);
     assert.equal(finalAmount({ servicePrice: 150000, addons: [] }), 150000);
   });
 
-  test('thiếu quantity thì coi như một', () => {
+  test('thiáº¿u quantity thÃ¬ coi nhÆ° má»™t', () => {
     assert.equal(finalAmount({
       servicePrice: 100000, addons: [{ price: 50000 }],
     }), 150000);
   });
 
-  test('SUM(price * quantity) của database khớp với hàm JS', async () => {
+  test('SUM(price * quantity) cá»§a database khá»›p vá»›i hÃ m JS', async () => {
     const connection = await connect();
     try {
-      /* Tạo một lịch rồi thêm dịch vụ phát sinh có số lượng khác nhau,
-         để so hai cách tính thật sự khác nhau chứ không chỉ bằng 0 = 0. */
+      /* Táº¡o má»™t lá»‹ch rá»“i thÃªm dá»‹ch vá»¥ phÃ¡t sinh cÃ³ sá»‘ lÆ°á»£ng khÃ¡c nhau,
+         Ä‘á»ƒ so hai cÃ¡ch tÃ­nh tháº­t sá»± khÃ¡c nhau chá»© khÃ´ng chá»‰ báº±ng 0 = 0. */
       const day = new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10);
       const [booking] = await connection.query(
         `INSERT INTO booking
@@ -529,8 +535,8 @@ describe('Tính tiền dịch vụ phát sinh', () => {
         [id]);
 
       assert.equal(finalAmount({ servicePrice: 0, addons: rows }), Number(sum.total));
-      /* 3 × 40.000 + 2 × 50.000 = 220.000. Nếu dùng SUM(price) sẽ ra
-         90.000 — đó chính là lỗi mà phần này chặn lại. */
+      /* 3 Ã— 40.000 + 2 Ã— 50.000 = 220.000. Náº¿u dÃ¹ng SUM(price) sáº½ ra
+         90.000 â€” Ä‘Ã³ chÃ­nh lÃ  lá»—i mÃ  pháº§n nÃ y cháº·n láº¡i. */
       assert.equal(Number(sum.total), 220000);
 
       await connection.query('DELETE FROM booking WHERE booking_id = ?', [id]);
@@ -541,15 +547,15 @@ describe('Tính tiền dịch vụ phát sinh', () => {
 });
 
 /* ================================================================
-   7. DOANH THU CHỈ TÍNH LỊCH ĐÃ THU TIỀN
+   7. DOANH THU CHá»ˆ TÃNH Lá»ŠCH ÄÃƒ THU TIá»€N
    ---------------------------------------------------------------
-   COMPLETED + UNPAID phải ra doanh thu bằng 0. Trước đây các báo cáo
-   lấy SUM(s.price) của mọi lịch COMPLETED nên lịch chưa thu tiền vẫn
-   bị tính vào.
+   COMPLETED + UNPAID pháº£i ra doanh thu báº±ng 0. TrÆ°á»›c Ä‘Ã¢y cÃ¡c bÃ¡o cÃ¡o
+   láº¥y SUM(s.price) cá»§a má»i lá»‹ch COMPLETED nÃªn lá»‹ch chÆ°a thu tiá»n váº«n
+   bá»‹ tÃ­nh vÃ o.
    ================================================================ */
 
-describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
-  test('lịch hoàn thành nhưng chưa thu tiền không ra doanh thu', async () => {
+describe('Doanh thu chá»‰ tÃ­nh lá»‹ch Ä‘Ã£ thu tiá»n', () => {
+  test('lá»‹ch hoÃ n thÃ nh nhÆ°ng chÆ°a thu tiá»n khÃ´ng ra doanh thu', async () => {
     const connection = await connect();
     try {
       const day = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
@@ -562,14 +568,14 @@ describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
       );
       const id = booking.insertId;
 
-      /* CHƯA có dòng thanh toán → không có doanh thu. */
+      /* CHÆ¯A cÃ³ dÃ²ng thanh toÃ¡n â†’ khÃ´ng cÃ³ doanh thu. */
       const [[before]] = await connection.query(
         `SELECT COALESCE(SUM(pay.amount), 0) AS revenue
            FROM booking b JOIN payment pay ON pay.booking_id = b.booking_id
           WHERE b.booking_id = ? AND pay.payment_status = 'PAID'`, [id]);
-      assert.equal(Number(before.revenue), 0, 'COMPLETED + chưa có payment = 0');
+      assert.equal(Number(before.revenue), 0, 'COMPLETED + chÆ°a cÃ³ payment = 0');
 
-      /* Thêm dòng UNPAID → vẫn bằng 0. */
+      /* ThÃªm dÃ²ng UNPAID â†’ váº«n báº±ng 0. */
       await connection.query(
         `INSERT INTO payment (booking_id, amount, payment_status) VALUES (?, 200000, 'UNPAID')`, [id]);
       const [[unpaid]] = await connection.query(
@@ -578,13 +584,13 @@ describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
           WHERE b.booking_id = ? AND pay.payment_status = 'PAID'`, [id]);
       assert.equal(Number(unpaid.revenue), 0, 'COMPLETED + UNPAID = 0');
 
-      /* Chuyển sang PAID → mới có doanh thu. */
+      /* Chuyá»ƒn sang PAID â†’ má»›i cÃ³ doanh thu. */
       await connection.query(`UPDATE payment SET payment_status = 'PAID' WHERE booking_id = ?`, [id]);
       const [[paid]] = await connection.query(
         `SELECT COALESCE(SUM(pay.amount), 0) AS revenue
            FROM booking b JOIN payment pay ON pay.booking_id = b.booking_id
           WHERE b.booking_id = ? AND pay.payment_status = 'PAID'`, [id]);
-      assert.equal(Number(paid.revenue), 200000, 'COMPLETED + PAID mới tính doanh thu');
+      assert.equal(Number(paid.revenue), 200000, 'COMPLETED + PAID má»›i tÃ­nh doanh thu');
 
       await connection.query('DELETE FROM booking WHERE booking_id = ?', [id]);
     } finally {
@@ -592,7 +598,7 @@ describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
     }
   });
 
-  test('tiền cọc không được tính vào doanh thu', async () => {
+  test('tiá»n cá»c khÃ´ng Ä‘Æ°á»£c tÃ­nh vÃ o doanh thu', async () => {
     const connection = await connect();
     try {
       const day = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
@@ -611,7 +617,7 @@ describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
         `SELECT COALESCE(SUM(pay.amount), 0) AS revenue
            FROM booking b JOIN payment pay ON pay.booking_id = b.booking_id
           WHERE b.booking_id = ? AND pay.payment_status = 'PAID'`, [booking.insertId]);
-      assert.equal(Number(row.revenue), 0, 'tiền cọc không phải doanh thu');
+      assert.equal(Number(row.revenue), 0, 'tiá»n cá»c khÃ´ng pháº£i doanh thu');
 
       await connection.query('DELETE FROM booking WHERE booking_id = ?', [booking.insertId]);
     } finally {
@@ -621,37 +627,37 @@ describe('Doanh thu chỉ tính lịch đã thu tiền', () => {
 });
 
 /* ================================================================
-   8. BẢO VỆ QUYỀN
+   8. Báº¢O Vá»† QUYá»€N
    ================================================================ */
 
-describe('Phân quyền', () => {
-  test('tài khoản bị khoá không lấy được token hợp lệ', async () => {
+describe('PhÃ¢n quyá»n', () => {
+  test('tÃ i khoáº£n bá»‹ khoÃ¡ khÃ´ng láº¥y Ä‘Æ°á»£c token há»£p lá»‡', async () => {
     const { loadUserFromToken, signToken } = await import('../src/lib/auth.js');
     const connection = await connect();
     const [rows] = await connection.query(
       'SELECT user_id FROM users WHERE user_id = 9005');
     await connection.end();
 
-    /* Token vẫn đúng chữ ký, nhưng tài khoản INACTIVE → loadUserFromToken
-       phải trả null thay vì thả qua. */
+    /* Token váº«n Ä‘Ãºng chá»¯ kÃ½, nhÆ°ng tÃ i khoáº£n INACTIVE â†’ loadUserFromToken
+       pháº£i tráº£ null thay vÃ¬ tháº£ qua. */
     const token = signToken({ userId: rows[0].user_id, role: 'STAFF' });
     const user = await loadUserFromToken(token);
-    assert.equal(user, null, 'tài khoản INACTIVE phải bị chặn');
+    assert.equal(user, null, 'tÃ i khoáº£n INACTIVE pháº£i bá»‹ cháº·n');
   });
 
-  test('token sai chữ ký bị từ chối', async () => {
+  test('token sai chá»¯ kÃ½ bá»‹ tá»« chá»‘i', async () => {
     const { verifyToken } = await import('../src/lib/auth.js');
     assert.equal(verifyToken('abc.def.ghi'), null);
   });
 
-  test('mỗi lịch chỉ có một đánh giá', async () => {
+  test('má»—i lá»‹ch chá»‰ cÃ³ má»™t Ä‘Ã¡nh giÃ¡', async () => {
     const connection = await connect();
     try {
       const [dupe] = await connection.query(
         `SELECT COLUMN_NAME FROM information_schema.STATISTICS
           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'review'
             AND COLUMN_NAME = 'booking_id' AND NON_UNIQUE = 0`);
-      assert.ok(dupe.length > 0, 'review.booking_id phải có ràng buộc UNIQUE');
+      assert.ok(dupe.length > 0, 'review.booking_id pháº£i cÃ³ rÃ ng buá»™c UNIQUE');
     } finally {
       await connection.end();
     }
@@ -659,10 +665,10 @@ describe('Phân quyền', () => {
 });
 
 /* ================================================================
-   9. BẢNG MỚI THEO NGHIỆP VỤ
+   9. Báº¢NG Má»šI THEO NGHIá»†P Vá»¤
    ================================================================ */
 
-describe('Bảng nghiệp vụ', () => {
+describe('Báº£ng nghiá»‡p vá»¥', () => {
   const tables = [
     'staff_leave_request',
     'staff_schedule_request',
@@ -670,20 +676,20 @@ describe('Bảng nghiệp vụ', () => {
   ];
 
   for (const table of tables) {
-    test(`bảng ${table} tồn tại`, async () => {
+    test(`báº£ng ${table} tá»“n táº¡i`, async () => {
       const connection = await connect();
       try {
         const [rows] = await connection.query(
           `SELECT COUNT(*) AS n FROM information_schema.tables
             WHERE table_schema = DATABASE() AND table_name = ?`, [table]);
-        assert.equal(Number(rows[0].n), 1, `thiếu bảng ${table}`);
+        assert.equal(Number(rows[0].n), 1, `thiáº¿u báº£ng ${table}`);
       } finally {
         await connection.end();
       }
     });
   }
 
-  test('danh mục có trạng thái ACTIVE / INACTIVE', async () => {
+  test('danh má»¥c cÃ³ tráº¡ng thÃ¡i ACTIVE / INACTIVE', async () => {
     const connection = await connect();
     try {
       const [rows] = await connection.query(
@@ -698,7 +704,7 @@ describe('Bảng nghiệp vụ', () => {
     }
   });
 
-  test('dịch vụ dùng chung một bộ tên trạng thái ACTIVE / INACTIVE', async () => {
+  test('dá»‹ch vá»¥ dÃ¹ng chung má»™t bá»™ tÃªn tráº¡ng thÃ¡i ACTIVE / INACTIVE', async () => {
     const connection = await connect();
     try {
       const [rows] = await connection.query(
@@ -707,24 +713,24 @@ describe('Bảng nghiệp vụ', () => {
             AND column_name = 'status'`);
       assert.match(rows[0].COLUMN_TYPE, /INACTIVE/);
       assert.doesNotMatch(rows[0].COLUMN_TYPE, /HIDDEN/,
-        'HIDDEN là tên riêng của tầng staff, gây nhầm khi báo cáo');
+        'HIDDEN lÃ  tÃªn riÃªng cá»§a táº§ng staff, gÃ¢y nháº§m khi bÃ¡o cÃ¡o');
     } finally {
       await connection.end();
     }
   });
 
-  test('mật khẩu trong bảng users đều là hash', async () => {
+  test('máº­t kháº©u trong báº£ng users Ä‘á»u lÃ  hash', async () => {
     const connection = await connect();
     try {
       const [rows] = await connection.query(
         "SELECT password FROM users WHERE password NOT LIKE '$2%'");
-      assert.equal(rows.length, 0, 'không được còn mật khẩu chưa mã hoá');
+      assert.equal(rows.length, 0, 'khÃ´ng Ä‘Æ°á»£c cÃ²n máº­t kháº©u chÆ°a mÃ£ hoÃ¡');
     } finally {
       await connection.end();
     }
   });
 
-  test('yêu cầu nghỉ có người duyệt và mốc duyệt', async () => {
+  test('yÃªu cáº§u nghá»‰ cÃ³ ngÆ°á»i duyá»‡t vÃ  má»‘c duyá»‡t', async () => {
     const connection = await connect();
     try {
       const [rows] = await connection.query(
@@ -739,11 +745,11 @@ describe('Bảng nghiệp vụ', () => {
 });
 
 /* ================================================================
-   10. LUẬT DUYỆT NGHỈ
+   10. LUáº¬T DUYá»†T NGHá»ˆ
    ================================================================ */
 
-describe('Duyệt yêu cầu nghỉ', () => {
-  test('có lịch trong khoảng nghỉ thì không được duyệt', async () => {
+describe('Duyá»‡t yÃªu cáº§u nghá»‰', () => {
+  test('cÃ³ lá»‹ch trong khoáº£ng nghá»‰ thÃ¬ khÃ´ng Ä‘Æ°á»£c duyá»‡t', async () => {
     const connection = await connect();
     try {
       const day = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
@@ -755,16 +761,16 @@ describe('Duyệt yêu cầu nghỉ', () => {
         [`${day} 09:00:00`, `${day} 10:15:00`],
       );
 
-      /* Đếm lịch chồng lên khoảng nghỉ — đúng điều kiện chặn duyệt. */
+      /* Äáº¿m lá»‹ch chá»“ng lÃªn khoáº£ng nghá»‰ â€” Ä‘Ãºng Ä‘iá»u kiá»‡n cháº·n duyá»‡t. */
       const [clash] = await connection.query(
         `SELECT COUNT(*) AS n FROM booking
           WHERE staff_id = 9001 AND status IN ('PENDING','CONFIRMED','PROCESSING')
             AND start_time < ? AND end_time > ?`,
         [`${day} 12:00:00`, `${day} 08:00:00`],
       );
-      assert.equal(Number(clash[0].n), 1, 'phải phát hiện lịch cần xử lý trước');
+      assert.equal(Number(clash[0].n), 1, 'pháº£i phÃ¡t hiá»‡n lá»‹ch cáº§n xá»­ lÃ½ trÆ°á»›c');
 
-      /* Sau khi dời lịch ra ngoài khoảng nghỉ thì duyệt được. */
+      /* Sau khi dá»i lá»‹ch ra ngoÃ i khoáº£ng nghá»‰ thÃ¬ duyá»‡t Ä‘Æ°á»£c. */
       await connection.query(
         `UPDATE booking SET start_time = ?, end_time = ? WHERE booking_id = ?`,
         [`${day} 14:00:00`, `${day} 15:15:00`, booking.insertId],
@@ -775,7 +781,7 @@ describe('Duyệt yêu cầu nghỉ', () => {
             AND start_time < ? AND end_time > ?`,
         [`${day} 12:00:00`, `${day} 08:00:00`],
       );
-      assert.equal(Number(clear[0].n), 0, 'dời lịch ra ngoài thì duyệt được');
+      assert.equal(Number(clear[0].n), 0, 'dá»i lá»‹ch ra ngoÃ i thÃ¬ duyá»‡t Ä‘Æ°á»£c');
 
       await connection.query('DELETE FROM booking WHERE booking_id = ?', [booking.insertId]);
     } finally {
@@ -783,24 +789,24 @@ describe('Duyệt yêu cầu nghỉ', () => {
     }
   });
 
-  test('yêu cầu nghỉ đã duyệt làm nhân viên không nhận được lịch', async () => {
+  test('yÃªu cáº§u nghá»‰ Ä‘Ã£ duyá»‡t lÃ m nhÃ¢n viÃªn khÃ´ng nháº­n Ä‘Æ°á»£c lá»‹ch', async () => {
     const connection = await connect();
     try {
       const day = new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10);
       await connection.query(
         `INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, status)
-         VALUES (9001, ?, ?, 'Nghỉ việc gia đình', 'APPROVED')`,
+         VALUES (9001, ?, ?, 'Nghá»‰ viá»‡c gia Ä‘Ã¬nh', 'APPROVED')`,
         [`${day} 09:00:00`, `${day} 18:00:00`],
       );
 
-      /* Cùng một điều kiện overlap mà checkStaffAvailable dùng. */
+      /* CÃ¹ng má»™t Ä‘iá»u kiá»‡n overlap mÃ  checkStaffAvailable dÃ¹ng. */
       const [rows] = await connection.query(
         `SELECT COUNT(*) AS n FROM staff_leave_request
           WHERE staff_id = 9001 AND status = 'APPROVED'
             AND start_datetime < ? AND end_datetime > ?`,
         [`${day} 14:00:00`, `${day} 10:00:00`],
       );
-      assert.ok(Number(rows[0].n) > 0, 'khung giờ trong khoảng nghỉ phải bị chặn');
+      assert.ok(Number(rows[0].n) > 0, 'khung giá» trong khoáº£ng nghá»‰ pháº£i bá»‹ cháº·n');
 
       await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
     } finally {
@@ -810,16 +816,16 @@ describe('Duyệt yêu cầu nghỉ', () => {
 });
 
 /* ================================================================
-   BẢN VÁ BẢO VỆ DỮ LIỆU
+   Báº¢N VÃ Báº¢O Vá»† Dá»® LIá»†U
    ---------------------------------------------------------------
-   Các test bên dưới bao phủ đúng những lỗi từng lọt qua bộ test cũ:
-   PAID trả thiếu, double-book nhánh "bất kỳ nhân viên", duyệt đổi ca
-   khi còn lịch, Staff thêm add-on, ảnh mẫu của khách, xoá add-on sau
-   PAID, thời gian phục vụ thực tế, khoá nhân viên còn lịch, xoá dịch
-   vụ đang làm add-on, và biên hủy đúng 2 giờ.
+   CÃ¡c test bÃªn dÆ°á»›i bao phá»§ Ä‘Ãºng nhá»¯ng lá»—i tá»«ng lá»t qua bá»™ test cÅ©:
+   PAID tráº£ thiáº¿u, double-book nhÃ¡nh "báº¥t ká»³ nhÃ¢n viÃªn", duyá»‡t Ä‘á»•i ca
+   khi cÃ²n lá»‹ch, Staff thÃªm add-on, áº£nh máº«u cá»§a khÃ¡ch, xoÃ¡ add-on sau
+   PAID, thá»i gian phá»¥c vá»¥ thá»±c táº¿, khoÃ¡ nhÃ¢n viÃªn cÃ²n lá»‹ch, xoÃ¡ dá»‹ch
+   vá»¥ Ä‘ang lÃ m add-on, vÃ  biÃªn há»§y Ä‘Ãºng 2 giá».
    ================================================================ */
 
-/** Response Express giả: chỉ cần status().json() và json(). */
+/** Response Express giáº£: chá»‰ cáº§n status().json() vÃ  json(). */
 function mockRes() {
   const res = { statusCode: 200, body: null };
   res.status = (code) => { res.statusCode = code; return res; };
@@ -827,14 +833,14 @@ function mockRes() {
   return res;
 }
 
-/** next(err) của Express: test nào cũng muốn lỗi hiện ra, không nuốt. */
+/** next(err) cá»§a Express: test nÃ o cÅ©ng muá»‘n lá»—i hiá»‡n ra, khÃ´ng nuá»‘t. */
 function strictNext(err) {
   if (err) throw err;
 }
 
 const dayPlus = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 
-describe('Bản vá bảo vệ dữ liệu', () => {
+describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
   let testPool = null;
   let realPool = null;
 
@@ -853,7 +859,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     if (testPool) await testPool.end();
   });
 
-  /* Nhân viên test cách ly: không đụng lịch của các test khác. */
+  /* NhÃ¢n viÃªn test cÃ¡ch ly: khÃ´ng Ä‘á»¥ng lá»‹ch cá»§a cÃ¡c test khÃ¡c. */
   async function makeStaff(n, dayOffset) {
     const uid = 9300 + n;
     const sid = 9300 + n;
@@ -888,16 +894,16 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     return result.insertId;
   }
 
-  /* ---------------- PAID phải bằng đúng tổng ---------------- */
+  /* ---------------- PAID pháº£i báº±ng Ä‘Ãºng tá»•ng ---------------- */
 
-  test('PAID bỏ qua số tiền frontend gửi lên', () => {
+  test('PAID bá» qua sá»‘ tiá»n frontend gá»­i lÃªn', () => {
     assert.deepEqual(resolvePaymentAmount('PAID', 1, 500000), { ok: true, amount: 500000 });
     assert.deepEqual(resolvePaymentAmount('PAID', 0, 500000), { ok: true, amount: 500000 });
     assert.deepEqual(resolvePaymentAmount('PAID', 999999, 500000), { ok: true, amount: 500000 });
     assert.deepEqual(resolvePaymentAmount('PAID', undefined, 500000), { ok: true, amount: 500000 });
   });
 
-  test('UNPAID và DEPOSITED vẫn kiểm tra khoảng hợp lệ', () => {
+  test('UNPAID vÃ  DEPOSITED váº«n kiá»ƒm tra khoáº£ng há»£p lá»‡', () => {
     assert.deepEqual(resolvePaymentAmount('DEPOSITED', 100000, 500000), { ok: true, amount: 100000 });
     assert.equal(resolvePaymentAmount('DEPOSITED', 600000, 500000).ok, false);
     assert.equal(resolvePaymentAmount('UNPAID', -1, 500000).ok, false);
@@ -905,7 +911,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(resolvePaymentAmount('UNPAID', 500001, 500000).ok, false);
   });
 
-  test('savePayment PAID với amount = 1 vẫn ghi đủ tổng', async () => {
+  test('savePayment PAID vá»›i amount = 1 váº«n ghi Ä‘á»§ tá»•ng', async () => {
     const { sid, day } = await makeStaff(11, 3);
     const bookingId = await makeBooking({ staffId: sid, day });
     const res = mockRes();
@@ -920,9 +926,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(Number(row.amount), 200000);
   });
 
-  /* ---------------- Khoá add-on sau PAID ---------------- */
+  /* ---------------- KhoÃ¡ add-on sau PAID ---------------- */
 
-  test('removeAddon bị chặn khi lịch đã PAID', async () => {
+  test('removeAddon bá»‹ cháº·n khi lá»‹ch Ä‘Ã£ PAID', async () => {
     const { sid, day } = await makeStaff(12, 3);
     const bookingId = await makeBooking({ staffId: sid, day });
     const [addon] = await testPool.query(
@@ -942,7 +948,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
       'SELECT COUNT(*) AS n FROM booking_addon WHERE addon_id = ?', [addon.insertId]);
     assert.equal(Number(kept.n), 1);
 
-    /* Chưa PAID thì vẫn bỏ được (đường thành công không vỡ). */
+    /* ChÆ°a PAID thÃ¬ váº«n bá» Ä‘Æ°á»£c (Ä‘Æ°á»ng thÃ nh cÃ´ng khÃ´ng vá»¡). */
     await testPool.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
     const res2 = mockRes();
     await removeAddon(
@@ -953,9 +959,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res2.body.data.removed, true);
   });
 
-  /* ---------------- Duyệt đổi ca khi còn lịch ---------------- */
+  /* ---------------- Duyá»‡t Ä‘á»•i ca khi cÃ²n lá»‹ch ---------------- */
 
-  test('approveScheduleRequest từ chối khi ca mới bỏ rơi lịch', async () => {
+  test('approveScheduleRequest tá»« chá»‘i khi ca má»›i bá» rÆ¡i lá»‹ch', async () => {
     const { sid, day } = await makeStaff(13, 5);
     const bookingId = await makeBooking({ staffId: sid, day, from: '10:00:00', to: '11:15:00' });
     const [request] = await testPool.query(
@@ -971,7 +977,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res.body.reason, 'CONFLICTING_BOOKINGS');
     assert.equal(res.body.bookings.length, 1);
 
-    /* Xử lý lịch xong thì duyệt được. */
+    /* Xá»­ lÃ½ lá»‹ch xong thÃ¬ duyá»‡t Ä‘Æ°á»£c. */
     await testPool.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
     const res2 = mockRes();
     await approveScheduleRequest(
@@ -982,9 +988,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res2.body.data.status, 'APPROVED');
   });
 
-  /* ---------------- Nhân viên thêm add-on ---------------- */
+  /* ---------------- NhÃ¢n viÃªn thÃªm add-on ---------------- */
 
-  test('staff thêm add-on lúc PROCESSING, bị chặn lúc CONFIRMED', async () => {
+  test('staff thÃªm add-on lÃºc PROCESSING, bá»‹ cháº·n lÃºc CONFIRMED', async () => {
     const { sid, day } = await makeStaff(14, 3);
     const doingId = await makeBooking({ staffId: sid, day, status: 'PROCESSING' });
     const waitingId = await makeBooking({ staffId: sid, day, status: 'CONFIRMED', from: '14:00:00', to: '15:15:00' });
@@ -1006,7 +1012,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(badRes.statusCode, 409);
   });
 
-  test('staff không thêm được add-on vào lịch của người khác', async () => {
+  test('staff khÃ´ng thÃªm Ä‘Æ°á»£c add-on vÃ o lá»‹ch cá»§a ngÆ°á»i khÃ¡c', async () => {
     const { sid, day } = await makeStaff(15, 3);
     const bookingId = await makeBooking({ staffId: sid, day, status: 'PROCESSING' });
     const res = mockRes();
@@ -1017,9 +1023,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res.statusCode, 403);
   });
 
-  /* ---------------- Ảnh mẫu của khách ---------------- */
+  /* ---------------- áº¢nh máº«u cá»§a khÃ¡ch ---------------- */
 
-  test('khách gửi ảnh cho lịch của mình, không gửi được cho lịch người khác', async () => {
+  test('khÃ¡ch gá»­i áº£nh cho lá»‹ch cá»§a mÃ¬nh, khÃ´ng gá»­i Ä‘Æ°á»£c cho lá»‹ch ngÆ°á»i khÃ¡c', async () => {
     await testPool.query(
       `INSERT INTO users (user_id, full_name, phone, email, password, role, status)
        VALUES (9401, 'Khach Guard', '0934000001', 'khachguard@test.local', '$2b$10$testseed', 'CUSTOMER', 'ACTIVE')`);
@@ -1044,9 +1050,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(badRes.statusCode, 403);
   });
 
-  /* ---------------- Khoá nhân viên còn lịch ---------------- */
+  /* ---------------- KhoÃ¡ nhÃ¢n viÃªn cÃ²n lá»‹ch ---------------- */
 
-  test('setStaffStatus INACTIVE bị chặn khi còn lịch tương lai', async () => {
+  test('setStaffStatus INACTIVE bá»‹ cháº·n khi cÃ²n lá»‹ch tÆ°Æ¡ng lai', async () => {
     const { sid, day } = await makeStaff(17, 4);
     const bookingId = await makeBooking({ staffId: sid, day });
 
@@ -1067,9 +1073,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res2.body.data.status, 'INACTIVE');
   });
 
-  /* ---------------- Xoá dịch vụ đang làm add-on ---------------- */
+  /* ---------------- XoÃ¡ dá»‹ch vá»¥ Ä‘ang lÃ m add-on ---------------- */
 
-  test('deleteService bị chặn khi dịch vụ nằm trong booking_addon', async () => {
+  test('deleteService bá»‹ cháº·n khi dá»‹ch vá»¥ náº±m trong booking_addon', async () => {
     const { sid, day } = await makeStaff(18, 3);
     const bookingId = await makeBooking({ staffId: sid, day });
     await testPool.query(
@@ -1083,9 +1089,9 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(res.statusCode, 409);
   });
 
-  /* ---------------- Biên hủy đúng 2 giờ ---------------- */
+  /* ---------------- BiÃªn há»§y Ä‘Ãºng 2 giá» ---------------- */
 
-  test('CONFIRMED đúng 2:00:00 không hủy được, trên 2 giờ mới được', () => {
+  test('CONFIRMED Ä‘Ãºng 2:00:00 khÃ´ng há»§y Ä‘Æ°á»£c, trÃªn 2 giá» má»›i Ä‘Æ°á»£c', () => {
     const now = Date.UTC(2026, 5, 1, 12, 0, 0);
     const at = (ms) => new Date(now + ms).toISOString();
     assert.equal(isCancelWindowOpen(at(3 * 3600000), now), true);
@@ -1095,13 +1101,13 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(isCancelWindowOpen(at(-3600000), now), false);
   });
 
-  /* ---------------- Double-book nhánh bất kỳ nhân viên ---------------- */
+  /* ---------------- Double-book nhÃ¡nh báº¥t ká»³ nhÃ¢n viÃªn ---------------- */
 
-  test('hai khách cùng đặt một giờ thì một người nhận 409', async () => {
-    /* Ngày ngoài 8 ngày seed (chỉ nhân viên cách ly có ca) để chắc chắn
-       chỉ một người đủ điều kiện — nếu không request thua sẽ rơi sang
-       nhân viên khác (đúng thiết kế) và test không còn kiểm tra được
-       việc chen nhau. */
+  test('hai khÃ¡ch cÃ¹ng Ä‘áº·t má»™t giá» thÃ¬ má»™t ngÆ°á»i nháº­n 409', async () => {
+    /* NgÃ y ngoÃ i 8 ngÃ y seed (chá»‰ nhÃ¢n viÃªn cÃ¡ch ly cÃ³ ca) Ä‘á»ƒ cháº¯c cháº¯n
+       chá»‰ má»™t ngÆ°á»i Ä‘á»§ Ä‘iá»u kiá»‡n â€” náº¿u khÃ´ng request thua sáº½ rÆ¡i sang
+       nhÃ¢n viÃªn khÃ¡c (Ä‘Ãºng thiáº¿t káº¿) vÃ  test khÃ´ng cÃ²n kiá»ƒm tra Ä‘Æ°á»£c
+       viá»‡c chen nhau. */
     const { sid, day } = await makeStaff(19, 9);
     const startsAt = momentOf(day, '10:00');
     const input = {
@@ -1137,7 +1143,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.equal(Number(count.n), 1);
   });
 
-  /* ---------------- Trang chủ không rò rỉ hồ sơ khách ---------------- */
+  /* ---------------- Trang chá»§ khÃ´ng rÃ² rá»‰ há»“ sÆ¡ khÃ¡ch ---------------- */
 
   function mockHomeReq({ token = null, query = {} } = {}) {
     return {
@@ -1151,7 +1157,7 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     };
   }
 
-  test('/api/home vô danh không trả hồ sơ dù có customerId trên query', async () => {
+  test('/api/home vÃ´ danh khÃ´ng tráº£ há»“ sÆ¡ dÃ¹ cÃ³ customerId trÃªn query', async () => {
     const res = mockRes();
     await getHome(mockHomeReq({ query: { customerId: '9001' } }), res, strictNext);
     assert.equal(res.statusCode, 200);
@@ -1161,19 +1167,19 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     assert.ok(res.body.data.featuredArtists.length > 0);
   });
 
-  test('/api/home trả đúng hồ sơ của người đang đăng nhập', async () => {
+  test('/api/home tráº£ Ä‘Ãºng há»“ sÆ¡ cá»§a ngÆ°á»i Ä‘ang Ä‘Äƒng nháº­p', async () => {
     const { signToken } = await import('../src/lib/auth.js');
     const token = signToken({ userId: 9001, role: 'CUSTOMER' });
     const res = mockRes();
     await getHome(mockHomeReq({ token, query: { customerId: '9003' } }), res, strictNext);
     assert.equal(res.statusCode, 200);
-    /* Query đòi 9003 nhưng token là 9001 — phải trả 9001. */
+    /* Query Ä‘Ã²i 9003 nhÆ°ng token lÃ  9001 â€” pháº£i tráº£ 9001. */
     assert.equal(res.body.data.customer.name, 'Khach Test');
   });
 
-  /* ---------------- Thời gian phục vụ thực tế ---------------- */
+  /* ---------------- Thá»i gian phá»¥c vá»¥ thá»±c táº¿ ---------------- */
 
-  test('actualServiceMinutes tính từ mốc bắt đầu, thiếu mốc thì giữ dự kiến', async () => {
+  test('actualServiceMinutes tÃ­nh tá»« má»‘c báº¯t Ä‘áº§u, thiáº¿u má»‘c thÃ¬ giá»¯ dá»± kiáº¿n', async () => {
     const { sid, day } = await makeStaff(20, 3);
     const timedId = await makeBooking({ staffId: sid, day, status: 'COMPLETED' });
     await testPool.query(
@@ -1184,12 +1190,121 @@ describe('Bản vá bảo vệ dữ liệu', () => {
     const connection = await testPool.getConnection();
     try {
       const actual = await actualServiceMinutes(connection, timedId, 60);
-      assert.ok(Math.abs(actual - 90) <= 1, `phải ra ~90 phút, nhận ${actual}`);
+      assert.ok(Math.abs(actual - 90) <= 1, `pháº£i ra ~90 phÃºt, nháº­n ${actual}`);
 
       const plainId = await makeBooking({ staffId: sid, day, status: 'COMPLETED', from: '14:00:00', to: '15:15:00' });
       assert.equal(await actualServiceMinutes(connection, plainId, 60), 60);
     } finally {
       connection.release();
     }
+  });
+
+  /* ---------------- Dot va ra soat toan bo ---------------- */
+
+  test('isDate tu choi ngay khong ton tai', () => {
+    assert.equal(isDate('2026-10-06'), true);
+    assert.equal(isDate('2026-02-30'), false);
+    assert.equal(isDate('2026-13-01'), false);
+    assert.equal(isDate('2026-00-10'), false);
+    assert.equal(isDate('06/10/2026'), false);
+    assert.equal(isDate(''), false);
+    assert.equal(isDate(null), false);
+  });
+
+  test('register tra dung customer_id cua bang customer', async () => {
+    const phone = '0933555001';
+    await testPool.query('DELETE FROM users WHERE phone = ?', [phone]);
+    const res = mockRes();
+    await register(
+      {
+        body: {
+          fullName: 'Khach Guard Moi', phone, email: 'khachguardmoi@test.local',
+          password: 'Test@1234',
+        },
+      },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 201);
+    const returnedId = res.body.data.user.customerId;
+    const [[row]] = await testPool.query(
+      `SELECT c.customer_id FROM customer c JOIN users u ON u.user_id = c.user_id
+        WHERE u.phone = ? LIMIT 1`, [phone]);
+    assert.equal(Number(returnedId), Number(row.customer_id));
+    await testPool.query('DELETE FROM users WHERE phone = ?', [phone]);
+  });
+
+  test('patchPayment DEPOSITED khong amount thi giu so cu', async () => {
+    const { sid, day } = await makeStaff(22, 3);
+    const bookingId = await makeBooking({ staffId: sid, day });
+    await testPool.query(
+      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
+       VALUES (?,?, 'CASH', 'DEPOSITED', NOW())`, [bookingId, 50000]);
+    const [[pay]] = await testPool.query(
+      'SELECT payment_id FROM payment WHERE booking_id = ? LIMIT 1', [bookingId]);
+
+    const res = mockRes();
+    await patchPayment(
+      { params: { id: String(pay.payment_id) }, body: { status: 'DEPOSITED', method: 'BANK_TRANSFER' }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.amount, 50000);
+    assert.equal(res.body.data.method, 'BANK_TRANSFER');
+  });
+
+  test('mobile dat lich bo trong staffId thi backend tu chon', async () => {
+    const { sid, day } = await makeStaff(23, 4);
+    const res = mockRes();
+    await createCustomerBooking(
+      {
+        body: { serviceId: 1, date: day, time: '10:00', note: '' },
+        user: { customerId: 9001, name: 'Khach Test' },
+      },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 201);
+    /* Nhan vien seed 9001 cung du dieu kien va it lich khong kem - quan trong la backend tu chon duoc (truoc day thieu staffId la 400), khong phai nhat thiet trung nguoi cach ly. */
+    assert.ok(['9001', String(sid)].includes(res.body.data.staffId));
+  });
+
+  test('go nhan vien khoi dich vu khong xoa dich vu', async () => {
+    const res = mockRes();
+    await removeServiceFromStaff(
+      { params: { id: '9001', serviceId: '2' } }, res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.unassigned, true);
+    const [[svc]] = await testPool.query(
+      'SELECT service_id FROM services WHERE service_id = 2 LIMIT 1');
+    assert.ok(svc, 'dich vu phai con trong danh muc');
+    await testPool.query(
+      'INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (9001, 2)');
+  });
+
+  test('updateStaff email trung thi 409 chu khong 500', async () => {
+    const res = mockRes();
+    await updateStaff(
+      { params: { id: '9001' }, body: { email: 'nv2@test.local' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+  });
+
+  test('deleteCategory con mau nail thi 409', async () => {
+    const [design] = await testPool.query(
+      `INSERT INTO nail_designs (design_name, image, category_id, is_trending, status)
+       VALUES ('Mau test', '/uploads/test.jpg', 1, 0, 'ACTIVE')`);
+    const res = mockRes();
+    await deleteCategory({ params: { id: '1' } }, res, strictNext);
+    assert.equal(res.statusCode, 409);
+    await testPool.query('DELETE FROM nail_designs WHERE design_id = ?', [design.insertId]);
+  });
+
+  test('assignServices dich vu khong ton tai thi 404', async () => {
+    const res = mockRes();
+    await assignServices(
+      { params: { id: '9001' }, body: { serviceIds: [999999] } }, res, strictNext,
+    );
+    assert.equal(res.statusCode, 404);
   });
 });

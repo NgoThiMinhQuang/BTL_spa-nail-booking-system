@@ -6,7 +6,7 @@ import { Badge, EmptyState } from './Primitives';
 import { Icon } from './Icon';
 import { Stars } from './Stars';
 import { apiRequest } from '../store';
-import { fmtNum, money } from '../lib/utils';
+import { fmtNum, longDate, money } from '../lib/utils';
 import { customerTier } from '../lib/customers';
 import type { CustomerDetail, HistoryItem } from '../types';
 
@@ -122,7 +122,7 @@ export function CustomerDrawer({ customerId, staffId, onClose, onNoteSaved }: Pr
               <p>
                 {fmtNum(history.length)} lịch hẹn với bạn
                 {c.totalVisits > history.length && ` · ${fmtNum(c.totalVisits)} lượt tổng`}
-                {c.memberSince && ` · khách từ ${c.memberSince}`}
+                {c.lastVisit && ` · lần cuối ${longDate(String(c.lastVisit).slice(0, 10))}`}
               </p>
             )}
           </div>

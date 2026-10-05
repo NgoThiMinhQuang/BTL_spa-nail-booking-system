@@ -152,28 +152,35 @@ export async function getAvailableSlots(req, res, next) {
    Khách đặt lịch
    ================================================================ */
 export async function createBooking(req, res, next) {
+  const serviceId = Number(req.body.serviceId);
+  /* Bỏ trống / null / '' nghĩa là "bất kỳ nhân viên" — backend tự chọn.
+     Phải phân biệt trước khi Number(): Number(undefined) ra NaN, mà NaN
+     khác undefined nên điều kiện kiểm tra cũ luôn 400, giết chết luồng
+     auto-claim khi client không gửi staffId. */
+  const rawStaffId = req.body?.staffId;
+  const staffId = rawStaffId === undefined || rawStaffId === null || rawStaffId === ''
+    ? null
+    : Number(rawStaffId);
+  const date = String(req.body.date ?? '');
+  const time = String(req.body.time ?? '');
+  const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
+
+  if (!Number.isInteger(serviceId) || !isDate(date) || !/^\d{2}:\d{2}$/.test(time)) {
+    return res.status(400).json({ message: 'Thông tin đặt lịch không hợp lệ.' });
+  }
+  /* Không chỉ định nhân viên thì để backend tự chọn người phù hợp. */
+  if (staffId !== null && !Number.isInteger(staffId)) {
+    return res.status(400).json({ message: 'Mã chuyên viên không hợp lệ.' });
+  }
+
   const connection = await pool.getConnection();
   try {
-    const serviceId = Number(req.body.serviceId);
-    const staffId = Number(req.body.staffId);
-    const date = String(req.body.date ?? '');
-    const time = String(req.body.time ?? '');
-    const note = String(req.body.note ?? '').trim().slice(0, 1000) || null;
-
-    if (!Number.isInteger(serviceId) || !isDate(date) || !/^\d{2}:\d{2}$/.test(time)) {
-      return res.status(400).json({ message: 'Thông tin đặt lịch không hợp lệ.' });
-    }
-    /* Không chỉ định nhân viên thì để backend tự chọn người phù hợp. */
-    if (staffId !== undefined && staffId !== null && staffId !== '' && !Number.isInteger(Number(staffId))) {
-      return res.status(400).json({ message: 'Mã chuyên viên không hợp lệ.' });
-    }
-
     await connection.beginTransaction();
 
     const service = await loadActiveService(connection, serviceId);
     const record = await createBookingRecord(connection, {
       serviceId,
-      staffId: Number(staffId) || null,
+      staffId,
       customerId: req.user.customerId,
       startsAt: momentOf(date, time),
       /* Chụp lại ngay lúc đặt: giá, thời lượng và buffer của dịch vụ

@@ -16,7 +16,7 @@ import type { Booking } from '../store';
 /* ------------------------------------------------------------------ */
 export async function sendBookingRequest(
   url: string, options: RequestInit,
-): Promise<{ ok: true } | { ok: false; message: string; reason?: string }> {
+): Promise<{ ok: true; data?: unknown } | { ok: false; message: string; reason?: string }> {
   try {
     const response = await fetch(url, {
       ...options,
@@ -29,7 +29,10 @@ export async function sendBookingRequest(
         message: payload.reason ?? payload.message ?? 'Máy chủ không nhận yêu cầu.',
       };
     }
-    return { ok: true };
+    /* Giữ lại data để hộp thoại đọc được nội dung kiểm tra (ví dụ POST
+       availability luôn 200 kèm { data: { ok, reason, conflict } } — chỉ
+       nhìn HTTP ok thì pre-check không bao giờ chặn được). */
+    return { ok: true, data: (payload as { data?: unknown }).data };
   } catch {
     return { ok: false, message: 'Mất kết nối tới máy chủ. Vui lòng thử lại.' };
   }
@@ -90,7 +93,17 @@ export function ConfirmDialog({
         }),
       });
       if (cancelled) return;
-      if (!result.ok) setBlocked({ reason: result.message, conflict: null });
+      if (!result.ok) {
+        setBlocked({ reason: result.message, conflict: null });
+        return;
+      }
+      /* POST availability luôn 200 kèm { data: { ok, reason, conflict } } —
+         phải đọc data.ok chứ không đọc HTTP ok, nếu không pre-check này
+         không bao giờ chặn được và nút Xác nhận vẫn bấm được. */
+      const check = (result.data ?? {}) as { ok?: boolean; reason?: string; conflict?: { id: string } | null };
+      if (check.ok === false) {
+        setBlocked({ reason: check.reason ?? 'Lịch này không còn xác nhận được.', conflict: check.conflict ?? null });
+      }
     })();
     return () => { cancelled = true; };
   }, [booking]);

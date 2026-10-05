@@ -123,7 +123,6 @@ export interface CustomerDetail {
     note: string | null;
     total_spending: number;
     no_show_count: number;
-    memberSince: string | null;
     totalVisits: number;
     lastVisit: string | null;
     rating: number;

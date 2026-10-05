@@ -80,10 +80,13 @@ INSERT INTO booking_event (booking_id, event_type, detail, actor_role, actor_nam
 SELECT b.booking_id, 'CREATED',
        CONCAT('Khách đặt lịch qua ',
               CASE b.source WHEN 'WALK_IN' THEN 'quầy' ELSE 'ứng dụng Mobile' END, '.'),
-       'CUSTOMER', u.full_name, b.created_at
+       /* Khách vãng lai không có hồ sơ: tên nằm ngay trên lịch. Dùng JOIN
+          thường thì các lịch này mãi không có mốc CREATED khi chạy lại. */
+       CASE WHEN b.customer_id IS NULL THEN 'STAFF' ELSE 'CUSTOMER' END,
+       COALESCE(u.full_name, b.guest_name, 'Khách vãng lai'), b.created_at
   FROM booking b
-  JOIN customer c ON c.customer_id = b.customer_id
-  JOIN users u ON u.user_id = c.user_id
+  LEFT JOIN customer c ON c.customer_id = b.customer_id
+  LEFT JOIN users u ON u.user_id = c.user_id
  WHERE NOT EXISTS (SELECT 1 FROM booking_event e
                     WHERE e.booking_id = b.booking_id AND e.event_type = 'CREATED');
 

@@ -433,6 +433,17 @@ export async function deleteCategory(req, res, next) {
       });
     }
 
+    /* Mẫu nail cũng thuộc danh mục (fk_design_category không cascade):
+       còn designs mà xoá sẽ văng lỗi FK thành 500. */
+    const [[designs]] = await pool.query(
+      'SELECT COUNT(*) AS n FROM nail_designs WHERE category_id = ?', [id]);
+    if (Number(designs.n) > 0) {
+      return res.status(409).json({
+        message: `Danh mục này còn ${designs.n} mẫu nail nên không xoá được. `
+          + 'Hãy chuyển sang trạng thái ngừng hoạt động (INACTIVE) thay cho xoá.',
+      });
+    }
+
     const [result] = await pool.query(
       'DELETE FROM service_category WHERE category_id = ?', [id]);
     if (!result.affectedRows) return res.status(404).json({ message: 'Không tìm thấy danh mục.' });
@@ -619,6 +630,13 @@ export async function updateStaff(req, res, next) {
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ message: 'Email không hợp lệ.' });
       }
+      /* Số điện thoại đã kiểm tra trùng ở trên; email cũng phải kiểm tra
+         chứ không đợi MySQL văng ER_DUP_ENTRY thành 500. */
+      if (email) {
+        const [[emailTaken]] = await connection.query(
+          'SELECT 1 FROM users WHERE email = ? AND user_id <> ? LIMIT 1', [email, staff.user_id]);
+        if (emailTaken) return res.status(409).json({ message: 'Email đã được dùng.' });
+      }
       set.push('email = ?'); params.push(email);
     }
 
@@ -789,6 +807,13 @@ export async function assignServices(req, res, next) {
 
     const serviceIds = Array.isArray(req.body?.serviceIds)
       ? req.body.serviceIds.map(validId).filter(Boolean) : [];
+    /* Dịch vụ không tồn tại mà INSERT thẳng thì FK văng 500. Kiểm tra
+       trước để báo 404 rõ ràng; id rác lặng lẽ bỏ qua như trước. */
+    for (const serviceId of serviceIds) {
+      if (!(await exists('services', 'service_id', serviceId))) {
+        return res.status(404).json({ message: `Không tìm thấy dịch vụ mã ${serviceId}.` });
+      }
+    }
     let added = 0;
     for (const serviceId of serviceIds) {
       const [result] = await pool.query(
@@ -833,34 +858,17 @@ export async function removeServiceFromStaff(req, res, next) {
     }
 
     /* Gỡ khỏi nhân viên là một việc, còn xoá khỏi danh mục là việc khác
-       và phải được bảo vệ riêng. */
+       và phải được bảo vệ riêng (deleteService kiểm tra cả lịch hẹn lẫn
+       booking_addon). Trước đây gỡ người cuối thì xoá luôn dịch vụ — mất
+       tên/giá/mô tả/ảnh chỉ vì một thao tác gán, và còn văng lỗi FK 500
+       khi dịch vụ đó đang nằm trong booking_addon. */
     await connection.query(
       'DELETE FROM staff_service WHERE staff_id = ? AND service_id = ?', [staffId, serviceId],
     );
 
-    const [[others]] = await connection.query(
-      'SELECT 1 FROM staff_service WHERE service_id = ? LIMIT 1', [serviceId]);
-    const [[used]] = await connection.query(
-      'SELECT 1 FROM booking WHERE service_id = ? LIMIT 1', [serviceId]);
-
-    /* Còn người khác dùng HOẶC đã có lịch tham chiếu thì giữ dịch vụ trong
-       danh mục. Chỉ khi cả hai đều không mới xoá cứng. */
-    const canHardDelete = !others && !used;
-
-    if (canHardDelete) {
-      await connection.query('DELETE FROM services WHERE service_id = ?', [serviceId]);
-    }
-
     await connection.commit();
     res.json({
-      data: {
-        staffId: String(staffId),
-        serviceId: String(serviceId),
-        serviceRemoved: canHardDelete,
-        /* Dịch vụ còn trong danh mục thì báo rõ, giao diện không hiển thị
-           nhầm là đã xoá hẳn. */
-        keptInCatalog: !canHardDelete,
-      },
+      data: { staffId: String(staffId), serviceId: String(serviceId), unassigned: true },
     });
   } catch (error) {
     await connection.rollback();

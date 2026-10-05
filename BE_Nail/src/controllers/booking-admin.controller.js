@@ -17,6 +17,7 @@ import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
 } from '../lib/booking-service.js';
 import { logEvent, listEvents } from '../lib/booking-events.js';
+import { escapeLike } from '../lib/sql.js';
 import { normalisePhone } from './walkin.controller.js';
 
 const clock = clockOf;
@@ -49,8 +50,16 @@ export async function listBookings(req, res, next) {
 
     if (status) { where.push('b.status = ?'); params.push(status); }
     if (source) { where.push('b.source = ?'); params.push(source); }
-    if (staffId) { where.push('b.staff_id = ?'); params.push(Number(staffId)); }
-    if (serviceId) { where.push('b.service_id = ?'); params.push(Number(serviceId)); }
+    /* Lọc id phải là số nguyên — "abc" ra NaN, đẩy xuống query sẽ thành
+       lỗi driver hoặc lọc sai khó debug. */
+    for (const [key, raw] of [['b.staff_id', staffId], ['b.service_id', serviceId]]) {
+      if (raw) {
+        if (!Number.isInteger(Number(raw))) {
+          return res.status(400).json({ message: 'Mã nhân viên hoặc dịch vụ lọc không hợp lệ.' });
+        }
+        where.push(`${key} = ?`); params.push(Number(raw));
+      }
+    }
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) { where.push('DATE(b.start_time) = ?'); params.push(day); }
 
     if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
@@ -70,7 +79,8 @@ export async function listBookings(req, res, next) {
       where.push(`(COALESCE(u.full_name, b.guest_name) LIKE ?
         OR COALESCE(u.phone, b.guest_phone) LIKE ?
         OR s.service_name LIKE ? OR b.booking_id = ?)`);
-      params.push(`%${term}%`, `%${term}%`, `%${term}%`, Number(term) || -1);
+      const keyword = `%${escapeLike(term)}%`;
+      params.push(keyword, keyword, keyword, Number(term) || -1);
     }
 
     const [rows] = await pool.query(`SELECT
@@ -442,11 +452,27 @@ export async function patchBooking(req, res, next) {
       }
     }
 
-    /* ---- Nhân viên ---- */
+    /* ---- Nhân viên ----
+       Chỉ nhận số nguyên hoặc null/'' (gỡ phân công). "abc" ra NaN — phải
+       chặn ở đây, nếu không NaN lọt vào UPDATE thành 0/NULL hoặc lỗi DB
+       khó hiểu, còn null lọt qua mà không SET gì thì log STAFF_CHANGED
+       ghi sai là đã đổi người. */
     let staffId = current.staffId;
     if (body.staffId !== undefined) {
-      staffId = body.staffId === null || body.staffId === '' ? null : Number(body.staffId);
-      if (staffId !== null) { set.push('b.staff_id = ?'); params.push(staffId); }
+      if (body.staffId === null || body.staffId === '') {
+        /* Gỡ phân công: chỉ khi lịch chưa có ai hoặc Admin chịu trách
+           nhiệm — vẫn cho phép, ghi rõ trong lịch sử. */
+        set.push('b.staff_id = NULL');
+        staffId = null;
+      } else {
+        const parsed = Number(body.staffId);
+        if (!Number.isInteger(parsed)) {
+          await connection.rollback();
+          return res.status(400).json({ message: 'Mã nhân viên không hợp lệ.' });
+        }
+        staffId = parsed;
+        set.push('b.staff_id = ?'); params.push(staffId);
+      }
     }
 
     /* ---- Thời gian ----
@@ -571,7 +597,15 @@ export async function patchBooking(req, res, next) {
    ================================================================ */
 export async function postAvailability(req, res, next) {
   try {
-    const bookingId = req.body.bookingId ? Number(req.body.bookingId) : null;
+    /* bookingId "abc" ra NaN — NaN truthy-check lọt vào query rồi làm sai
+       điều kiện loại trừ chính nó. */
+    const rawBookingId = req.body.bookingId;
+    const bookingId = rawBookingId === undefined || rawBookingId === null || rawBookingId === ''
+      ? null
+      : Number(rawBookingId);
+    if (bookingId !== null && !Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
     const serviceId = Number(req.body.serviceId);
     const startsAt = toDate(req.body.startsAt);
     const endsAt = toDate(req.body.endsAt);
@@ -600,7 +634,13 @@ export async function postAvailability(req, res, next) {
 /** Danh sách nhân viên, kèm lý do loại, để đổ vào hộp chọn người. */
 export async function getAvailableStaff(req, res, next) {
   try {
-    const bookingId = req.query.bookingId ? Number(req.query.bookingId) : null;
+    const rawBookingId = req.query.bookingId;
+    const bookingId = rawBookingId === undefined || rawBookingId === null || rawBookingId === ''
+      ? null
+      : Number(rawBookingId);
+    if (bookingId !== null && !Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
     const serviceId = Number(req.query.serviceId);
     const startsAt = toDate(req.query.startsAt);
     const endsAt = toDate(req.query.endsAt);
@@ -628,7 +668,13 @@ export async function getFreeSlots(req, res, next) {
     const staffId = Number(req.query.staffId);
     const serviceId = Number(req.query.serviceId);
     const day = String(req.query.day ?? '');
-    const bookingId = req.query.bookingId ? Number(req.query.bookingId) : null;
+    const rawBookingId = req.query.bookingId;
+    const bookingId = rawBookingId === undefined || rawBookingId === null || rawBookingId === ''
+      ? null
+      : Number(rawBookingId);
+    if (bookingId !== null && !Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
 
     if (!Number.isInteger(staffId) || !Number.isInteger(serviceId) || !isDate(day)) {
       return res.status(400).json({ message: 'Thiếu nhân viên, dịch vụ hoặc ngày.' });
@@ -686,6 +732,13 @@ export async function createBooking(req, res, next) {
     /* ---- Khách ----
        Có customerId thì dùng lại hồ sơ đã có. Không có thì đây là khách
        walk-in chưa có tài khoản. */
+    /* "abc" ra NaN — phải báo 400 ngay, nếu không NaN||null rơi vào
+       nhánh walk-in rồi bắt nhập tên khách, che mất lỗi input thật. */
+    if (req.body.customerId !== undefined && req.body.customerId !== null
+      && req.body.customerId !== '' && !Number.isInteger(Number(req.body.customerId))) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Mã khách hàng không hợp lệ.' });
+    }
     let customerId = Number(req.body.customerId) || null;
     let guestName = null;
     let guestPhone = null;
@@ -954,16 +1007,32 @@ export async function removeAddon(req, res, next) {
   }
 }
 
-/* Ảnh mẫu khách gửi kèm lịch hẹn. */
+/* Ảnh mẫu của lịch hẹn (khu quản trị).
+ *
+ * Cùng giới hạn như đường của khách: tối đa 6 ảnh, URL cắt 255 ký tự,
+ * lịch đã kết thúc thì không thêm — nếu không sẽ nhồi unlimited ảnh
+ * hoặc URL `javascript:` vào lịch bất kỳ. */
 export async function addImage(req, res, next) {
   try {
     const bookingId = Number(req.params.id);
     const url = String(req.body.url ?? '').trim().slice(0, 255);
+    if (!Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
     if (!url) return res.status(400).json({ message: 'Cần đường dẫn ảnh.' });
 
     const [[booking]] = await pool.query(
-      'SELECT booking_id FROM booking WHERE booking_id = ? LIMIT 1', [bookingId]);
+      'SELECT booking_id, status FROM booking WHERE booking_id = ? LIMIT 1', [bookingId]);
     if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    if (['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(booking.status)) {
+      return res.status(409).json({ message: 'Lịch đã kết thúc nên không thêm được ảnh.' });
+    }
+
+    const [[count]] = await pool.query(
+      'SELECT COUNT(*) AS n FROM booking_image WHERE booking_id = ?', [bookingId]);
+    if (Number(count.n) >= 6) {
+      return res.status(409).json({ message: 'Mỗi lịch hẹn chỉ gửi được tối đa 6 ảnh mẫu.' });
+    }
 
     const [result] = await pool.query(
       'INSERT INTO booking_image (booking_id, image_url) VALUES (?,?)', [bookingId, url]);
