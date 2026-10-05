@@ -1,0 +1,41 @@
+name: CI
+
+# Chạy test nghiệp vụ trên database test riêng (nail_management_test),
+# không đụng dữ liệu thật. Đáp ứng việc thiếu status check độc lập:
+# kết quả không còn chỉ nằm trong commit message.
+on:
+  push:
+    branches: [main]
+    paths: ['BE_Nail/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['BE_Nail/**']
+
+jobs:
+  business-rules:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: BE_Nail/package-lock.json
+      - run: npm ci
+        working-directory: BE_Nail
+      - run: npm test
+        working-directory: BE_Nail
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: root
+          TEST_DB_NAME: nail_management_test

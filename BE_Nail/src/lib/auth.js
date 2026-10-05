@@ -31,6 +31,11 @@ const TOKEN_TTL = '12h';
    để không vô tình đưa khoá cố định lên Git. */
 export const JWT_SECRET = process.env.JWT_SECRET || 'nailhouse-dev-secret-change-me';
 if (!process.env.JWT_SECRET) {
+  /* Production mà không có khoá riêng thì server không được chạy: ai đọc
+     được source là ký được token giả mạo mọi vai trò. */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Thiếu JWT_SECRET: production bắt buộc phải đặt khoá ký token riêng trong biến môi trường.');
+  }
   console.warn('[auth] Chưa đặt JWT_SECRET trong .env — đang dùng khoá mặc định cho môi trường phát triển.');
 }
 

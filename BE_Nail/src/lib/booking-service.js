@@ -18,7 +18,9 @@
 
 import { pool } from '../config/database.js';
 import { logEvent } from './booking-events.js';
-import { checkStaffAvailable, lockStaffBookings, pickStaffForSlot } from './staff-availability.js';
+import {
+  checkStaffAvailable, claimStaffForSlot, lockStaffBookings,
+} from './staff-availability.js';
 
 /** Ghép ngày 'YYYY-MM-DD' và giờ 'HH:mm' thành Date theo giờ địa phương. */
 export function momentOf(day, clock) {
@@ -51,8 +53,26 @@ export function isDate(value) {
  * @param {string}  [input.note]
  * @returns {Promise<{bookingId:number, staffId:number, staffName:string}>}
  * @throws  {Error} kèm `status` và `message` khi không tạo được
+ *
+ * Bọc ngoài để dịch lỗi deadlock của MySQL thành 409: hai request chen
+ * nhau giành khoá nhân viên thì một bên bị database hủy giao dịch — với
+ * khách đó chỉ là "khung giờ vừa có người đặt", bấm lại là được, không
+ * phải lỗi 500 của máy chủ.
  */
 export async function createBooking(connection, input) {
+  try {
+    return await createBookingTx(connection, input);
+  } catch (error) {
+    if (error?.code === 'ER_LOCK_DEADLOCK' && !error.status) {
+      const busy = new Error('Khung giờ vừa được đặt. Vui lòng chọn giờ khác hoặc thử lại.');
+      busy.status = 409;
+      throw busy;
+    }
+    throw error;
+  }
+}
+
+async function createBookingTx(connection, input) {
   const {
     serviceId, customerId = null, guestName = null, guestPhone = null,
     startsAt, duration, bufferTime, price, source, note = null,
@@ -83,21 +103,27 @@ export async function createBooking(connection, input) {
   }
 
   /* Không chỉ định nhân viên: backend tự chọn người ít lịch nhất trong
-     ngày. Việc chọn nằm ở đây chứ không ở giao diện, để lúc bấm chuột
-     và lúc lưu đặt đọc cùng một bộ luật. */
+     ngày. Chọn thật trong giao dịch (khoá + hỏi lại từng người) chứ không
+     chỉ "xem" như màn hình khả dụng — nếu không hai khách cùng bấm sẽ
+     cùng thấy một người còn trống rồi cùng ghi lịch vào người đó. */
   if (!staffId) {
-    const picked = await pickStaffForSlot({ serviceId, startsAt, endsAt, runner: connection });
-    if (!picked.ok) {
-      const error = new Error(picked.reason);
+    const claimed = await claimStaffForSlot({
+      connection, serviceId, startsAt, endsAt,
+    });
+    if (!claimed.ok) {
+      const error = new Error(claimed.reason);
       error.status = 409;
       throw error;
     }
-    staffId = picked.staffId;
-    staffName = picked.staffName;
+    staffId = claimed.staffId;
+    staffName = claimed.staffName;
   }
 
+  /* Cổng kiểm tra cuối cho cả hai nhánh (chỉ định người hoặc tự chọn).
+     Đọc dưới dạng locking read (xem forUpdate) để thấy lịch vừa được
+     request khác commit — nếu không hai request cùng giờ sẽ cùng lọt. */
   const check = await checkStaffAvailable({
-    staffId, serviceId, startsAt, endsAt, runner: connection,
+    staffId, serviceId, startsAt, endsAt, runner: connection, forUpdate: true,
   });
   if (!check.ok) {
     const error = new Error(`Khung giờ vừa được đặt. ${check.reason}`);
@@ -185,3 +211,22 @@ export async function recheckAfterMove(connection, {
 
 /** Lấy pool chuẩn — tiện cho các controller không cần giao dịch. */
 export { pool };
+
+/**
+ * Thời gian phục vụ thực tế (phút): từ mốc nhân viên bấm "bắt đầu"
+ * (sự kiện SERVICE_STARTED trong lịch sử) đến lúc bấm "hoàn thành".
+ *
+ * Trước đây ghi thẳng thời lượng dự kiến: lịch dự kiến 60 phút nhưng
+ * làm thật 90 phút vẫn lưu 60, nên báo cáo "thời gian phục vụ thực tế"
+ * không thật. Không có mốc bắt đầu (lịch cũ, hoặc Admin hoàn thành
+ * thẳng) thì giữ thời lượng dự kiến để không vỡ báo cáo cũ.
+ */
+export async function actualServiceMinutes(runner, bookingId, fallbackMinutes) {
+  const [[row]] = await runner.query(
+    `SELECT created_at AS startedAt FROM booking_event
+      WHERE booking_id = ? AND event_type = 'SERVICE_STARTED'
+      ORDER BY created_at DESC, event_id DESC LIMIT 1`, [bookingId]);
+  if (!row?.startedAt) return Number(fallbackMinutes ?? 0);
+  const elapsed = Math.round((Date.now() - new Date(row.startedAt).getTime()) / 60000);
+  return Math.max(1, elapsed);
+}

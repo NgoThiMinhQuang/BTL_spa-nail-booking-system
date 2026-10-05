@@ -52,6 +52,19 @@ export const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING'];
 /** Trạng thái đã kết thúc — dữ liệu lịch sử, không sửa người/giờ được nữa. */
 export const SETTLED_STATUSES = ['COMPLETED', 'CANCELLED', 'NO_SHOW'];
 
+/** Số giờ tối thiểu còn lại để khách tự hủy một lịch đã xác nhận. */
+export const CANCEL_WINDOW_HOURS = 2;
+
+/**
+ * Lịch CONFIRMED còn hủy được không.
+ *
+ * README: chỉ hủy khi còn TRÊN 2 giờ — đúng 2:00:00 cũng không, vì đó
+ * không phải "trên 2 giờ". So sánh chặt (`>`) nên mốc biên bị chặn.
+ */
+export function isCancelWindowOpen(startsAt, nowMs = Date.now(), windowHours = CANCEL_WINDOW_HOURS) {
+  return (new Date(startsAt).getTime() - Number(nowMs)) / 3600000 > Number(windowHours);
+}
+
 /**
  * Kiểm tra một bước chuyển trạng thái có hợp lệ không.
  * @returns {{ok: true} | {ok: false, reason: string}}

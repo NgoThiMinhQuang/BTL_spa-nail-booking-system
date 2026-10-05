@@ -79,3 +79,27 @@ export function finalAmount({ servicePrice, addons = [] }) {
     (sum, item) => sum + Number(item.price) * Number(item.quantity ?? 1), 0);
   return Number(servicePrice) + addonTotal;
 }
+
+/**
+ * Chốt số tiền ghi vào `payment`.
+ *
+ * PAID nghĩa là khách đã trả đủ — backend tự đặt đúng tổng phải thu,
+ * không tin con số frontend gửi lên. Nếu tin thì PAID kèm amount = 1000đ
+ * cho hoá đơn 500.000đ vẫn lọt: khách thấy "còn phải trả 0đ" dù chưa trả
+ * đủ, và báo cáo doanh thu cũng sai theo.
+ */
+export function resolvePaymentAmount(status, rawAmount, total) {
+  const target = String(status ?? '').toUpperCase();
+  const due = Number(total);
+  if (target === 'PAID') return { ok: true, amount: due };
+
+  const amount = Number(rawAmount);
+  if (!Number.isFinite(amount) || amount < 0 || amount > due) {
+    return {
+      ok: false,
+      reason: `Số tiền không hợp lệ. Tổng tiền lịch này là `
+        + `${due.toLocaleString('vi-VN')} đ.`,
+    };
+  }
+  return { ok: true, amount };
+}

@@ -14,7 +14,7 @@ import {
 import { canTransition, SETTLED_STATUSES } from '../lib/booking-state.js';
 import { checkStaffAvailable, freeSlotsForStaff, listAvailableStaff } from '../lib/staff-availability.js';
 import {
-  createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
+  actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
 } from '../lib/booking-service.js';
 import { logEvent, listEvents } from '../lib/booking-events.js';
 import { normalisePhone } from './walkin.controller.js';
@@ -413,7 +413,10 @@ export async function patchBooking(req, res, next) {
           [current.customerId]);
       }
       if (status === 'COMPLETED') {
-        set.push('b.actual_duration = ?'); params.push(Number(current.duration));
+        /* Thời gian phục vụ thật (xem actualServiceMinutes), không phải
+           thời lượng dự kiến. */
+        set.push('b.actual_duration = ?');
+        params.push(await actualServiceMinutes(connection, id, current.duration));
       }
     }
 
@@ -880,32 +883,74 @@ export async function addAddon(req, res, next) {
   }
 }
 
+/* Bỏ một dịch vụ phát sinh khỏi lịch.
+ *
+ * Đối xứng với addAddon: đã PAID thì khoá lại — thu 500.000đ rồi mà
+ * xoá món phát sinh thì tổng lịch giảm còn 400.000đ trong khi khoản
+ * thanh toán vẫn 500.000đ. Lịch đã hủy / khách không đến cũng không
+ * sửa được, vì đó là dữ liệu lịch sử. */
 export async function removeAddon(req, res, next) {
+  const connection = await pool.getConnection();
   try {
     const bookingId = Number(req.params.id);
     const addonId = Number(req.params.addonId);
+    if (!Number.isInteger(bookingId) || !Number.isInteger(addonId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn hoặc dịch vụ phát sinh không hợp lệ.' });
+    }
 
-    const [[addon]] = await pool.query(
-      `SELECT s.service_name AS name, ba.price FROM booking_addon ba
-         JOIN services s ON s.service_id = ba.service_id
-        WHERE ba.addon_id = ? AND ba.booking_id = ? LIMIT 1`, [addonId, bookingId]);
-
-    const [result] = await pool.query(
-      'DELETE FROM booking_addon WHERE addon_id = ? AND booking_id = ?', [addonId, bookingId]);
-    if (!result.affectedRows) return res.status(404).json({ message: 'Không tìm thấy dịch vụ phát sinh.' });
-
-    if (addon) {
-      await logEvent({
-        bookingId,
-        type: 'ADDON_REMOVED',
-        detail: `Bỏ dịch vụ phát sinh: ${addon.name} - ${Number(addon.price).toLocaleString('vi-VN')} đ.`,
-        actorName: String(req.body?.actorName ?? 'Quản trị viên'),
+    await connection.beginTransaction();
+    const [[booking]] = await connection.query(
+      `SELECT b.status, pay.payment_status AS paymentStatus
+         FROM booking b
+         LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+        WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [bookingId]);
+    if (!booking) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+    if (['CANCELLED', 'NO_SHOW'].includes(booking.status)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Lịch đã kết thúc nên không sửa được dịch vụ phát sinh.',
+      });
+    }
+    if (booking.paymentStatus === 'PAID') {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Lịch đã thanh toán nên không bỏ được dịch vụ phát sinh. '
+          + 'Bỏ rồi thì số tiền khách đã trả sẽ không còn khớp.',
       });
     }
 
+    const [[addon]] = await connection.query(
+      `SELECT s.service_name AS name, ba.price, ba.quantity FROM booking_addon ba
+         JOIN services s ON s.service_id = ba.service_id
+        WHERE ba.addon_id = ? AND ba.booking_id = ? LIMIT 1`, [addonId, bookingId]);
+    if (!addon) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy dịch vụ phát sinh.' });
+    }
+
+    await connection.query(
+      'DELETE FROM booking_addon WHERE addon_id = ? AND booking_id = ?', [addonId, bookingId]);
+
+    await logEvent({
+      bookingId,
+      type: 'ADDON_REMOVED',
+      detail: `Bỏ dịch vụ phát sinh: ${addon.name} ×${addon.quantity} - `
+        + `${(Number(addon.price) * Number(addon.quantity)).toLocaleString('vi-VN')} đ.`,
+      actorRole: req.user?.role ?? 'ADMIN',
+      actorName: req.user?.name ?? 'Quản trị viên',
+      connection,
+    });
+
+    await connection.commit();
     res.json({ data: { removed: true } });
   } catch (error) {
+    await connection.rollback();
     next(error);
+  } finally {
+    connection.release();
   }
 }
 
