@@ -88,6 +88,45 @@ export function AdminLayout({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  /* Đổi mật khẩu: trước đây nút này chỉ đóng menu chứ không mở gì cả.
+     Nay mở hộp thoại gọi PUT /api/auth/password thật. */
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState('');
+
+  async function submitPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (pwForm.next.length < 6) {
+      setPwMsg('Mật khẩu mới cần ít nhất 6 ký tự.');
+      return;
+    }
+    if (pwForm.next !== pwForm.confirm) {
+      setPwMsg('Nhập lại mật khẩu mới chưa khớp.');
+      return;
+    }
+    setPwBusy(true);
+    setPwMsg('');
+    try {
+      const response = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setPwMsg(payload?.message ?? 'Không đổi được mật khẩu.');
+        return;
+      }
+      setPwForm({ current: '', next: '', confirm: '' });
+      setPwMsg('OK');
+    } catch {
+      setPwMsg('Mất kết nối tới máy chủ.');
+    } finally {
+      setPwBusy(false);
+    }
+  }
+
   /* Đóng menu tài khoản khi bấm ra ngoài hoặc nhấn Esc. */
   useEffect(() => {
     if (!menuOpen) return;
@@ -173,7 +212,7 @@ export function AdminLayout({
                   <button role="menuitem" onClick={() => { setMenuOpen(false); goView('admin-settings'); }}>
                     <Icon name="user" /> Hồ sơ cá nhân
                   </button>
-                  <button role="menuitem" onClick={() => setMenuOpen(false)}>
+                  <button role="menuitem" onClick={() => { setMenuOpen(false); setPwMsg(''); setPwOpen(true); }}>
                     <Icon name="shield" /> Đổi mật khẩu
                   </button>
                   <button role="menuitem" className="is-danger"
@@ -217,6 +256,47 @@ export function AdminLayout({
           </footer>
         </main>
       </div>
+
+      {pwOpen && (
+        <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
+          onClick={() => setPwOpen(false)}>
+          <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Đổi mật khẩu</h3>
+            <form className="adm-form" onSubmit={submitPassword}>
+              <label className="adm-field">
+                <span>Mật khẩu hiện tại</span>
+                <input type="password" value={pwForm.current}
+                  onChange={(e) => setPwForm((p) => ({ ...p, current: e.target.value }))}
+                  disabled={pwBusy} autoComplete="current-password" />
+              </label>
+              <label className="adm-field">
+                <span>Mật khẩu mới (ít nhất 6 ký tự)</span>
+                <input type="password" value={pwForm.next}
+                  onChange={(e) => setPwForm((p) => ({ ...p, next: e.target.value }))}
+                  disabled={pwBusy} autoComplete="new-password" />
+              </label>
+              <label className="adm-field">
+                <span>Nhập lại mật khẩu mới</span>
+                <input type="password" value={pwForm.confirm}
+                  onChange={(e) => setPwForm((p) => ({ ...p, confirm: e.target.value }))}
+                  disabled={pwBusy} autoComplete="new-password" />
+              </label>
+              {pwMsg && (
+                <p className={pwMsg === 'OK' ? 'adm-ok' : 'adm-error'}>
+                  {pwMsg === 'OK' ? 'Đã đổi mật khẩu.' : pwMsg}
+                </p>
+              )}
+              <div className="adm-modal-foot">
+                <button className="button secondary" type="button" disabled={pwBusy}
+                  onClick={() => setPwOpen(false)}>Đóng</button>
+                <button className="button" type="submit" disabled={pwBusy}>
+                  {pwBusy ? 'Đang đổi…' : 'Đổi mật khẩu'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
