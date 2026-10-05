@@ -9,20 +9,20 @@ SET NAMES utf8mb4;
 -- 1. Tài khoản khách hàng
 -- =====================================================
 INSERT INTO users (full_name, phone, email, password, avatar, role, status) VALUES
-('Trần Thị Mai',   '0910000001', 'mai.tran@gmail.com',      '$2b$10$demo', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Nguyễn Thu Hà',  '0910000002', 'ha.nguyen@gmail.com',    '$2b$10$demo', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Lê Kim Chi',     '0910000003', 'chi.le@gmail.com',       '$2b$10$demo', 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Phạm Yến',       '0910000004', 'yen.pham@gmail.com',     '$2b$10$demo', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Hoàng Minh',     '0910000005', 'minh.hoang@gmail.com',   '$2b$10$demo', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Trần Ngọc Anh',  '0910000006', 'anh.tran@gmail.com',     '$2b$10$demo', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Đỗ Thảo Vy',     '0910000007', 'vy.do@gmail.com',        '$2b$10$demo', 'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Nguyễn Phương Linh','0910000008','linh.nguyen@gmail.com', '$2b$10$demo', 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Vũ Khánh Duy',   '0910000009', 'duy.vu@gmail.com',       '$2b$10$demo', 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Bùi Thu Hà',     '0910000010', 'bha.bui@gmail.com',      '$2b$10$demo', 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Đặng Thu Trang', '0910000011', 'trang.dang@gmail.com',   '$2b$10$demo', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Lê Hoàng Long',  '0910000012', 'long.le@gmail.com',      '$2b$10$demo', 'https://images.unsplash.com/photo-1499996860823-5214fcc65f8f?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Huỳnh Mai Anh',  '0910000013', 'maihanh.huynh@gmail.com','$2b$10$demo', 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE'),
-('Tạ Quốc Bảo',    '0910000014', 'bao.ta@gmail.com',       '$2b$10$demo', 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=face', 'CUSTOMER', 'ACTIVE')
+('Trần Thị Mai',   '0910000001', 'mai.tran@gmail.com',      '$2b$10$demo', '/uploads/avatars/cust-0910000001.jpg', 'CUSTOMER', 'ACTIVE'),
+('Nguyễn Thu Hà',  '0910000002', 'ha.nguyen@gmail.com',    '$2b$10$demo', '/uploads/avatars/cust-0910000002.jpg', 'CUSTOMER', 'ACTIVE'),
+('Lê Kim Chi',     '0910000003', 'chi.le@gmail.com',       '$2b$10$demo', '/uploads/avatars/cust-0910000003.jpg', 'CUSTOMER', 'ACTIVE'),
+('Phạm Yến',       '0910000004', 'yen.pham@gmail.com',     '$2b$10$demo', '/uploads/avatars/cust-0910000004.jpg', 'CUSTOMER', 'ACTIVE'),
+('Hoàng Minh',     '0910000005', 'minh.hoang@gmail.com',   '$2b$10$demo', '/uploads/avatars/cust-0910000005.jpg', 'CUSTOMER', 'ACTIVE'),
+('Trần Ngọc Anh',  '0910000006', 'anh.tran@gmail.com',     '$2b$10$demo', '/uploads/avatars/cust-0910000006.jpg', 'CUSTOMER', 'ACTIVE'),
+('Đỗ Thảo Vy',     '0910000007', 'vy.do@gmail.com',        '$2b$10$demo', '/uploads/avatars/cust-0910000007.jpg', 'CUSTOMER', 'ACTIVE'),
+('Nguyễn Phương Linh','0910000008','linh.nguyen@gmail.com', '$2b$10$demo', '/uploads/avatars/cust-0910000008.jpg', 'CUSTOMER', 'ACTIVE'),
+('Vũ Khánh Duy',   '0910000009', 'duy.vu@gmail.com',       '$2b$10$demo', '/uploads/avatars/cust-0910000009.jpg', 'CUSTOMER', 'ACTIVE'),
+('Bùi Thu Hà',     '0910000010', 'bha.bui@gmail.com',      '$2b$10$demo', '/uploads/avatars/cust-0910000010.jpg', 'CUSTOMER', 'ACTIVE'),
+('Đặng Thu Trang', '0910000011', 'trang.dang@gmail.com',   '$2b$10$demo', '/uploads/avatars/cust-0910000011.jpg', 'CUSTOMER', 'ACTIVE'),
+('Lê Hoàng Long',  '0910000012', 'long.le@gmail.com',      '$2b$10$demo', '/uploads/avatars/cust-0910000012.jpg', 'CUSTOMER', 'ACTIVE'),
+('Huỳnh Mai Anh',  '0910000013', 'maihanh.huynh@gmail.com','$2b$10$demo', '/uploads/avatars/cust-0910000013.jpg', 'CUSTOMER', 'ACTIVE'),
+('Tạ Quốc Bảo',    '0910000014', 'bao.ta@gmail.com',       '$2b$10$demo', '/uploads/avatars/cust-0910000014.jpg', 'CUSTOMER', 'ACTIVE')
 ON DUPLICATE KEY UPDATE
   full_name = VALUES(full_name), email = VALUES(email), avatar = VALUES(avatar),
   role = 'CUSTOMER', status = 'ACTIVE';

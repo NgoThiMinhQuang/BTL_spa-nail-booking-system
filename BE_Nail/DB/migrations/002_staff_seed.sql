@@ -1,11 +1,11 @@
 SET NAMES utf8mb4;
 
 INSERT INTO users (full_name, phone, email, password, avatar, role, status) VALUES
-('Nguyễn Thị Lan','0901000001','lan@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=360&fit=crop','STAFF','ACTIVE'),
-('Trần Thu Hà','0901000002','ha@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=360&fit=crop','STAFF','ACTIVE'),
-('Lê Thảo Vy','0901000003','vy@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=300&h=360&fit=crop','STAFF','ACTIVE'),
-('Phạm Minh Anh','0901000004','anh@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&h=360&fit=crop','STAFF','ACTIVE'),
-('Hoàng Kim Ngân','0901000005','ngan@nailhouse.vn','$2b$10$demo','https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=360&fit=crop','STAFF','ACTIVE')
+('Nguyễn Thị Lan','0901000001','lan@nailhouse.vn','$2b$10$demo','/uploads/avatars/staff-0901000001.jpg','STAFF','ACTIVE'),
+('Trần Thu Hà','0901000002','ha@nailhouse.vn','$2b$10$demo','/uploads/avatars/staff-0901000002.jpg','STAFF','ACTIVE'),
+('Lê Thảo Vy','0901000003','vy@nailhouse.vn','$2b$10$demo','/uploads/avatars/staff-0901000003.jpg','STAFF','ACTIVE'),
+('Phạm Minh Anh','0901000004','anh@nailhouse.vn','$2b$10$demo','/uploads/avatars/staff-0901000004.jpg','STAFF','ACTIVE'),
+('Hoàng Kim Ngân','0901000005','ngan@nailhouse.vn','$2b$10$demo','/uploads/avatars/staff-0901000005.jpg','STAFF','ACTIVE')
 ON DUPLICATE KEY UPDATE full_name=VALUES(full_name),email=VALUES(email),avatar=VALUES(avatar),role='STAFF',status='ACTIVE';
 
 -- Điểm đánh giá KHÔNG ghi ở đây: bảng staff không còn cột rating.
