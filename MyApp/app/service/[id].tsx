@@ -11,14 +11,29 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const galleryUrl = (url: string, id: string) => `${url}${url.includes('?') ? '&' : '?'}gallery=${id}`;
 
+import { useFavorites } from '@/contexts/FavoritesContext';
+
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [service, setService] = useState<NailService>();
   const [selectedImage, setSelectedImage] = useState('');
-  const [favorite, setFavorite] = useState(false);
+  const { isFavorite, toggleFavorite } = useFavorites();
   const [expanded, setExpanded] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [error, setError] = useState('');
+  
+  const isFav = service ? isFavorite(service.id) : false;
+
+  const handleFavorite = () => {
+    if (service) {
+      toggleFavorite({
+        id: service.id,
+        name: service.name,
+        imageUrl: service.imageUrl || null,
+        type: 'service',
+      });
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -48,7 +63,7 @@ export default function ServiceDetailScreen() {
         <View style={styles.galleryRow}>
           <View style={styles.gallerySection}>
             <Image source={{ uri: selectedImage || service.imageUrl || '' }} style={styles.heroImage} />
-            <Pressable onPress={() => setFavorite((value) => !value)} style={styles.favoriteButton}><Ionicons name={favorite ? 'heart' : 'heart-outline'} size={23} color={favorite ? '#E36071' : '#6B8580'} /></Pressable>
+            <Pressable onPress={handleFavorite} style={styles.favoriteButton}><Ionicons name={isFav ? 'heart' : 'heart-outline'} size={23} color={isFav ? '#E36071' : '#6B8580'} /></Pressable>
             <View style={styles.bestSeller}><Ionicons name="ribbon-outline" size={12} color="#A66D20" /><Text style={styles.bestSellerText}>Best Seller</Text></View>
             <View style={styles.counter}><Text style={styles.counterText}>{Math.max(gallery.indexOf(selectedImage) + 1, 1)}/{Math.max(gallery.length, 1)}</Text></View>
           </View>

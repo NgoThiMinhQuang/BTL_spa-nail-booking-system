@@ -1,57 +1,39 @@
-import { fetchHomeData } from '@/features/home/home.service';
-import type { NailDesign } from '@/features/home/home.types';
+import { useFavorites, FavoriteItem } from '@/contexts/FavoritesContext';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = { background: '#FFF9FA', surface: '#FFF', pink: '#D56B81', pinkSoft: '#FBE8ED', green: '#397B76', text: '#30282B', muted: '#897D80', line: '#F0E5E8' };
 
-function FavoriteCard({ design, onRemove }: { design: NailDesign; onRemove: () => void }) {
+function FavoriteCard({ item, onRemove }: { item: FavoriteItem; onRemove: () => void }) {
+  const imageSource = item.imageUrl ? { uri: item.imageUrl } : require("@/assets/images/nails/nail-collection-v2.png");
+  
   return <View style={styles.card}>
-    <ImageBackground source={{ uri: design.imageUrl }} imageStyle={styles.cardImage} style={styles.imageArea}>
-      <View style={styles.trendingBadge}><Ionicons name="sparkles" size={12} color="#FFF" /><Text style={styles.trendingText}>YÊU THÍCH</Text></View>
+    <ImageBackground source={imageSource} imageStyle={styles.cardImage} style={styles.imageArea}>
+      <View style={styles.trendingBadge}><Ionicons name="sparkles" size={12} color="#FFF" /><Text style={styles.trendingText}>{item.type === 'service' ? 'DỊCH VỤ' : 'MẪU NAIL'}</Text></View>
       <Pressable accessibilityLabel="Bỏ yêu thích" hitSlop={8} onPress={onRemove} style={styles.heartButton}><Ionicons name="heart" size={21} color={COLORS.pink} /></Pressable>
     </ImageBackground>
     <View style={styles.cardContent}>
-      <Text numberOfLines={1} style={styles.designName}>{design.name}</Text>
+      <Text numberOfLines={1} style={styles.designName}>{item.name}</Text>
       <View style={styles.cardMeta}><View style={styles.colorDots}><View style={[styles.dot, { backgroundColor: '#E8B9C2' }]} /><View style={[styles.dot, { backgroundColor: '#F4E4D7' }]} /><View style={[styles.dot, { backgroundColor: '#C98DA0' }]} /></View><Ionicons name="chevron-forward" size={17} color="#AA9DA0" /></View>
     </View>
   </View>;
 }
 
 export default function FavoritesScreen() {
-  const [designs, setDesigns] = useState<NailDesign[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const { favorites, toggleFavorite, loading } = useFavorites();
   const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
 
-  const applyData = useCallback((items: NailDesign[]) => {
-    setDesigns(items);
-    setFavoriteIds((current) => current.length ? current.filter((id) => items.some((item) => item.id === id)) : items.map((item) => item.id));
-  }, []);
-
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
-    try { const home = await fetchHomeData(); applyData(home.trendingDesigns); setError(''); }
-    catch { setError('Không thể tải các mẫu nail yêu thích.'); }
-    finally { setRefreshing(false); }
-  }, [applyData]);
+    // Simulate refresh since context handles it locally
+    setTimeout(() => setRefreshing(false), 500);
+  };
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    fetchHomeData()
-      .then((home) => { if (active) { applyData(home.trendingDesigns); setError(''); } })
-      .catch(() => { if (active) setError('Không thể tải các mẫu nail yêu thích.'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [applyData]));
-
-  const favorites = useMemo(() => designs.filter((item) => favoriteIds.includes(item.id) && item.name.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))), [designs, favoriteIds, query]);
-  const removeFavorite = (id: string) => setFavoriteIds((current) => current.filter((item) => item !== id));
+  const filteredFavorites = favorites.filter((item) => item.name.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi')));
 
   return <SafeAreaView edges={['top']} style={styles.safeArea}>
     <ScrollView showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.pink} />} contentContainerStyle={styles.content}>
@@ -59,17 +41,16 @@ export default function FavoritesScreen() {
 
       <View style={styles.summary}>
         <View style={styles.summaryIcon}><Ionicons name="sparkles-outline" size={22} color={COLORS.green} /></View>
-        <View style={styles.summaryCopy}><Text style={styles.summaryTitle}>{favoriteIds.length} mẫu đã lưu</Text><Text style={styles.summaryText}>Nguồn cảm hứng cho bộ móng tiếp theo</Text></View>
+        <View style={styles.summaryCopy}><Text style={styles.summaryTitle}>{favorites.length} mẫu đã lưu</Text><Text style={styles.summaryText}>Nguồn cảm hứng cho bộ móng tiếp theo</Text></View>
         <Pressable onPress={() => router.push('/services')}><Text style={styles.explore}>Khám phá</Text></Pressable>
       </View>
 
       <View style={styles.searchBox}><Ionicons name="search" size={21} color="#94878B" /><TextInput value={query} onChangeText={setQuery} placeholder="Tìm trong bộ sưu tập..." placeholderTextColor="#A99DA0" style={styles.searchInput} />{!!query && <Pressable onPress={() => setQuery('')}><Ionicons name="close-circle" size={20} color="#B8ABAE" /></Pressable>}</View>
 
       {loading && <View style={styles.state}><ActivityIndicator size="large" color={COLORS.pink} /><Text style={styles.stateText}>Đang tải bộ sưu tập...</Text></View>}
-      {!loading && !!error && <View style={styles.state}><View style={styles.stateIcon}><Ionicons name="cloud-offline-outline" size={34} color={COLORS.pink} /></View><Text style={styles.stateTitle}>Chưa thể tải dữ liệu</Text><Text style={styles.stateText}>{error}</Text><Pressable onPress={refresh} style={styles.retryButton}><Text style={styles.retryText}>Thử lại</Text></Pressable></View>}
-      {!loading && !error && favorites.length === 0 && <View style={styles.state}><View style={styles.stateIcon}><Ionicons name="heart-outline" size={37} color={COLORS.pink} /></View><Text style={styles.stateTitle}>{query ? 'Không tìm thấy mẫu nail' : 'Chưa có mẫu yêu thích'}</Text><Text style={styles.stateText}>{query ? 'Hãy thử tìm bằng tên khác nhé.' : 'Lưu những mẫu nail bạn thích để xem lại tại đây.'}</Text><Pressable onPress={() => query ? setQuery('') : router.push('/services')} style={styles.bookButton}><Text style={styles.bookText}>{query ? 'Xóa tìm kiếm' : 'Khám phá mẫu nail'}</Text></Pressable></View>}
+      {!loading && filteredFavorites.length === 0 && <View style={styles.state}><View style={styles.stateIcon}><Ionicons name="heart-outline" size={37} color={COLORS.pink} /></View><Text style={styles.stateTitle}>{query ? 'Không tìm thấy mẫu nail' : 'Chưa có mẫu yêu thích'}</Text><Text style={styles.stateText}>{query ? 'Hãy thử tìm bằng tên khác nhé.' : 'Lưu những mẫu nail bạn thích để xem lại tại đây.'}</Text><Pressable onPress={() => query ? setQuery('') : router.push('/services')} style={styles.bookButton}><Text style={styles.bookText}>{query ? 'Xóa tìm kiếm' : 'Khám phá mẫu nail'}</Text></Pressable></View>}
 
-      {!loading && !error && favorites.length > 0 && <><View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Bộ sưu tập</Text><Text style={styles.resultCount}>{favorites.length} mẫu</Text></View><View style={styles.grid}>{favorites.map((design) => <FavoriteCard key={design.id} design={design} onRemove={() => removeFavorite(design.id)} />)}</View></>}
+      {!loading && filteredFavorites.length > 0 && <><View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Bộ sưu tập</Text><Text style={styles.resultCount}>{filteredFavorites.length} mẫu</Text></View><View style={styles.grid}>{filteredFavorites.map((item) => <FavoriteCard key={item.id} item={item} onRemove={() => toggleFavorite(item)} />)}</View></>}
     </ScrollView>
   </SafeAreaView>;
 }

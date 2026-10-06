@@ -61,7 +61,7 @@ export default function HomeScreen() {
 
         <SectionHeader title="Mẫu nail thịnh hành" />
         <View style={styles.verticalList}>
-          {home.trendingDesigns.slice(0, 3).map((item, index) => <NailCard key={item.id} title={item.name} imageUrl={item.imageUrl} isReversed={index % 2 !== 0} index={index} />)}
+          {home.trendingDesigns.slice(0, 3).map((item, index) => <NailCard key={item.id} id={item.id} title={item.name} imageUrl={item.imageUrl} isReversed={index % 2 !== 0} index={index} />)}
         </View>
 
         <FeaturedArtists artists={home.featuredArtists} />

@@ -1,3 +1,4 @@
+import { useFavorites } from "@/contexts/FavoritesContext";
 import { NailService } from "@/features/service/service.types";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -12,6 +13,18 @@ export function ServiceCard({
   bookingMode?: boolean;
   compact?: boolean;
 }) {
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isFav = isFavorite(service.id);
+
+  const handleFavorite = () => {
+    toggleFavorite({
+      id: service.id,
+      name: service.name,
+      imageUrl: service.imageUrl || null,
+      type: 'service'
+    });
+  };
+
   const open = () =>
     bookingMode
       ? router.push({
@@ -30,9 +43,9 @@ export function ServiceCard({
           source={imageSource}
           style={[styles.image, compact && styles.compactImage]}
         />
-        <View style={styles.heart}>
-          <Ionicons name="heart-outline" size={18} color="#FFF" />
-        </View>
+        <Pressable onPress={handleFavorite} style={styles.heart}>
+          <Ionicons name={isFav ? "heart" : "heart-outline"} size={18} color={isFav ? "#D56B81" : "#FFF"} />
+        </Pressable>
       </View>
       <View style={styles.info}>
         <Text numberOfLines={1} style={styles.name}>

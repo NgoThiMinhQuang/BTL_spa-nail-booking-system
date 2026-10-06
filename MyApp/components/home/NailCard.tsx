@@ -1,17 +1,28 @@
+import { useFavorites } from "@/contexts/FavoritesContext";
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View, Pressable, Image } from "react-native";
 
 export function NailCard({
+  id,
   title,
   imageUrl,
   isReversed = false,
   index = 0,
 }: {
+  id?: string;
   title: string;
   imageUrl?: string;
   isReversed?: boolean;
   index?: number;
 }) {
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const isFav = id ? isFavorite(id) : false;
+
+  const handleFavorite = () => {
+    if (id) {
+      toggleFavorite({ id, name: title, imageUrl, type: 'design' });
+    }
+  };
   const getLocalImage = (i: number) => {
     if (i === 0) return require('@/assets/images/nails/nail_blush_french.png');
     if (i === 1) return require('@/assets/images/nails/nail_pink_blossom.png');
@@ -47,9 +58,9 @@ export function NailCard({
               resizeMode="cover"
               style={styles.image}
             />
-            <View style={[styles.heart, { right: 8 }]}>
-              <Ionicons name="heart-outline" size={16} color="#FFF" />
-            </View>
+            <Pressable onPress={handleFavorite} style={[styles.heart, { right: 8 }]}>
+              <Ionicons name={isFav ? "heart" : "heart-outline"} size={16} color={isFav ? "#D56B81" : "#FFF"} />
+            </Pressable>
           </View>
         </>
       ) : (
@@ -61,9 +72,9 @@ export function NailCard({
               resizeMode="cover"
               style={styles.image}
             />
-            <View style={[styles.heart, { left: 8 }]}>
-              <Ionicons name="heart-outline" size={16} color="#FFF" />
-            </View>
+            <Pressable onPress={handleFavorite} style={[styles.heart, { left: 8 }]}>
+              <Ionicons name={isFav ? "heart" : "heart-outline"} size={16} color={isFav ? "#D56B81" : "#FFF"} />
+            </Pressable>
           </View>
 
           {/* Content Side (Right) */}
