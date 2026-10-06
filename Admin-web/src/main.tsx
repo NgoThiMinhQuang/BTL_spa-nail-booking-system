@@ -56,7 +56,10 @@ function Routes() {
     <Layout actions={actions}>
       {loading && <div className="app-progress" role="status" aria-label="Đang tải dữ liệu" />}
       {!loading && feedback && <p className="app-feedback">{feedback}</p>}
-      {!loading && page}
+      {/* Giữ nội dung đang có trong lúc tải lại nền (polling 20s / quay lại
+         tab) — trước đây `{!loading && page}` làm cả trang biến mất mỗi lần
+         tải lại, nhìn như chớp màn hình. */}
+      {page}
     </Layout>
   );
 }

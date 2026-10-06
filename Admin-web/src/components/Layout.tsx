@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { useApp, type ViewName } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
 import { Icon, type IconName } from './Icon';
-import { Avatar } from './Avatar';
+import { AccountMenu } from './AccountMenu';
 
 const NAV: { view: ViewName; label: string; icon: IconName }[] = [
   { view: 'home', label: 'Trang chủ', icon: 'home' },
@@ -119,37 +119,7 @@ export function Layout({
             <button type="submit" aria-label="Tìm kiếm">↵</button>
           </form>
           <div className="account">
-            {/* Hiển thị tên nhân viên ĐANG ĐĂNG NHẬP, không phải một danh sách
-                để chọn. Trước đây ở đây là <select> liệt kê toàn bộ nhân viên
-                và mặc định chọn người đầu tiên trong danh sách — nên nhân viên
-                đăng nhập lại thấy tên và lịch của đồng nghiệp khác. Nay backend
-                lấy danh tính từ token nên không thể xem lịch của nhau, và ô này
-                chỉ còn để nhắc ai đang làm việc. */}
-            <span className="account-name">
-              {state.data ? state.data.profile.name : state.user?.name ?? 'Đang tải…'}
-            </span>
-            <span className="account-avatar">
-              {state.data
-                ? <Avatar name={state.data.profile.name} url={state.data.profile.avatar} />
-                : 'NH'}
-            </span>
-            {/* Trước đây không có nút đăng xuất: token nằm lại mãi, người sau
-                mở máy vẫn dùng phiên người trước. Xoá cả token lẫn user để
-                về màn hình đăng nhập (main.tsx hiện LoginPage khi !user). */}
-            <button
-              className="account-logout"
-              aria-label="Đăng xuất"
-              title="Đăng xuất"
-              onClick={() => {
-                try {
-                  localStorage.removeItem('nailhouse_staff_token');
-                  localStorage.removeItem('nailhouse_token');
-                } catch { /* bỏ qua */ }
-                dispatch({ type: 'logout' });
-              }}
-            >
-              ⎋
-            </button>
+            <AccountMenu />
           </div>
         </header>
 

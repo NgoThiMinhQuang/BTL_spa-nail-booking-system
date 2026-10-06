@@ -104,7 +104,10 @@ export type Action =
   | { type: 'customerSort'; value: string }
   | { type: 'customerOpen'; id: string | null }
   | { type: 'customerNote'; id: string; note: string | null }
-  | { type: 'refresh' };
+  | { type: 'refresh' }
+  /** Lịch mới của khách chỉ hiện sau khi tải lại — dùng cho polling nền
+     và tải lại khi quay lại tab: tăng token nhưng giữ nội dung cũ. */
+  | { type: 'refreshSilent' };
 
 const ACTIVE_NAV: Record<ViewName, ViewName> = {
   booking: 'schedule', home: 'home', schedule: 'schedule',
@@ -261,6 +264,9 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'refresh':
       return { ...state, loading: true, feedback: '', reloadToken: state.reloadToken + 1 };
 
+    case 'refreshSilent':
+      return { ...state, loading: true, feedback: '', reloadToken: state.reloadToken + 1 };
+
     default:
       return state;
   }
@@ -387,6 +393,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [staffId, date, calendarMode, reloadToken, selected]);
 
   const reload = useCallback(() => { dispatch({ type: 'refresh' }); }, []);
+
+  /* Khách đặt lịch mới không tự hiện vì vòng tải trên chỉ chạy khi đổi
+     ngày/chế độ/làm mới thủ công. Polling nền 20s + tải lại khi quay lại
+     tab để lịch mới tự hiện mà không cần F5. Bỏ qua khi tab đang ẩn. */
+  useEffect(() => {
+    if (!staffId) return;
+    const sync = () => {
+      if (!document.hidden) dispatch({ type: 'refreshSilent' });
+    };
+    const timer = window.setInterval(sync, 20000);
+    window.addEventListener('focus', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', sync);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, [staffId]);
 
   const value = useMemo<Store>(
     () => ({ state, dispatch, activeNav: ACTIVE_NAV[state.view], reload }),

@@ -161,3 +161,39 @@ a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-
 @media(prefers-reduced-motion:reduce){
   .pro-chip:hover{transition:none}
 }
+
+/* ===== Menu tài khoản trên topbar (avatar + tên + dropdown) ===== */
+.account-menu{position:relative}
+.account-trigger{display:flex;align-items:center;gap:10px;background:transparent;border:1px solid transparent;border-radius:10px;padding:5px 10px 5px 5px;cursor:pointer;max-width:240px}
+.account-trigger:hover{background:#FBE8EC;border-color:#F3D3DC}
+.account-trigger .account-avatar{display:flex}
+.account-trigger .avatar{width:36px;height:36px}
+.account-trigger .account-name{font-size:13px;font-weight:600;color:var(--nh-ink,#2D2430);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-caret{display:inline-flex;color:#A08E96}
+.account-caret svg{width:16px;height:16px}
+.account-caret.is-open svg{transform:rotate(180deg)}
+.account-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:260px;background:#FFF;border:1px solid var(--nh-line,#F0DFE3);border-radius:12px;box-shadow:0 18px 44px -18px rgba(45,36,48,.35);padding:6px;overflow:hidden}
+.account-pop-head{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;background:#FFFAFC;margin-bottom:4px}
+.account-pop-head .avatar{width:44px;height:44px;flex-shrink:0}
+.account-pop-head>div{min-width:0}
+.account-pop-head strong{display:block;font-size:14px;color:var(--nh-ink,#2D2430);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-pop-head small{display:block;font-size:11px;color:var(--nh-muted,#756A73);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-pop-head .account-role{color:var(--nh-primary-dark,#B93E62);font-weight:600}
+.account-pop button[role="menuitem"]{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:11px 10px;font-size:13px;font-weight:500;color:#493B40;cursor:pointer}
+.account-pop button[role="menuitem"] svg{width:18px;height:18px;color:#A08E96;flex-shrink:0}
+.account-pop button[role="menuitem"]:hover{background:#FFF0F3}
+.account-pop button[role="menuitem"].is-danger{color:#B93E62}
+.account-pop button[role="menuitem"].is-danger:hover{background:#FBE8EC}
+.account-pop-sep{height:1px;background:#F3E9EC;margin:4px 2px}
+/* Hộp thoại đổi mật khẩu dùng chung khung .cust-dialog */
+.account-pw-dialog .svc-field{margin-bottom:12px}
+.account-pw-dialog .svc-field>span{font-size:13px;font-weight:600;color:#493B40}
+.account-pw-dialog .svc-field input{min-height:42px;border-radius:8px}
+.account-pw-error{margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#FBE8EC;color:#B93E62;font-size:13px}
+.account-pw-ok{margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#E8F3EF;color:#4E7D74;font-size:13px}
+.account-pw-actions{display:flex;justify-content:flex-end;gap:10px}
+@media(max-width:600px){
+  .account-trigger{padding:5px}
+  .account-trigger .account-name,.account-trigger .account-caret{display:none}
+  .account-pop{width:230px}
+}
