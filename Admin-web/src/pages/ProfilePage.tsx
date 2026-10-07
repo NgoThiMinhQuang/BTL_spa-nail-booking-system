@@ -2,11 +2,12 @@
    Bố cục: thẻ tiêu đề gộp luôn đánh giá → số liệu → hai khối nội dung chính
    → cột phải dánh. Mọi con số lấy từ dữ liệu đang tải, không đặt số bịa. */
 
+import { useEffect, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Primitives';
 import { Icon, type IconName } from '../components/Icon';
 import { Stars } from '../components/Stars';
-import { useApp } from '../store';
+import { apiRequest, useApp } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
 import { fmtNum, localDate, money } from '../lib/utils';
 import { serviceCode, statusLabel } from '../lib/services';
@@ -241,6 +242,8 @@ export function ProfilePage() {
               <p className="pro-empty">Chưa có đánh giá nào. Điểm và nhận xét sẽ hiện ở đây sau buổi làm đầu tiên được khách chấm.</p>
             )}
           </section>
+
+          <MyPayPanel />
         </div>
       </div>
 
@@ -285,5 +288,69 @@ export function ProfilePage() {
         </section>
       </aside>
     </div>
+  );
+}
+
+/* ===== Lương của tôi: lịch sử phiếu lương (chỉ xem) ===== */
+
+interface MyPay {
+  id: string;
+  periodMonth: string;
+  baseSalary: number;
+  commissionRate: number;
+  serviceRevenue: number;
+  completedCount: number;
+  commissionAmount: number;
+  bonus: number;
+  deduction: number;
+  totalSalary: number;
+  status: 'DRAFT' | 'CONFIRMED' | 'PAID';
+  paidAt: string | null;
+}
+
+const PAY_TEXT: Record<MyPay['status'], string> = {
+  DRAFT: 'Nháp',
+  CONFIRMED: 'Đã chốt',
+  PAID: 'Đã trả',
+};
+
+function MyPayPanel() {
+  const [items, setItems] = useState<MyPay[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await apiRequest<MyPay[]>('/api/staff/payrolls');
+        setItems(Array.isArray(rows) ? rows : []);
+      } catch {
+        /* Chưa có lương thì ẩn, không chặn hồ sơ. */
+      }
+    })();
+  }, []);
+
+  if (items.length === 0) return null;
+
+  return (
+    <section className="panel pro-panel">
+      <div className="pro-panel-head">
+        <h3>Lương của tôi</h3>
+        <span className="pro-panel-note">{items.length} phiếu gần nhất</span>
+      </div>
+      <ul className="pro-booking-list">
+        {items.slice(0, 5).map((p) => (
+          <li key={p.id}>
+            <span className="pro-booking-time">{p.periodMonth}</span>
+            <span className="pro-booking-name">
+              <strong>{money(p.totalSalary)}</strong>
+              <small>
+                Cơ bản {money(p.baseSalary)} + HH {money(p.commissionAmount)} ({p.completedCount} lịch)
+                {p.bonus ? ` + thưởng ${money(p.bonus)}` : ''}
+                {p.deduction ? ` − trừ ${money(p.deduction)}` : ''} · {PAY_TEXT[p.status]}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

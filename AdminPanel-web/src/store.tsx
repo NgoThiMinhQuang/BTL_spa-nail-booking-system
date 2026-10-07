@@ -18,7 +18,7 @@ export type ViewName =
   | 'admin-dashboard' | 'admin-bookings' | 'admin-customers'
   | 'admin-services' | 'admin-categories'
   | 'admin-staff' | 'admin-work-schedule' | 'admin-leave'
-  | 'admin-payments' | 'admin-reports'
+  | 'admin-payments' | 'admin-payroll' | 'admin-reports'
   | 'admin-reviews' | 'admin-settings';
 
 export type ChartRange = '7' | '30' | 'month';
@@ -209,6 +209,7 @@ export interface StaffItem {
   id: string; name: string; email: string | null; phone: string;
   avatarUrl: string | null; specialty: string | null;
   experienceYears: number; worksToday: boolean;
+  baseSalary: number; commissionRate: number;
   bookingCount: number; completedCount: number; revenue: number;
   serviceCount: number; serviceNames: string[];
   rating: number | null; reviewCount: number;
@@ -288,6 +289,16 @@ export interface PaymentItem {
   methodText: string | null; statusText: string;
 }
 
+export interface PayrollItem {
+  id: string; staffId: string; staffName: string;
+  periodMonth: string;
+  baseSalary: number; commissionRate: number;
+  serviceRevenue: number; completedCount: number;
+  commissionAmount: number; bonus: number; deduction: number;
+  totalSalary: number; status: 'DRAFT' | 'CONFIRMED' | 'PAID';
+  paidAt: string | null; paymentMethod: string | null; note: string | null;
+}
+
 export interface Reports {
   byService: { name: string; category: string; bookings: number; revenue: number }[];
   byStaff: { name: string; specialty: string | null; bookings: number; revenue: number }[];
@@ -322,6 +333,7 @@ export interface AdminState {
   reviews: ReviewItem[];
   reviewStats: { total: number; average: number | null; five: number; four: number; low: number };
   payments: PaymentItem[];
+  payrolls: PayrollItem[];
   paymentMonths: { month: string; paidCount: number; paidAmount: number; totalAmount: number }[];
   paymentTotals: { all: number; paid: number; deposit: number; unpaid: number };
   reports: Reports | null;
@@ -373,6 +385,7 @@ export const initialState: AdminState = {
   reviews: [],
   reviewStats: { total: 0, average: null, five: 0, four: 0, low: 0 },
   payments: [],
+  payrolls: [],
   paymentMonths: [],
   paymentTotals: { all: 0, paid: 0, deposit: 0, unpaid: 0 },
   reports: null,
@@ -499,7 +512,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [services, staff, customers, shifts, attendance, leave, scheduleRequests, reviews, payments, reports] =
+        const [services, staff, customers, shifts, attendance, leave, scheduleRequests, reviews, payments, payrolls, reports] =
           await Promise.all([
             /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
          gọi /services không tồn tại nên trang Dịch vụ của Admin trắng. */
@@ -515,6 +528,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               data: PaymentItem[];
               meta: { months: AdminState['paymentMonths']; totals: AdminState['paymentTotals'] };
             }>('/payments'),
+            getJson<{ data: PayrollItem[] }>(`/payrolls?month=${anchorDate.slice(0, 7)}`),
             getJson<{ data: Reports }>('/reports'),
           ]);
 
@@ -534,6 +548,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             reviews: reviews.data,
             reviewStats: reviews.meta,
             payments: payments.data,
+            payrolls: payrolls.data,
             paymentMonths: payments.meta.months,
             paymentTotals: payments.meta.totals,
             reports: reports.data,

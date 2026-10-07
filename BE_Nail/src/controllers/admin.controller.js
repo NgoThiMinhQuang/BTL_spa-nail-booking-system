@@ -382,6 +382,8 @@ export async function listStaff(req, res, next) {
         u.avatar AS avatarUrl,
         st.specialty,
         st.experience_year AS experienceYears,
+        COALESCE(st.base_salary, 0) AS baseSalary,
+        COALESCE(st.commission_rate, 0) AS commissionRate,
         EXISTS(SELECT 1 FROM staff_schedule sc WHERE sc.staff_id = st.staff_id
           AND sc.work_date = CURDATE() AND sc.status = 'AVAILABLE') AS worksToday,
         (SELECT COUNT(*) FROM booking b WHERE b.staff_id = st.staff_id) AS bookingCount,
@@ -414,6 +416,8 @@ export async function listStaff(req, res, next) {
         id: String(row.id),
         avatarUrl: imageUrl(req, row.avatarUrl),
         experienceYears: Number(row.experienceYears ?? 0),
+        baseSalary: Number(row.baseSalary ?? 0),
+        commissionRate: Number(row.commissionRate ?? 0),
         worksToday: Boolean(row.worksToday),
         bookingCount: Number(row.bookingCount),
         completedCount: Number(row.completedCount),

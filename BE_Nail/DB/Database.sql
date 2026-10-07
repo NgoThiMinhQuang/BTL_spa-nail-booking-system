@@ -108,6 +108,8 @@ CREATE TABLE staff (
     user_id BIGINT NOT NULL,
     experience_year INT NOT NULL DEFAULT 0 COMMENT 'Số năm kinh nghiệm',
     specialty VARCHAR(255) NULL COMMENT 'Chuyên môn',
+    base_salary DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Lương cơ bản VND/tháng',
+    commission_rate DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '% hoa hồng trên doanh thu COMPLETED+PAID',
 
     UNIQUE KEY uq_staff_user (user_id),
     CONSTRAINT fk_staff_user FOREIGN KEY (user_id)
@@ -613,6 +615,63 @@ CREATE TABLE staff_attendance (
     KEY idx_attendance_date (work_date),
     CONSTRAINT fk_attendance_staff FOREIGN KEY (staff_id)
         REFERENCES staff(staff_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ============================================================================
+--  19. PAYROLL — phiếu lương theo tháng (cơ bản + hoa hồng + thưởng − trừ)
+-- ----------------------------------------------------------------------------
+--  Hoa hồng chỉ tính lịch COMPLETED có payment PAID, thuộc về nhân viên
+--  thực sự hoàn thành (booking.staff_id lúc COMPLETED — đổi người trước
+--  khi làm thì người mới hưởng). total_salary backend tự tính, PAID thì
+--  khóa: sửa giá dịch vụ sau này không đổi lịch sử lương.
+-- ============================================================================
+DROP TABLE IF EXISTS `payroll_item`;
+DROP TABLE IF EXISTS `payroll`;
+CREATE TABLE payroll (
+    payroll_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    staff_id BIGINT NOT NULL,
+    period_month CHAR(7) NOT NULL COMMENT 'YYYY-MM',
+    base_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+    commission_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+    service_revenue DECIMAL(12,2) NOT NULL DEFAULT 0,
+    completed_count INT NOT NULL DEFAULT 0,
+    commission_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    bonus DECIMAL(12,2) NOT NULL DEFAULT 0,
+    deduction DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+    status ENUM('DRAFT','CONFIRMED','PAID') NOT NULL DEFAULT 'DRAFT',
+    paid_at DATETIME NULL,
+    payment_method VARCHAR(50) NULL,
+    note VARCHAR(500) NULL,
+    created_by BIGINT NULL,
+    paid_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_payroll_staff_month (staff_id, period_month),
+    KEY idx_payroll_month (period_month, status),
+    CONSTRAINT fk_payroll_staff FOREIGN KEY (staff_id)
+        REFERENCES staff(staff_id) ON DELETE CASCADE,
+    CONSTRAINT fk_payroll_creator FOREIGN KEY (created_by)
+        REFERENCES users(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_payroll_payer FOREIGN KEY (paid_by)
+        REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE payroll_item (
+    payroll_item_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payroll_id BIGINT NOT NULL,
+    booking_id BIGINT NULL,
+    service_name VARCHAR(150) NULL,
+    starts_at DATETIME NULL,
+    paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    commission_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+
+    KEY idx_payroll_item_payroll (payroll_id),
+    CONSTRAINT fk_payroll_item_payroll FOREIGN KEY (payroll_id)
+        REFERENCES payroll(payroll_id) ON DELETE CASCADE,
+    CONSTRAINT fk_payroll_item_booking FOREIGN KEY (booking_id)
+        REFERENCES booking(booking_id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- ============================================================================

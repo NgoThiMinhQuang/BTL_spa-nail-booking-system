@@ -520,6 +520,10 @@ export async function createStaff(req, res, next) {
     const specialty = String(req.body?.specialty ?? '').trim().slice(0, 255) || null;
     const experienceYears = Number(req.body?.experienceYears ?? 0);
     const avatar = cleanImage(req.body?.avatar) ?? null;
+    /* Lương cơ bản (VND/tháng) và % hoa hồng — mặc định 0 để nhân viên cũ
+       không bị đổi lương khi Admin chỉ sửa tên/chuyên môn. */
+    const baseSalary = req.body?.baseSalary === undefined ? 0 : Number(req.body.baseSalary);
+    const commissionRate = req.body?.commissionRate === undefined ? 0 : Number(req.body.commissionRate);
 
     if (fullName.length < 2 || fullName.length > 100) {
       return res.status(400).json({ message: 'Họ tên cần từ 2 đến 100 ký tự.' });
@@ -534,6 +538,12 @@ export async function createStaff(req, res, next) {
     }
     if (!Number.isInteger(experienceYears) || experienceYears < 0 || experienceYears > 60) {
       return res.status(400).json({ message: 'Số năm kinh nghiệm không hợp lệ.' });
+    }
+    if (!Number.isFinite(baseSalary) || baseSalary < 0 || baseSalary > 1000000000) {
+      return res.status(400).json({ message: 'Lương cơ bản không hợp lệ.' });
+    }
+    if (!Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate > 100) {
+      return res.status(400).json({ message: 'Hoa hồng phải từ 0 đến 100%.' });
     }
     if (cleanImage(req.body?.avatar) === undefined) {
       return res.status(400).json({ message: 'Ảnh phải là đường dẫn trong /uploads hoặc http(s).' });
@@ -554,8 +564,9 @@ export async function createStaff(req, res, next) {
       [fullName, phone, email, await hashPassword(password), avatar],
     );
     const [staff] = await connection.query(
-      `INSERT INTO staff (user_id, specialty, experience_year) VALUES (?,?,?)`,
-      [user.insertId, specialty, experienceYears],
+      `INSERT INTO staff (user_id, specialty, experience_year, base_salary, commission_rate)
+       VALUES (?,?,?,?,?)`,
+      [user.insertId, specialty, experienceYears, Math.round(baseSalary), commissionRate],
     );
 
     const serviceIds = Array.isArray(req.body?.serviceIds)
@@ -577,6 +588,8 @@ export async function createStaff(req, res, next) {
         email,
         specialty,
         experienceYears,
+        baseSalary: Math.round(baseSalary),
+        commissionRate,
         status: 'ACTIVE',
         serviceCount: serviceIds.length,
       },
@@ -664,16 +677,36 @@ export async function updateStaff(req, res, next) {
       await connection.query(`UPDATE users SET ${set.join(', ')} WHERE user_id = ?`, params);
     }
 
-    if (req.body?.specialty !== undefined || req.body?.experienceYears !== undefined) {
-      const specialty = String(req.body?.specialty ?? '').trim().slice(0, 255) || null;
-      const years = Number(req.body?.experienceYears ?? 0);
+    if (req.body?.specialty !== undefined || req.body?.experienceYears !== undefined
+      || req.body?.baseSalary !== undefined || req.body?.commissionRate !== undefined) {
+      const [[current]] = await connection.query(
+        'SELECT specialty, experience_year AS experienceYears, base_salary AS baseSalary,'
+        + ' commission_rate AS commissionRate FROM staff WHERE staff_id = ? LIMIT 1', [id]);
+      const specialty = req.body?.specialty !== undefined
+        ? String(req.body.specialty ?? '').trim().slice(0, 255) || null
+        : current.specialty;
+      const years = req.body?.experienceYears !== undefined
+        ? Number(req.body.experienceYears ?? 0) : Number(current.experienceYears ?? 0);
       if (!Number.isInteger(years) || years < 0 || years > 60) {
         await connection.rollback();
         return res.status(400).json({ message: 'Số năm kinh nghiệm không hợp lệ.' });
       }
+      const baseSalary = req.body?.baseSalary !== undefined
+        ? Number(req.body.baseSalary) : Number(current.baseSalary ?? 0);
+      const commissionRate = req.body?.commissionRate !== undefined
+        ? Number(req.body.commissionRate) : Number(current.commissionRate ?? 0);
+      if (!Number.isFinite(baseSalary) || baseSalary < 0 || baseSalary > 1000000000) {
+        await connection.rollback();
+        return res.status(400).json({ message: 'Lương cơ bản không hợp lệ.' });
+      }
+      if (!Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate > 100) {
+        await connection.rollback();
+        return res.status(400).json({ message: 'Hoa hồng phải từ 0 đến 100%.' });
+      }
       await connection.query(
-        'UPDATE staff SET specialty = ?, experience_year = ? WHERE staff_id = ?',
-        [specialty, years, id],
+        'UPDATE staff SET specialty = ?, experience_year = ?, base_salary = ?, commission_rate = ?'
+        + ' WHERE staff_id = ?',
+        [specialty, years, Math.round(baseSalary), commissionRate, id],
       );
     }
 

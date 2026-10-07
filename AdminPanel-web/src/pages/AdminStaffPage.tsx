@@ -29,10 +29,11 @@ export function AdminStaffPage() {
   const [svcTerm, setSvcTerm] = useState('');
   const [form, setForm] = useState({
     fullName: '', phone: '', email: '', password: '',
-    specialty: '', experienceYears: '1', serviceIds: [] as string[],
+    specialty: '', experienceYears: '1', baseSalary: '0', commissionRate: '10',
+    serviceIds: [] as string[],
   });
 
-  const set = (key: 'fullName' | 'phone' | 'email' | 'password' | 'specialty' | 'experienceYears') => (
+  const set = (key: 'fullName' | 'phone' | 'email' | 'password' | 'specialty' | 'experienceYears' | 'baseSalary' | 'commissionRate') => (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -50,7 +51,7 @@ export function AdminStaffPage() {
     setSvcTerm('');
     setForm({
       fullName: '', phone: '', email: '', password: '',
-      specialty: '', experienceYears: '1', serviceIds: [],
+      specialty: '', experienceYears: '1', baseSalary: '0', commissionRate: '10', serviceIds: [],
     });
     setFeedback('');
     setCreating(true);
@@ -62,6 +63,7 @@ export function AdminStaffPage() {
     setForm({
       fullName: item.name, phone: item.phone, email: item.email ?? '', password: '',
       specialty: item.specialty ?? '', experienceYears: String(item.experienceYears),
+      baseSalary: String(item.baseSalary ?? 0), commissionRate: String(item.commissionRate ?? 0),
       serviceIds: services.filter((s) => item.serviceNames.includes(s.name)).map((s) => s.id),
     });
     setFeedback('');
@@ -87,12 +89,26 @@ export function AdminStaffPage() {
     e.preventDefault();
     setBusy(true);
     setFeedback('');
+    const baseSalary = Number(form.baseSalary) || 0;
+    const commissionRate = Number(form.commissionRate) || 0;
+    if (baseSalary < 0 || baseSalary > 1000000000) {
+      setBusy(false);
+      setFeedback('Lương cơ bản không hợp lệ.');
+      return;
+    }
+    if (commissionRate < 0 || commissionRate > 100) {
+      setBusy(false);
+      setFeedback('Hoa hồng phải từ 0 đến 100%.');
+      return;
+    }
     const body: Record<string, unknown> = {
       fullName: form.fullName.trim(),
       phone: form.phone.trim(),
       email: form.email.trim() || undefined,
       specialty: form.specialty.trim(),
       experienceYears: Number(form.experienceYears) || 0,
+      baseSalary: Math.round(baseSalary),
+      commissionRate,
       serviceIds: form.serviceIds.map(Number),
     };
     /* Mật khẩu: tạo mới bắt buộc, sửa thì để trống nghĩa là giữ nguyên. */
@@ -240,6 +256,10 @@ export function AdminStaffPage() {
 
                 <dl className="adm-person-nums">
                   <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
+                  <div title="Lương cơ bản + % hoa hồng">
+                    <dt>Lương</dt>
+                    <dd>{moneyShort(item.baseSalary)}<small> + {item.commissionRate}%</small></dd>
+                  </div>
                   <div title="Lịch đã hoàn thành / tổng lịch">
                     <dt>Hoàn thành</dt>
                     <dd>{fmtNum(item.completedCount)}<small>/{fmtNum(item.bookingCount)}</small></dd>
@@ -327,6 +347,18 @@ export function AdminStaffPage() {
                   <span>Kinh nghiệm (năm)</span>
                   <input value={form.experienceYears} onChange={set('experienceYears')}
                     disabled={busy} inputMode="numeric" />
+                </label>
+              </div>
+              <div className="adm-form-row">
+                <label className="adm-field">
+                  <span>Lương cơ bản (VND/tháng)</span>
+                  <input value={form.baseSalary} onChange={set('baseSalary')}
+                    disabled={busy} inputMode="numeric" placeholder="Ví dụ: 7000000" />
+                </label>
+                <label className="adm-field">
+                  <span>Hoa hồng (% doanh thu COMPLETED+PAID)</span>
+                  <input value={form.commissionRate} onChange={set('commissionRate')}
+                    disabled={busy} inputMode="decimal" placeholder="Ví dụ: 10" />
                 </label>
               </div>
               <div className="adm-field">

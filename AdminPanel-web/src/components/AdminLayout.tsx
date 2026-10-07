@@ -44,6 +44,7 @@ const ADMIN_GROUPS: NavGroup[] = [
     title: 'TÀI CHÍNH',
     items: [
       { view: 'admin-payments', label: 'Thanh toán', icon: 'card' },
+      { view: 'admin-payroll', label: 'Lương', icon: 'card' },
       { view: 'admin-reports', label: 'Báo cáo', icon: 'sparkles' },
     ],
   },
@@ -68,6 +69,7 @@ const TITLES: Record<ViewName, [string, string]> = {
   'admin-work-schedule': ['Lịch làm việc', 'Ca làm việc của toàn bộ nhân viên trong tuần.'],
   'admin-leave': ['Yêu cầu nghỉ', 'Các ngày nhân viên đã xếp nghỉ và ảnh hưởng tới lịch hẹn.'],
   'admin-payments': ['Thanh toán', 'Theo dõi doanh thu và từng giao dịch của cửa hàng.'],
+  'admin-payroll': ['Lương', 'Lương cơ bản + hoa hồng COMPLETED+PAID, chốt và trả theo tháng.'],
   'admin-reports': ['Báo cáo', 'Tổng hợp doanh thu theo dịch vụ, nhân viên và khách hàng.'],
   'admin-reviews': ['Đánh giá', 'Phản hồi của khách hàng sau mỗi buổi chăm sóc.'],
   'admin-settings': ['Cài đặt', 'Thông tin cửa hàng và kiểm tra tính đầy đủ của dữ liệu.'],

@@ -701,6 +701,8 @@ describe('Báº£ng nghiá»‡p vá»¥', () => {
     'staff_schedule_request',
     'review_images',
     'staff_attendance',
+    'payroll',
+    'payroll_item',
   ];
 
   for (const table of tables) {

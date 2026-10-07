@@ -11,6 +11,7 @@ import {
   checkOut,
   listMyAttendance,
 } from '../controllers/attendance.controller.js';
+import { listMyPayrolls } from '../controllers/payroll.controller.js';
 import { staffDashboard } from '../controllers/staff-dashboard.controller.js';
 import { authenticate, requireStaff } from '../lib/auth.js';
 
@@ -40,6 +41,9 @@ router.get('/schedule-requests', authenticate, requireStaff, listMyScheduleReque
 router.post('/attendance/check-in', authenticate, requireStaff, checkIn);
 router.post('/attendance/check-out', authenticate, requireStaff, checkOut);
 router.get('/attendance/me', authenticate, requireStaff, listMyAttendance);
+
+/* Lương của tôi — chỉ xem phiếu của chính mình. */
+router.get('/payrolls', authenticate, requireStaff, listMyPayrolls);
 
 /* ================================================================
    2. DANH MỤC NHÂN VIÊN — công khai

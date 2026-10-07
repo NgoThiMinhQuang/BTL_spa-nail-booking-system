@@ -43,6 +43,15 @@ import {
 import { patchPayment, savePayment } from '../controllers/payment.controller.js';
 import { listAttendanceAdmin } from '../controllers/attendance.controller.js';
 import {
+  confirmPayroll,
+  getPayroll,
+  listPayrolls,
+  payPayroll,
+  previewPayroll,
+  reopenPayroll,
+  upsertDraft,
+} from '../controllers/payroll.controller.js';
+import {
   assignServices,
   createCategory,
   createService,
@@ -130,6 +139,16 @@ router.delete('/schedule/:id', deleteSchedule);
 
 /* Chấm công toàn cửa hàng trong khoảng ngày. */
 router.get('/attendance', listAttendanceAdmin);
+
+/* Phiếu lương: xem trước (không lưu) → tạo/tính lại nháp → chốt → trả.
+   PAID thì khóa, chỉ mở lại được từ CONFIRMED về DRAFT. */
+router.get('/payrolls/preview', previewPayroll);
+router.get('/payrolls', listPayrolls);
+router.post('/payrolls', upsertDraft);
+router.get('/payrolls/:id', getPayroll);
+router.patch('/payrolls/:id/confirm', confirmPayroll);
+router.patch('/payrolls/:id/pay', payPayroll);
+router.patch('/payrolls/:id/reopen', reopenPayroll);
 
 /* Alias giữ lại đường cũ /api/admin/leave cho các màn hình đang dùng. */
 router.get('/leave', listLeaveRequests);
