@@ -512,27 +512,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [services, staff, customers, shifts, attendance, leave, scheduleRequests, reviews, payments, payrolls, reports] =
-          await Promise.all([
-            /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
+        /* Từng endpoint có thể hỏng riêng (VD backend chưa restart sau khi
+           thêm route, DB chưa migrate bảng mới). Dùng allSettled để một
+           API phụ như chấm công/lương không kéo sập cả trang tổng quan:
+           chỗ nào hỏng thì dùng danh sách rỗng và báo rõ tên endpoint. */
+        const names = [
+          'dịch vụ', 'nhân viên', 'khách hàng', 'ca làm việc', 'chấm công',
+          'nghỉ phép', 'yêu cầu đổi ca', 'đánh giá', 'thanh toán', 'lương', 'báo cáo',
+        ] as const;
+        const results = await Promise.allSettled([
+          /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
          gọi /services không tồn tại nên trang Dịch vụ của Admin trắng. */
       getJson<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>('/catalog/services'),
-            getJson<{ data: StaffItem[] }>('/staff'),
-            getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
-            getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
-            getJson<{ data: AttendanceItem[] }>(`/attendance?from=${week[0]}&to=${week[6]}`),
-            getJson<{ data: LeaveItem[] }>('/leave'),
-            getJson<{ data: ScheduleRequestItem[] }>('/schedule-requests'),
-            getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
-            getJson<{
-              data: PaymentItem[];
-              meta: { months: AdminState['paymentMonths']; totals: AdminState['paymentTotals'] };
-            }>('/payments'),
-            getJson<{ data: PayrollItem[] }>(`/payrolls?month=${anchorDate.slice(0, 7)}`),
-            getJson<{ data: Reports }>('/reports'),
-          ]);
+          getJson<{ data: StaffItem[] }>('/staff'),
+          getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
+          getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
+          getJson<{ data: AttendanceItem[] }>(`/attendance?from=${week[0]}&to=${week[6]}`),
+          getJson<{ data: LeaveItem[] }>('/leave'),
+          getJson<{ data: ScheduleRequestItem[] }>('/schedule-requests'),
+          getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
+          getJson<{
+            data: PaymentItem[];
+            meta: { months: AdminState['paymentMonths']; totals: AdminState['paymentTotals'] };
+          }>('/payments'),
+          getJson<{ data: PayrollItem[] }>(`/payrolls?month=${anchorDate.slice(0, 7)}`),
+          getJson<{ data: Reports }>('/reports'),
+        ]);
 
         if (cancelled) return;
+
+        const failed: string[] = [];
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') failed.push(names[i]);
+        });
+        if ([results[0], results[1], results[2]].some((r) => r.status === 'rejected')) {
+          const first = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+          dispatch({
+            type: 'loadError',
+            message: `Không tải được ${failed.join(', ')}: ${first.reason instanceof Error ? first.reason.message : 'lỗi máy chủ'}. Kiểm tra backend (npm start) rồi bấm Làm mới.`,
+          });
+          return;
+        }
+
+        const value = <T,>(index: number): T => (results[index] as PromiseFulfilledResult<T>).value;
+        const emptyReviews = {
+          data: [] as ReviewItem[],
+          meta: { total: 0, average: null, five: 0, four: 0, low: 0 } as AdminState['reviewStats'],
+        };
+        const emptyPayments = {
+          data: [] as PaymentItem[],
+          meta: {
+            months: [] as AdminState['paymentMonths'],
+            totals: { all: 0, paid: 0, deposit: 0, unpaid: 0 },
+          },
+        };
+        const services = value<{ data: ServiceItem[]; meta: { categories: CategoryItem[] } }>(0);
+        const staff = value<{ data: StaffItem[] }>(1);
+        const customers = value<{ data: CustomerItem[]; meta: CustomerStats }>(2);
+        const shifts = results[3].status === 'fulfilled'
+          ? value<{ data: ShiftItem[] }>(3) : { data: [] as ShiftItem[] };
+        const attendance = results[4].status === 'fulfilled'
+          ? value<{ data: AttendanceItem[] }>(4) : { data: [] as AttendanceItem[] };
+        const leave = results[5].status === 'fulfilled'
+          ? value<{ data: LeaveItem[] }>(5) : { data: [] as LeaveItem[] };
+        const scheduleRequests = results[6].status === 'fulfilled'
+          ? value<{ data: ScheduleRequestItem[] }>(6) : { data: [] as ScheduleRequestItem[] };
+        const reviews = results[7].status === 'fulfilled'
+          ? value<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>(7) : emptyReviews;
+        const payments = results[8].status === 'fulfilled'
+          ? value<{ data: PaymentItem[]; meta: { months: AdminState['paymentMonths']; totals: AdminState['paymentTotals'] } }>(8)
+          : emptyPayments;
+        const payrolls = results[9].status === 'fulfilled'
+          ? value<{ data: PayrollItem[] }>(9) : { data: [] as PayrollItem[] };
+        const reports = results[10].status === 'fulfilled'
+          ? value<{ data: Reports }>(10) : { data: null as unknown as Reports };
+        const partialNote = failed.length
+          ? ` (thiếu ${failed.join(', ')})`
+          : '';
+
         dispatch({
           type: 'loaded',
           payload: {
@@ -552,6 +609,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             paymentMonths: payments.meta.months,
             paymentTotals: payments.meta.totals,
             reports: reports.data,
+            feedback: partialNote ? `Một số mục chưa tải được${partialNote} — thử bấm Làm mới.` : '',
           },
         });
       } catch (error) {
@@ -576,7 +634,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .then((result) => {
         if (!cancelled) dispatch({ type: 'loaded', payload: { overview: result.data } });
       })
-      .catch(() => { /* lần tải chính sẽ báo lỗi nếu cả API hỏng */ });
+      .catch((error) => {
+        /* Tổng quan hỏng mà im lặng thì dashboard trắng trơn không rõ lý do. */
+        if (!cancelled) {
+          dispatch({
+            type: 'loadError',
+            message: error instanceof Error
+              ? `Không tải được tổng quan: ${error.message}`
+              : 'Không tải được tổng quan.',
+          });
+        }
+      });
 
     return () => { cancelled = true; };
   }, [reloadToken, user, chartRange]);
