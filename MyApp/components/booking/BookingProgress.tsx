@@ -5,10 +5,11 @@ const STEPS = [
   'Chọn dịch vụ\nNhân viên',
   'Chọn ngày\ngiờ',
   'Xác nhận\nthông tin',
+  'Thanh toán\nđặt cọc',
   'Hoàn tất',
 ];
 
-export function BookingProgress({ currentStep }: { currentStep: 1 | 2 | 3 | 4 }) {
+export function BookingProgress({ currentStep }: { currentStep: 1 | 2 | 3 | 4 | 5 }) {
   const completedWidth = `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` as `${number}%`;
 
   return <View style={styles.wrapper}>

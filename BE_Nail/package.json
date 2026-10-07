@@ -12,7 +12,8 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "smoke": "node scripts/smoke.mjs",
     "smoke:booking": "node scripts/smoke-booking.mjs",
-    "smoke:scope": "node scripts/check-staff-scope.mjs"
+    "smoke:scope": "node scripts/check-staff-scope.mjs",
+    "vnpay:check": "node scripts/check-vnpay.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

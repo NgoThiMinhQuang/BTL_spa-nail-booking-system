@@ -1,14 +1,43 @@
 import { api, uploadFiles } from '@/services/api';
 import type { ApiResponse } from '@/types';
-import type { Availability, Booking, BookingDraft, PaymentStatus } from './booking.types';
+import type { Availability, Booking, BookingDetail, BookingDraft, PaymentStatus } from './booking.types';
 
 type AvailabilityResponse = ApiResponse<string[]> & { meta: { duration: number; bufferTime: number } };
 
-/** Khung giờ còn trống của một chuyên viên trong ngày. */
+/** Khung giờ còn trống trong ngày. Bỏ trống staffId nghĩa là
+    "bất kỳ chuyên viên" — backend hợp nhất giờ của mọi người làm được. */
 export async function fetchAvailability(serviceId: string, staffId: string, date: string): Promise<Availability> {
-  const query = new URLSearchParams({ serviceId, staffId, date });
+  const query = new URLSearchParams({ serviceId, date });
+  if (staffId) query.set('staffId', staffId);
   const response = await api<AvailabilityResponse>(`/api/bookings/availability?${query}`);
   return { slots: response.data, duration: Number(response.meta.duration), bufferTime: Number(response.meta.bufferTime) };
+}
+
+export type DepositIntent = {
+  bookingId: string;
+  paymentUrl: string;
+  mock: boolean;
+  deposit: number;
+  total: number;
+  remaining: number;
+  rate: number;
+  expiresAt: string | null;
+  windowMinutes: number;
+};
+
+/** Xin URL thanh toán đặt cọc 30% cho lịch PENDING của chính mình. */
+export async function createDepositIntent(bookingId: string): Promise<DepositIntent> {
+  const response = await api<ApiResponse<DepositIntent>>(`/api/bookings/${encodeURIComponent(bookingId)}/deposit-intent`, {
+    method: 'POST',
+  });
+  const intent = response.data;
+  return {
+    ...intent,
+    bookingId: String(intent.bookingId),
+    deposit: Number(intent.deposit),
+    total: Number(intent.total),
+    remaining: Number(intent.remaining),
+  };
 }
 
 /** Khách đặt lịch. Không gửi customerId — backend lấy từ token. */

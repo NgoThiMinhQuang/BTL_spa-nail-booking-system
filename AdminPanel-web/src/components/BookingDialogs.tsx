@@ -129,6 +129,18 @@ export function ConfirmDialog({
         <strong>{fmtDate(booking.startsAt)}</strong>?
       </p>
 
+      {/* Luật backend: PENDING → CONFIRMED bắt buộc đã cọc. Báo trước để
+          Admin ghi nhận thanh toán trước thay vì bấm rồi mới thấy 409. */}
+      {booking.paymentStatus !== 'DEPOSITED' && booking.paymentStatus !== 'PAID' && (
+        <div className="adm-warn">
+          <Icon name="ban" />
+          <span>
+            <strong>Lịch chưa đặt cọc.</strong>
+            {' '}Xác nhận sẽ bị từ chối — vui lòng ghi nhận thanh toán (đặt cọc hoặc thu đủ) trước.
+          </span>
+        </div>
+      )}
+
       {blocked && (
         <div className="adm-warn">
           <Icon name="ban" />

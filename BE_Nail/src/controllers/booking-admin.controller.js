@@ -399,12 +399,6 @@ export async function patchBooking(req, res, next) {
         return res.status(409).json({ message: transition.reason });
       }
 
-      /* Xác nhận lịch thì bắt buộc phải có nhân viên. */
-      if (status === 'CONFIRMED' && !body.staffId && !current.staffId) {
-        await connection.rollback();
-        return res.status(409).json({ message: 'Chưa phân công nhân viên thì không xác nhận được lịch.' });
-      }
-
       set.push('b.status = ?'); params.push(status);
       if (status === 'CANCELLED') {
         const reason = String(body.cancelReason ?? '').trim().slice(0, 255);
@@ -470,6 +464,41 @@ export async function patchBooking(req, res, next) {
       }
     }
 
+    /* Trạng thái CUỐI CÙNG sau khi đã xử lý body.staffId: CONFIRMED mà
+       không có người phục vụ là trạng thái không hợp lệ. Phải kiểm tra ở
+       đây chứ không phải lúc đọc body.status, vì hai trường hợp lọt lưới:
+
+         PENDING (staff A) + PATCH { status: CONFIRMED, staffId: null }:
+         kiểm tra sớm thấy current.staffId nên cho qua, nhưng bên dưới lại
+         SET staff_id = NULL → CONFIRMED không người phục vụ.
+
+         CONFIRMED (staff A) + PATCH { staffId: null } riêng: không đổi
+         trạng thái nên kiểm tra sớm không chạy, vẫn gỡ được người. */
+    const targetStatus = body.status !== undefined
+      ? String(body.status).toUpperCase()
+      : current.status;
+    if (targetStatus === 'CONFIRMED' && staffId == null) {
+      await connection.rollback();
+      return res.status(409).json({ message: 'Chưa phân công nhân viên thì không xác nhận được lịch.' });
+    }
+
+    /* Xác nhận mới (PENDING → CONFIRMED) bắt buộc đã đặt cọc: khách chưa
+       trả đồng nào mà giữ slot thì slot của nhân viên bị chiếm oan. Lịch
+       đã CONFIRMED từ trước chỉ sửa người/giờ thì không kiểm tra lại —
+       cọc đã thu lúc xác nhận lần đầu. */
+    if (targetStatus === 'CONFIRMED' && current.status !== 'CONFIRMED') {
+      const [[deposit]] = await connection.query(
+        `SELECT payment_status AS status FROM payment
+          WHERE booking_id = ? LIMIT 1`, [id],
+      );
+      if (!deposit || !['DEPOSITED', 'PAID'].includes(deposit.status)) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Lịch chưa đặt cọc thì không xác nhận được. Vui lòng ghi nhận thanh toán trước.',
+        });
+      }
+    }
+
     /* ---- Thời gian ----
        Dùng duration và buffer chụp trên chính lịch này, không đọc
        services.duration hiện tại: xem ghi chú đầu hàm. */
@@ -493,7 +522,7 @@ export async function patchBooking(req, res, next) {
 
        Vì đang trong giao dịch nên khoá dòng lịch của nhân viên trước rồi
        mới hỏi khả dụng — FOR UPDATE chỉ có tác dụng trong giao dịch. */
-    const target = body.status ? String(body.status).toUpperCase() : current.status;
+    const target = targetStatus;
     const willRun = !SETTLED_STATUSES.includes(target);
 
     if (willRun && staffId) {
@@ -766,9 +795,22 @@ export async function createBooking(req, res, next) {
 
     const service = await loadActiveService(connection, serviceId);
 
+    /* Giống luồng khách đặt: undefined/null/'' là "bất kỳ nhân viên",
+       số nguyên là người cụ thể, còn lại ("abc", 1.5...) là 400. Trước
+       đây Number("abc") ra NaN rồi NaN||null thành null — input sai lại
+       bị hiểu thành "tự chọn người khác" rất nguy hiểm. */
+    const rawStaffId = req.body.staffId;
+    const walkInStaffId = rawStaffId === undefined || rawStaffId === null || rawStaffId === ''
+      ? null
+      : Number(rawStaffId);
+    if (walkInStaffId !== null && !Number.isInteger(walkInStaffId)) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Mã nhân viên không hợp lệ.' });
+    }
+
     const record = await createBookingRecord(connection, {
       serviceId,
-      staffId: Number(req.body.staffId) || null,
+      staffId: walkInStaffId,
       customerId,
       guestName,
       guestPhone,
@@ -827,11 +869,14 @@ export async function addAddon(req, res, next) {
   try {
     const bookingId = Number(req.params.id);
     const serviceId = Number(req.body.serviceId);
-    /* Giới hạn 1..20: một lịch có nhiều món phát sinh là bình thường,
-       nhưng số lượng vô hạn là dấu hiệu gõ nhầm. */
+    /* Số lượng 1..20. Thiếu thì mặc định 1; còn 0, số âm, số lẻ hay quá
+       lớn là input sai — báo 400 để người nhập biết, thay vì lặng lẽ
+       biến thành 1 rồi ghi hoá đơn sai ý họ. */
     const quantity = Number(req.body.quantity ?? 1);
-    const requested = Number.isInteger(quantity) && quantity >= 1 && quantity <= 20
-      ? quantity : 1;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+      return res.status(400).json({ message: 'Số lượng phải là số nguyên từ 1 đến 20.' });
+    }
+    const requested = quantity;
 
     if (!Number.isInteger(bookingId) || !Number.isInteger(serviceId)) {
       return res.status(400).json({ message: 'Mã lịch hẹn hoặc dịch vụ không hợp lệ.' });

@@ -55,10 +55,18 @@ export function AdminPaymentsPage() {
   ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   function startEdit(payment: PaymentItem) {
+    /* Lịch chưa có dòng payment thì không sửa được — chuyển sang chế độ
+       ghi mới, điền sẵn mã lịch. */
+    if (!payment.id) {
+      setEditing(null);
+      setForm({ bookingId: payment.bookingId, payStatus: 'PAID', amount: '', method: 'CASH', note: '' });
+      setFeedback('');
+      return;
+    }
     setEditing(payment);
     setForm({
       bookingId: payment.bookingId, payStatus: payment.paymentStatus,
-      amount: String(payment.amount), method: payment.paymentMethod, note: '',
+      amount: String(payment.amount), method: payment.paymentMethod ?? 'CASH', note: '',
     });
     setFeedback('');
   }
@@ -248,16 +256,16 @@ export function AdminPaymentsPage() {
               </thead>
               <tbody>
                 {rows.map((payment) => (
-                  <tr key={payment.id}>
+                  <tr key={payment.bookingId}>
                     <td>
                       <strong>{payment.paymentDate ? fmtDate(payment.paymentDate) : fmtDate(payment.startsAt)}</strong>
-                      <small>{METHOD_LABEL[payment.paymentMethod] ?? payment.methodText}</small>
+                      <small>{payment.paymentMethod ? METHOD_LABEL[payment.paymentMethod] ?? payment.methodText : 'Chưa ghi nhận'}</small>
                     </td>
                     <td>{payment.customerName}</td>
                     <td>{payment.serviceName}</td>
                     <td>{payment.staffName ?? <span className="adm-none">—</span>}</td>
                     <td><strong>{formatVND(payment.amount)}</strong></td>
-                    <td>{payment.methodText}</td>
+                    <td>{payment.methodText ?? <span className="adm-none">—</span>}</td>
                     <td>
                       <span className={`badge ${payment.paymentStatus === 'PAID' ? 'completed'
                         : payment.paymentStatus === 'DEPOSITED' ? 'pending' : 'cancelled'}`}>

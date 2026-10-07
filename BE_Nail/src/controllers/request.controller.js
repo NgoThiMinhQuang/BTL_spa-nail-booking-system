@@ -16,6 +16,11 @@
    nghỉ vừa giữ lịch của họ. */
 
 import { pool } from '../config/database.js';
+import { isDate } from '../lib/booking-service.js';
+
+/* Giờ HH:mm chặt: 00:00–23:59. Regex cũ /^\d{2}:\d{2}/ không neo cuối
+   (lọt "12:34:56") và cho qua cả "99:99". */
+const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /* ================================================================
    YÊU CẦU NGHỈ
@@ -93,6 +98,13 @@ export async function createLeaveRequest(req, res, next) {
     }
     if (endsAt <= startsAt) {
       return res.status(400).json({ message: 'Thời gian kết thúc phải sau thời gian bắt đầu.' });
+    }
+    /* Chỉ xin nghỉ cho tương lai: ca sáng xin lúc 10:00 cho khoảng
+       07:00–15:00 cùng ngày thì 3 tiếng đầu đã qua, duyệt kiểu gì cũng
+       dở. Trước đây chỉ chặn end <= now nên khoảng bắt đầu trong quá
+       khứ vẫn lọt. */
+    if (startsAt <= new Date()) {
+      return res.status(400).json({ message: 'Chỉ xin nghỉ cho khoảng thời gian trong tương lai.' });
     }
     if (endsAt <= new Date()) {
       return res.status(400).json({ message: 'Không thể xin nghỉ cho khoảng thời gian đã qua.' });
@@ -361,14 +373,34 @@ export async function createScheduleRequest(req, res, next) {
     const action = ['ADD', 'UPDATE', 'REMOVE'].includes(req.body?.action)
       ? req.body.action : 'ADD';
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    if (!isDate(workDate)) {
       return res.status(400).json({ message: 'Ngày làm việc không hợp lệ.' });
     }
-    if (action !== 'REMOVE' && (!/^\d{2}:\d{2}/.test(startTime) || !/^\d{2}:\d{2}/.test(endTime))) {
-      return res.status(400).json({ message: 'Giờ bắt đầu và kết thúc không hợp lệ.' });
+    if (action !== 'REMOVE' && (!CLOCK.test(startTime) || !CLOCK.test(endTime))) {
+      return res.status(400).json({ message: 'Giờ bắt đầu và kết thúc phải dạng HH:mm (00:00–23:59).' });
     }
-    if (action !== 'REMOVE' && startTime.slice(0, 5) >= endTime.slice(0, 5)) {
+    if (action !== 'REMOVE' && startTime >= endTime) {
       return res.status(400).json({ message: 'Giờ kết thúc phải sau giờ bắt đầu.' });
+    }
+
+    /* Mỗi action một ý nghĩa thật: ADD chỉ khi ngày đó chưa có ca,
+       UPDATE / REMOVE chỉ khi ngày đó đã có ca. Nếu không, ADD khi đã
+       có ca lại chạy giống UPDATE (xoá ca cũ, chèn ca mới) và UPDATE
+       khi chưa có ca lại chạy giống ADD. */
+    const [[existingShift]] = await pool.query(
+      `SELECT schedule_id FROM staff_schedule
+        WHERE staff_id = ? AND work_date = ? LIMIT 1`,
+      [req.user.staffId, workDate],
+    );
+    if (action === 'ADD' && existingShift) {
+      return res.status(409).json({
+        message: 'Ngày này bạn đã có ca làm việc. Muốn đổi giờ thì gửi yêu cầu đổi ca.',
+      });
+    }
+    if ((action === 'UPDATE' || action === 'REMOVE') && !existingShift) {
+      return res.status(409).json({
+        message: 'Ngày này bạn chưa có ca làm việc nên không đổi hoặc xoá được.',
+      });
     }
 
     const [[pending]] = await pool.query(
@@ -489,6 +521,27 @@ export async function approveScheduleRequest(req, res, next) {
     if (request.status !== 'PENDING') {
       await connection.rollback();
       return res.status(409).json({ message: 'Yêu cầu này đã được xử lý.' });
+    }
+
+    /* Action phải đúng nghĩa với ca hiện có lúc duyệt: ca có thể đã đổi
+       sau khi yêu cầu được gửi. ADD khi đã có ca thì chẳng khác gì
+       UPDATE, UPDATE khi chưa có ca thì chẳng khác gì ADD. */
+    const [[currentShift]] = await connection.query(
+      `SELECT schedule_id FROM staff_schedule
+        WHERE staff_id = ? AND work_date = ? LIMIT 1`,
+      [request.staffId, request.workDate],
+    );
+    if (request.action === 'ADD' && currentShift) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Ngày này đã có ca làm việc nên không duyệt thêm ca được. Nhân viên cần gửi lại yêu cầu đổi ca.',
+      });
+    }
+    if ((request.action === 'UPDATE' || request.action === 'REMOVE') && !currentShift) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Ngày này chưa có ca làm việc nên không duyệt đổi hoặc xoá ca được.',
+      });
     }
 
     /* Ca mới (hoặc xoá ca) không được bỏ rơi lịch đã có khách: nhân viên

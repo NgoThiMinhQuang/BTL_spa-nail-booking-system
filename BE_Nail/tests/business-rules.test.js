@@ -39,14 +39,15 @@ import * as dbConfig from '../src/config/database.js';
 /* Controller test cháº¡y trÃªn database test nhá» _setPoolForTests (xem
    src/config/database.js): má»i test bÃªn dÆ°á»›i gá»i controller nhÆ°ng khÃ´ng
    cháº¡m vÃ o database tháº­t. */
-import { addAddon, removeAddon } from '../src/controllers/booking-admin.controller.js';
+import { addAddon, patchBooking, removeAddon } from '../src/controllers/booking-admin.controller.js';
 import { addCustomerImage } from '../src/controllers/booking.controller.js';
 import { getHome } from '../src/controllers/home.controller.js';
 import { savePayment } from '../src/controllers/payment.controller.js';
 import { patchPayment } from '../src/controllers/payment.controller.js';
 import { register } from '../src/controllers/auth.controller.js';
-import { createBooking as createCustomerBooking } from '../src/controllers/booking.controller.js';
+import { cancelBooking, createBooking as createCustomerBooking, getAvailableSlots } from '../src/controllers/booking.controller.js';
 import { approveScheduleRequest } from '../src/controllers/request.controller.js';
+import { confirmDepositPayment, createDepositIntent, sweepExpiredDeposits } from '../src/controllers/deposit.controller.js';
 import { getBookingDetail } from '../src/controllers/booking.controller.js';
 import { deleteService, setStaffStatus } from '../src/controllers/catalog.controller.js';
 import {
@@ -1131,7 +1132,152 @@ describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
     assert.equal(isCancelWindowOpen(at(-3600000), now), false);
   });
 
-  /* ---------------- Double-book nhÃ¡nh báº¥t ká»³ nhÃ¢n viÃªn ---------------- */
+    /* ---------------- CONFIRMED bat buoc co nhan vien (trang thai cuoi) ---------------- */
+
+  test('PENDING + staff A, PATCH CONFIRMED + staffId null thi 409', async () => {
+    const { sid, day } = await makeStaff(25, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PENDING' });
+    const res = mockRes();
+    await patchBooking(
+      { params: { id: String(bookingId) }, body: { status: 'CONFIRMED', staffId: null }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+    const [[row]] = await testPool.query(
+      'SELECT status, staff_id AS staffId FROM booking WHERE booking_id = ?', [bookingId]);
+    assert.equal(row.status, 'PENDING');
+    assert.equal(Number(row.staffId), sid);
+  });
+
+  test('CONFIRMED + staff A, PATCH staffId null rieng thi 409', async () => {
+    const { sid, day } = await makeStaff(26, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'CONFIRMED' });
+    const res = mockRes();
+    await patchBooking(
+      { params: { id: String(bookingId) }, body: { staffId: null }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+    const [[row]] = await testPool.query(
+      'SELECT status, staff_id AS staffId FROM booking WHERE booking_id = ?', [bookingId]);
+    assert.equal(row.status, 'CONFIRMED');
+    assert.equal(Number(row.staffId), sid);
+  });
+
+  test('PENDING + staff A, PATCH CONFIRMED giu nguyen staff thi 200 (duong thanh cong)', async () => {
+    const { sid, day } = await makeStaff(27, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PENDING' });
+    await testPool.query(
+      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
+       VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())`, [bookingId]);
+    const res = mockRes();
+    await patchBooking(
+      { params: { id: String(bookingId) }, body: { status: 'CONFIRMED' }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    const [[row]] = await testPool.query(
+      'SELECT status, staff_id AS staffId FROM booking WHERE booking_id = ?', [bookingId]);
+    assert.equal(row.status, 'CONFIRMED');
+    assert.equal(Number(row.staffId), sid);
+  });
+
+    /* ---------------- CONFIRMED doi coc truoc ---------------- */
+
+  test('PENDING + staff, chua coc, PATCH CONFIRMED thi 409', async () => {
+    const { sid, day } = await makeStaff(29, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PENDING' });
+    const res = mockRes();
+    await patchBooking(
+      { params: { id: String(bookingId) }, body: { status: 'CONFIRMED' }, user: { name: 'Admin Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 409);
+    const [[row]] = await testPool.query(
+      'SELECT status FROM booking WHERE booking_id = ?', [bookingId]);
+    assert.equal(row.status, 'PENDING');
+  });
+
+  /* ---------------- Dat coc 30% giu cho ---------------- */
+
+  test('deposit-intent tra URL coc 30% cho lich PENDING', async () => {
+    const { sid, day } = await makeStaff(30, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PENDING' });
+    const res = mockRes();
+    await createDepositIntent(
+      { params: { id: String(bookingId) }, user: { customerId: 9001 }, protocol: 'http', get: () => 'localhost:3000', ip: '127.0.0.1' },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.deposit, 60000);
+    assert.equal(res.body.data.total, 200000);
+    assert.equal(res.body.data.remaining, 140000);
+    assert.ok(String(res.body.data.paymentUrl).includes('mock-pay'));
+  });
+
+  test('confirmDepositPayment ghi DEPOSITED va tu dong CONFIRMED', async () => {
+    const { sid, day } = await makeStaff(31, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'PENDING' });
+    const result = await confirmDepositPayment({ bookingId, amount: 60000 });
+    assert.equal(result.status, 200);
+    assert.equal(result.confirmed, true);
+    const [[row]] = await testPool.query(
+      'SELECT b.status, p.payment_status AS payStatus, p.amount FROM booking b LEFT JOIN payment p ON p.booking_id = b.booking_id WHERE b.booking_id = ?', [bookingId]);
+    assert.equal(row.status, 'CONFIRMED');
+    assert.equal(row.payStatus, 'DEPOSITED');
+    assert.equal(Number(row.amount), 60000);
+  });
+
+  test('sweep huy lich PENDING qua han, giu lich moi va lich da coc', async () => {
+    const a = await makeStaff(32, 3);
+    const expiredId = await makeBooking({ staffId: a.sid, day: a.day, status: 'PENDING' });
+    await testPool.query('UPDATE booking SET created_at = NOW() - INTERVAL 20 MINUTE WHERE booking_id = ?', [expiredId]);
+    const b = await makeStaff(33, 4);
+    const freshId = await makeBooking({ staffId: b.sid, day: b.day, status: 'PENDING' });
+    const paidId = await makeBooking({ staffId: b.sid, day: b.day, status: 'PENDING', from: '13:00:00', to: '14:15:00' });
+    await testPool.query('UPDATE booking SET created_at = NOW() - INTERVAL 20 MINUTE WHERE booking_id = ?', [paidId]);
+    await testPool.query("INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())", [paidId]);
+    const out2 = await sweepExpiredDeposits();
+    assert.ok(out2.cancelled >= 1);
+    const [[e]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [expiredId]);
+    assert.equal(e.status, 'CANCELLED');
+    const [[f]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [freshId]);
+    assert.equal(f.status, 'PENDING');
+    const [[g]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [paidId]);
+    assert.equal(g.status, 'PENDING');
+  });
+
+  test('khach huy lich da coc thi coc khong hoan', async () => {
+    const { sid, day } = await makeStaff(34, 3);
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'CONFIRMED' });
+    await testPool.query("INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())", [bookingId]);
+    const res = mockRes();
+    await cancelBooking(
+      { params: { id: String(bookingId) }, body: {}, user: { customerId: 9001, name: 'Khach Test' } },
+      res, strictNext,
+    );
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.forfeited, 60000);
+    const [[pay]] = await testPool.query('SELECT payment_status AS status FROM payment WHERE booking_id = ?', [bookingId]);
+    assert.equal(pay.status, 'DEPOSITED');
+  });
+
+/* ---------------- Availability bat ky chuyen vien ---------------- */
+
+  test('availability khong staffId tra gio union, staffId abc thi 400', async () => {
+    const { day } = await makeStaff(28, 3);
+    const okRes = mockRes();
+    await getAvailableSlots({ query: { serviceId: '1', date: day } }, okRes, strictNext);
+    assert.equal(okRes.statusCode, 200);
+    assert.ok(Array.isArray(okRes.body.data));
+    assert.ok(okRes.body.data.length > 0);
+    assert.equal(okRes.body.meta.duration, 60);
+    const badRes = mockRes();
+    await getAvailableSlots({ query: { serviceId: '1', staffId: 'abc', date: day } }, badRes, strictNext);
+    assert.equal(badRes.statusCode, 400);
+  });
+
+/* ---------------- Double-book nhÃ¡nh báº¥t ká»³ nhÃ¢n viÃªn ---------------- */
 
   test('hai khÃ¡ch cÃ¹ng Ä‘áº·t má»™t giá» thÃ¬ má»™t ngÆ°á»i nháº­n 409', async () => {
     /* NgÃ y ngoÃ i 8 ngÃ y seed (chá»‰ nhÃ¢n viÃªn cÃ¡ch ly cÃ³ ca) Ä‘á»ƒ cháº¯c cháº¯n

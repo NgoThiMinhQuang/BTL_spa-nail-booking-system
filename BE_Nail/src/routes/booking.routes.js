@@ -15,7 +15,7 @@ import {
    chưa PAID. Dùng chung một hàm để hai vai trò không lệch luật. */
 import { addAddon } from '../controllers/booking-admin.controller.js';
 import { authenticate, requireCustomer, requireStaff } from '../lib/auth.js';
-
+import { createDepositIntent } from '../controllers/deposit.controller.js';
 const router = Router();
 
 /* Xem khung giờ và đặt lịch là chuyện của khách — có thể xem không cần
@@ -37,6 +37,9 @@ router.post('/', authenticate, requireCustomer, createBooking);
 /* Khách tự hủy lịch của mình: PENDING hủy ngay, CONFIRMED hủy khi còn
    trên 2 giờ. */
 router.patch('/:id/cancel', authenticate, requireCustomer, cancelBooking);
+
+/* Xin URL thanh toán đặt cọc 30% cho lịch PENDING của chính mình. */
+router.post('/:id/deposit-intent', authenticate, requireCustomer, createDepositIntent);
 
 /* Khách đánh giá lịch đã hoàn thành, mỗi lịch một lần. */
 router.post('/:bookingId/review', authenticate, requireCustomer, createReview);

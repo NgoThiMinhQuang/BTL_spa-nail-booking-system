@@ -21,7 +21,7 @@ import { canStaffTransition, canTransition, isCancelWindowOpen } from '../lib/bo
 import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
 } from '../lib/booking-service.js';
-import { freeSlotsForStaff } from '../lib/staff-availability.js';
+import { freeSlotsForAnyStaff, freeSlotsForStaff } from '../lib/staff-availability.js';
 import fs from 'node:fs';
 import multer from 'multer';
 import path from 'node:path';
@@ -137,28 +137,53 @@ export async function getBookings(req, res, next) {
 export async function getAvailableSlots(req, res, next) {
   try {
     const serviceId = Number(req.query.serviceId);
-    const staffId = Number(req.query.staffId);
+    /* Bỏ trống staffId nghĩa là "bất kỳ chuyên viên" — backend hợp nhất
+       khung giờ của mọi người làm được dịch vụ (freeSlotsForAnyStaff),
+       còn người cụ thể thì giữ nguyên đường cũ. Phải phân biệt trước
+       khi Number(): Number(undefined) ra NaN. */
+    const rawStaffId = req.query.staffId;
+    const staffId = rawStaffId === undefined || rawStaffId === null || rawStaffId === ''
+      ? null
+      : Number(rawStaffId);
     const date = String(req.query.date ?? '');
 
-    if (!Number.isInteger(serviceId) || !Number.isInteger(staffId) || !isDate(date)) {
-      return res.status(400).json({ message: 'Dịch vụ, chuyên viên hoặc ngày không hợp lệ.' });
+    if (!Number.isInteger(serviceId) || !isDate(date)) {
+      return res.status(400).json({ message: 'Dịch vụ hoặc ngày không hợp lệ.' });
+    }
+    if (staffId !== null && !Number.isInteger(staffId)) {
+      return res.status(400).json({ message: 'Mã chuyên viên không hợp lệ.' });
     }
 
-    const [[svc]] = await pool.query(
-      `SELECT s.service_name, s.duration, s.buffer_time AS bufferTime
-         FROM services s
-         JOIN staff_service ss ON ss.service_id = s.service_id
-        WHERE s.service_id = ? AND ss.staff_id = ? AND s.status = 'ACTIVE' LIMIT 1`,
-      [serviceId, staffId],
-    );
-    if (!svc) return res.status(404).json({ message: 'Chuyên viên không thực hiện dịch vụ này.' });
+    let svc;
+    let slots;
+    if (staffId !== null) {
+      [[svc]] = await pool.query(
+        `SELECT s.service_name, s.duration, s.buffer_time AS bufferTime
+           FROM services s
+           JOIN staff_service ss ON ss.service_id = s.service_id
+          WHERE s.service_id = ? AND ss.staff_id = ? AND s.status = 'ACTIVE' LIMIT 1`,
+        [serviceId, staffId],
+      );
+      if (!svc) return res.status(404).json({ message: 'Chuyên viên không thực hiện dịch vụ này.' });
 
-    /* Gọi đúng hàm sinh khung giờ của hệ thống, không tự tính lại ở đây.
-       Nếu ở đây có một cách tính riêng thì lúc này báo "còn trống" nhưng
-       lúc đặt backend lại từ chối — đúng lỗi khách hài lòng nhất. */
-    const slots = await freeSlotsForStaff({
-      staffId, serviceId, day: date, duration: Number(svc.duration), bufferTime: Number(svc.bufferTime ?? 0),
-    });
+      /* Gọi đúng hàm sinh khung giờ của hệ thống, không tự tính lại ở đây.
+         Nếu ở đây có một cách tính riêng thì lúc này báo "còn trống" nhưng
+         lúc đặt backend lại từ chối — đúng lỗi khách hài lòng nhất. */
+      slots = await freeSlotsForStaff({
+        staffId, serviceId, day: date, duration: Number(svc.duration), bufferTime: Number(svc.bufferTime ?? 0),
+      });
+    } else {
+      [[svc]] = await pool.query(
+        `SELECT s.service_name, s.duration, s.buffer_time AS bufferTime
+           FROM services s
+          WHERE s.service_id = ? AND s.status = 'ACTIVE' LIMIT 1`,
+        [serviceId],
+      );
+      if (!svc) return res.status(404).json({ message: 'Dịch vụ không tồn tại hoặc đã ngừng hoạt động.' });
+      ({ slots } = await freeSlotsForAnyStaff({
+        serviceId, day: date, duration: Number(svc.duration), bufferTime: Number(svc.bufferTime ?? 0),
+      }));
+    }
 
     /* Khung giờ đã qua trong ngày hôm nay thì không đặt được nữa. */
     const today = new Date();
@@ -317,17 +342,33 @@ export async function cancelBooking(req, res, next) {
       [reason, id],
     );
 
+    /* Hủy sau khi đã cọc/trả tiền thì tiền không hoàn lại (không có
+       nghiệp vụ hoàn tiền): dòng payment giữ nguyên để báo cáo còn
+       thấy khoản đã thu, chỉ ghi rõ vào lịch sử và trả về cho app. */
+    const [[paid]] = await connection.query(
+      'SELECT payment_status AS status, amount FROM payment WHERE booking_id = ? LIMIT 1', [id]);
+    const forfeited = paid && paid.status !== 'UNPAID' ? Number(paid.amount) : 0;
+
     await logEvent({
       bookingId: id,
       type: 'CANCELLED',
-      detail: `Khách hủy lịch. Lý do: ${reason}.`,
+      detail: `Khách hủy lịch. Lý do: ${reason}.`
+        + (forfeited > 0 ? ` Tiền đã thanh toán (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.` : ''),
       actorRole: 'CUSTOMER',
       actorName: req.user.name,
       connection,
     });
 
     await connection.commit();
-    res.json({ data: { id: String(id), status: 'CANCELLED', cancelReason: reason } });
+    res.json({
+      data: {
+        id: String(id), status: 'CANCELLED', cancelReason: reason,
+        forfeited,
+        forfeitMessage: forfeited > 0
+          ? `Số tiền đã thanh toán (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.`
+          : null,
+      },
+    });
   } catch (error) {
     await connection.rollback();
     next(error);

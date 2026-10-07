@@ -270,10 +270,11 @@ export interface ReviewItem {
 }
 
 export interface PaymentItem {
-  id: string; amount: number; paymentMethod: string; paymentStatus: string;
+  /** null = lịch chưa có dòng payment (coi như UNPAID). */
+  id: string | null; amount: number; paymentMethod: string | null; paymentStatus: string;
   paymentDate: string | null; bookingId: string; startsAt: string;
   serviceName: string; customerName: string; staffName: string | null;
-  methodText: string; statusText: string;
+  methodText: string | null; statusText: string;
 }
 
 export interface Reports {

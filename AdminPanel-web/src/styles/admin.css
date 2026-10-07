@@ -387,6 +387,16 @@
 .adm-form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .adm-form-note{margin:0;font-size:11.5px;color:var(--nh-primary-dark);
   background:var(--nh-blush);border-radius:9px;padding:9px 11px}
+/* Dải thông tin tổng quan trong hộp sửa dịch vụ */
+.adm-service-summary{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;
+  font-size:12.5px;color:var(--nh-muted)}
+.adm-service-summary strong{color:var(--nh-ink);font-weight:700}
+/* Ô ảnh dịch vụ: xem trước + nhập link + nút xoá */
+.adm-image-row{display:flex;gap:10px;align-items:center}
+.adm-image-row input{flex:1;min-width:0}
+.adm-image-preview{width:52px;height:52px;flex:0 0 52px;border-radius:10px;object-fit:cover;
+  background:var(--nh-blush)}
+.adm-image-preview.adm-thumb-blank{display:grid;place-items:center}
 
 /* Màn hình nhỏ: KPI xuống 3 rồi 2 cột, hộp Dashboard xuống 1 cột.
    Ngưỡng chọn theo việc năm thẻ còn đủ chỗ cho nhãn không bị cắt:

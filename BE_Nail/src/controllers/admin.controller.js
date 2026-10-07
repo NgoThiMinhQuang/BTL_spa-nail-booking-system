@@ -187,7 +187,7 @@ export async function getOverview(req, res, next) {
         pool.query(`SELECT s.service_id AS id, s.service_name AS name, c.category_name AS category,
             COUNT(DISTINCT b.booking_id) AS bookings,
             COALESCE(SUM(CASE WHEN p.payment_status = 'PAID'
-                              THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
+                              THEN pay.amount ELSE 0 END), 0) AS revenue
           FROM services s
           JOIN service_category c ON c.category_id = s.category_id
           LEFT JOIN booking b ON b.service_id = s.service_id
@@ -203,7 +203,12 @@ export async function getOverview(req, res, next) {
             (SELECT COUNT(*) FROM booking WHERE status = 'PENDING') AS pendingCount,
             (SELECT COUNT(*) FROM staff_leave_request WHERE status = 'PENDING') AS leaveCount,
             (SELECT COUNT(*) FROM staff_schedule_request WHERE status = 'PENDING') AS scheduleCount,
-            (SELECT COUNT(*) FROM payment WHERE payment_status <> 'PAID') AS unpaidCount,
+            /* Lịch cần thu tiền mà chưa PAID — gồm cả lịch chưa có dòng
+               payment (đếm trên payment sẽ bỏ sót chúng). */
+            (SELECT COUNT(*) FROM booking b
+              LEFT JOIN payment p ON p.booking_id = b.booking_id
+             WHERE b.status NOT IN ('CANCELLED', 'NO_SHOW')
+               AND (p.booking_id IS NULL OR p.payment_status <> 'PAID')) AS unpaidCount,
             (SELECT COUNT(*) FROM booking
               WHERE status IN ('PENDING','CONFIRMED') AND staff_id IS NULL) AS unassignedCount`),
       ]);
@@ -766,24 +771,38 @@ export async function listReviews(req, res, next) {
    ================================================================ */
 export async function listPayments(req, res, next) {
   try {
+    /* Đi từ booking LEFT JOIN payment: mọi lịch cần thu tiền đều hiện,
+       kể cả những lịch Admin chưa từng ghi nhận (payment = NULL → UNPAID,
+       số tiền = tổng phải thu). Trước đây đi từ payment JOIN booking nên
+       ba lịch chưa ghi nhận thì cả ba đều biến mất khỏi trang. Lịch đã
+       hủy / khách không đến thì không có gì để thu nên loại, trừ khi
+       đã có dòng payment ghi nhận từ trước. */
     const [rows] = await pool.query(`SELECT
         pay.payment_id AS id,
-        pay.amount,
+        CASE WHEN pay.payment_status IN ('PAID', 'DEPOSITED')
+          THEN pay.amount
+          ELSE COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0)
+        END AS amount,
         pay.payment_method AS paymentMethod,
-        pay.payment_status AS paymentStatus,
+        COALESCE(pay.payment_status, 'UNPAID') AS paymentStatus,
         pay.payment_date AS paymentDate,
         b.booking_id AS bookingId,
         b.start_time AS startsAt,
         s.service_name AS serviceName,
         u.full_name AS customerName,
         su.full_name AS staffName
-      FROM payment pay
-      JOIN booking b ON b.booking_id = pay.booking_id
+      FROM booking b
+      LEFT JOIN payment pay ON pay.booking_id = b.booking_id
       JOIN services s ON s.service_id = b.service_id
       LEFT JOIN customer c ON c.customer_id = b.customer_id
       LEFT JOIN users u ON u.user_id = c.user_id
       LEFT JOIN staff st ON st.staff_id = b.staff_id
       LEFT JOIN users su ON su.user_id = st.user_id
+      LEFT JOIN (
+        SELECT booking_id, SUM(price * quantity) AS total
+        FROM booking_addon GROUP BY booking_id
+      ) addon ON addon.booking_id = b.booking_id
+      WHERE (b.status NOT IN ('CANCELLED', 'NO_SHOW') OR pay.booking_id IS NOT NULL)
       ORDER BY COALESCE(pay.payment_date, b.start_time) DESC
       LIMIT 200`);
 
@@ -800,20 +819,31 @@ export async function listPayments(req, res, next) {
       GROUP BY DATE_FORMAT(b.start_time, '%Y-%m')
       ORDER BY month DESC LIMIT 6`);
 
+    /* Tổng từ góc nhìn "phải thu": đã thu + cọc + còn nợ (gồm cả lịch
+       chưa có dòng payment). Trước đây chỉ SUM trên bảng payment nên
+       lịch chưa ghi nhận không được tính là chưa thanh toán. */
     const [totals] = await pool.query(`SELECT
-        COALESCE(SUM(amount), 0) AS allAmount,
-        COALESCE(SUM(CASE WHEN payment_status = 'PAID' THEN amount END), 0) AS paidAmount,
-        COALESCE(SUM(CASE WHEN payment_status = 'DEPOSITED' THEN amount END), 0) AS depositAmount,
-        COALESCE(SUM(CASE WHEN payment_status = 'UNPAID' THEN amount END), 0) AS unpaidAmount
-      FROM payment`);
+        COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID' THEN pay.amount END), 0) AS paidAmount,
+        COALESCE(SUM(CASE WHEN pay.payment_status = 'DEPOSITED' THEN pay.amount END), 0) AS depositAmount,
+        COALESCE(SUM(CASE WHEN pay.booking_id IS NULL OR pay.payment_status = 'UNPAID'
+          THEN COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0) END), 0) AS unpaidAmount
+      FROM booking b
+      LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+      JOIN services s ON s.service_id = b.service_id
+      LEFT JOIN (
+        SELECT booking_id, SUM(price * quantity) AS total
+        FROM booking_addon GROUP BY booking_id
+      ) addon ON addon.booking_id = b.booking_id
+      WHERE (b.status NOT IN ('CANCELLED', 'NO_SHOW') OR pay.booking_id IS NOT NULL)`);
 
     res.json({
       data: rows.map((row) => ({
         ...row,
-        id: String(row.id),
+        id: row.id == null ? null : String(row.id),
         bookingId: String(row.bookingId),
         amount: Number(row.amount),
-        methodText: METHOD_TEXT[row.paymentMethod] ?? row.paymentMethod,
+        paymentMethod: row.paymentMethod ?? null,
+        methodText: row.paymentMethod ? METHOD_TEXT[row.paymentMethod] ?? row.paymentMethod : null,
         statusText: PAYMENT_TEXT[row.paymentStatus] ?? row.paymentStatus,
       })),
       meta: {
@@ -824,7 +854,7 @@ export async function listPayments(req, res, next) {
           totalAmount: Number(row.totalAmount),
         })),
         totals: {
-          all: Number(totals[0].allAmount ?? 0),
+          all: Number(totals[0].paidAmount ?? 0) + Number(totals[0].depositAmount ?? 0) + Number(totals[0].unpaidAmount ?? 0),
           paid: Number(totals[0].paidAmount ?? 0),
           deposit: Number(totals[0].depositAmount ?? 0),
           unpaid: Number(totals[0].unpaidAmount ?? 0),
@@ -840,12 +870,10 @@ export async function listPayments(req, res, next) {
    Báo cáo — tổng hợp theo dịch vụ, nhân viên và khách hàng
 
    Định nghĩa doanh thu xuyên suốt báo cáo: CHỈ tính những lịch có
-   payment.paid_status = 'PAID'. Trước đây các bảng này lấy
-   SUM(s.price) của mọi lịch COMPLETED, nên:
-     - Lịch hoàn thành nhưng chưa thu tiền vẫn ra doanh thu.
-     - Lấy `s.price` là giá HIỆN TẠI, nên sau khi Admin đổi giá dịch vụ,
-       lịch cũ đổi tiền theo — trong khi khách đã trả theo giá cũ.
-   Nay cả hai đều lấy từ payment và từ giá chụp trên lịch.
+   payment_status = 'PAID', và lấy đúng số tiền đã thu (payment.amount,
+   gồm cả add-on) — đồng nhất với biểu đồ dashboard để hai nơi đối
+   chiếu được với nhau. Trước đây các bảng này lấy service_price nên
+   thiếu tiền add-on.
    ================================================================ */
 export async function getReports(req, res, next) {
   try {
@@ -853,7 +881,7 @@ export async function getReports(req, res, next) {
       pool.query(`SELECT s.service_name AS name, c.category_name AS category,
           COUNT(DISTINCT b.booking_id) AS bookings,
           COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID'
-                            THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
+                            THEN pay.amount ELSE 0 END), 0) AS revenue
         FROM services s
         JOIN service_category c ON c.category_id = s.category_id
         LEFT JOIN booking b ON b.service_id = s.service_id
@@ -865,7 +893,7 @@ export async function getReports(req, res, next) {
       pool.query(`SELECT u.full_name AS name, st.specialty,
           COUNT(DISTINCT b.booking_id) AS bookings,
           COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID'
-                            THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0) AS revenue
+                            THEN pay.amount ELSE 0 END), 0) AS revenue
         FROM staff st
         JOIN users u ON u.user_id = st.user_id
         LEFT JOIN booking b ON b.staff_id = st.staff_id
@@ -875,10 +903,12 @@ export async function getReports(req, res, next) {
         ORDER BY revenue DESC`),
 
       /* Tổng chi tiêu của khách tính trực tiếp từ các khoản đã PAID
-         (không còn cột cache trong schema). */
+         (không còn cột cache trong schema). paid.total đã là tổng của cả
+         khách nên phải MAX chứ không SUM — SUM sẽ nhân tổng đó lên theo
+         đúng số lịch của khách (3 lịch × 1.000.000 = 3.000.000 sai). */
       pool.query(`SELECT u.full_name AS name, u.phone,
           COUNT(DISTINCT b.booking_id) AS bookings,
-          COALESCE(SUM(paid.total), 0) AS spending
+          COALESCE(MAX(paid.total), 0) AS spending
         FROM customer c
         JOIN users u ON u.user_id = c.user_id
         LEFT JOIN booking b ON b.customer_id = c.customer_id

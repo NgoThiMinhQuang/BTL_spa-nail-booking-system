@@ -84,6 +84,12 @@ export default function SelectStaffScreen() {
     params: { serviceId: serviceId ?? '', staffId },
   });
 
+  /** Không chọn ai — backend tự xếp người còn trống lúc đặt lịch. */
+  const selectAnyStaff = () => router.push({
+    pathname: '/booking/confirm',
+    params: { serviceId: serviceId ?? '', staffId: '' },
+  });
+
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.header}>
@@ -137,6 +143,23 @@ export default function SelectStaffScreen() {
           {!!error && <View style={styles.messageBox}><Ionicons name="cloud-offline-outline" size={22} color={PALETTE.primary} /><Text style={styles.messageText}>{error}</Text><Pressable onPress={loadStaff}><Text style={styles.retry}>Thử lại</Text></Pressable></View>}
           {!error && !visibleStaff.length && <View style={styles.empty}><Ionicons name="people-outline" size={34} color={PALETTE.sage} /><Text style={styles.stateText}>Chưa tìm thấy chuyên viên phù hợp.</Text></View>}
 
+          {!error && !!eligibleStaff.length && (
+            <Pressable key="any-staff" onPress={selectAnyStaff} style={({ pressed }) => [styles.card, styles.anyCard, pressed && styles.cardPressed]}>
+              <View style={[styles.avatarFrame, styles.anyAvatarFrame]}>
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Ionicons name="people-outline" size={30} color={PALETTE.primary} />
+                </View>
+              </View>
+              <View style={styles.info}>
+                <View style={styles.nameRow}>
+                  <Text numberOfLines={1} style={styles.name}>Bất kỳ chuyên viên</Text>
+                </View>
+                <Text numberOfLines={2} style={styles.specialty}>Hệ thống tự chọn người còn trống phù hợp nhất</Text>
+                <View style={styles.detailRow}><Ionicons name="flash-outline" size={13} color={PALETTE.sage} /><Text style={styles.detail}>Xác nhận nhanh, không phải chờ</Text></View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#8E7F82" />
+            </Pressable>
+          )}
           {visibleStaff.map((item, index) => (
             <Pressable key={item.id} onPress={() => selectStaff(item.id)} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
               <View style={styles.avatarFrame}>
@@ -195,6 +218,8 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 14, gap: 12 },
   card: { minHeight: 148, borderRadius: 19, padding: 12, backgroundColor: PALETTE.surface, borderWidth: 1, borderColor: PALETTE.line, flexDirection: 'row', alignItems: 'center', shadowColor: '#6E4851', shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   cardPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
+  anyCard: { borderColor: PALETTE.primary, borderStyle: 'dashed' },
+  anyAvatarFrame: { height: 92 },
   avatarFrame: { width: 92, height: 116, borderRadius: 15, overflow: 'hidden', backgroundColor: PALETTE.primarySoft },
   avatar: { width: '100%', height: '100%' },
   avatarFallback: { alignItems: 'center', justifyContent: 'center' },

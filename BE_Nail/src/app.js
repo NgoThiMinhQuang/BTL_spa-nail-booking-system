@@ -12,6 +12,9 @@ import serviceRoutes from './routes/service.routes.js';
 import staffServiceRoutes from './routes/staff-service.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import { getMyPayments } from './controllers/payment.controller.js';
+import {
+  mockCancelPage, mockConfirm, mockPayPage, vnpayIpn, vnpayReturn,
+} from './controllers/deposit.controller.js';
 import { authenticate, requireCustomer } from './lib/auth.js';
 
 export const app = express();
@@ -78,6 +81,15 @@ app.use('/api/bookings', bookingRoutes);
 
 /* ---- Thanh toán của khách ---- */
 app.get('/api/customer/payments', authenticate, requireCustomer, getMyPayments);
+
+/* ---- VNPay đặt cọc: return/IPN do cổng thanh toán gọi về nên công khai,
+   xác thực bằng chữ ký HMAC trong controller. Trang mock chỉ sống ở
+   chế độ giả lập (chưa cấu hình key VNPay). */
+app.get('/api/payments/vnpay-return', vnpayReturn);
+app.get('/api/payments/vnpay-ipn', vnpayIpn);
+app.get('/api/payments/mock-pay', mockPayPage);
+app.get('/api/payments/mock-cancel', mockCancelPage);
+app.get('/api/payments/mock-confirm', mockConfirm);
 
 /* ---- Khu quản trị ----
    Router này tự bắt buộc token ADMIN ngay từ đầu, nên mọi đường bên

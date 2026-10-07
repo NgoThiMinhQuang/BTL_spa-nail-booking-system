@@ -42,7 +42,11 @@ export default function ConfirmBookingScreen() {
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(days[0].key + 'T00:00:00'));
 
   useEffect(() => {
-    Promise.all([fetchServiceById(serviceId), fetchStaffById(staffId), fetchAvailability(serviceId, staffId, days[0].key)])
+    Promise.all([
+      fetchServiceById(serviceId),
+      staffId ? fetchStaffById(staffId) : Promise.resolve(null),
+      fetchAvailability(serviceId, staffId, days[0].key),
+    ])
       .then(([serviceData, staffData, availability]) => { setService(serviceData); setStaff(staffData); setSlots(availability.slots); })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Không thể tải thông tin đặt lịch.'))
       .finally(() => setLoading(false));
@@ -89,8 +93,13 @@ export default function ConfirmBookingScreen() {
       {!!error && <View style={styles.errorBox}><Ionicons name="alert-circle-outline" size={20} color={COLORS.primary} /><Text style={styles.errorText}>{error}</Text></View>}
 
       <View style={styles.staffCard}>
-        {staff?.avatarUrl ? <Image source={{ uri: staff.avatarUrl }} style={styles.staffImage} /> : <View style={[styles.staffImage, styles.fallback]}><Text style={styles.initial}>{staff?.name.charAt(0)}</Text></View>}
-        <View style={styles.staffInfo}><View style={styles.rowBetween}><Text numberOfLines={1} style={styles.staffName}>{staff?.name}</Text><Pressable onPress={() => router.replace({ pathname: '/booking/select-service', params: { staffId } })} style={styles.changeButton}><Text style={styles.changeText}>Thay đổi</Text></Pressable></View><View style={styles.ratingRow}><Ionicons name="star" size={17} color={COLORS.gold} /><Text style={styles.rating}>{staff?.rating.toFixed(1)}</Text><Text style={styles.reviews}>({staff?.reviewCount} đánh giá)</Text></View><View style={styles.metaRow}><Ionicons name="briefcase" size={17} color={COLORS.muted} /><Text style={styles.metaText}>{staff?.experienceYears} năm kinh nghiệm</Text></View><View style={styles.metaRow}><Ionicons name="ribbon-outline" size={18} color={COLORS.sage} /><Text numberOfLines={1} style={styles.metaText}>Chuyên: {staff?.services.slice(0, 2).map((item) => item.name).join(', ')}</Text></View></View>
+        {staff ? (
+          <>{staff?.avatarUrl ? <Image source={{ uri: staff.avatarUrl }} style={styles.staffImage} /> : <View style={[styles.staffImage, styles.fallback]}><Text style={styles.initial}>{staff?.name.charAt(0)}</Text></View>}
+          <View style={styles.staffInfo}><View style={styles.rowBetween}><Text numberOfLines={1} style={styles.staffName}>{staff?.name}</Text><Pressable onPress={() => router.replace({ pathname: '/booking/select-service', params: { staffId } })} style={styles.changeButton}><Text style={styles.changeText}>Thay đổi</Text></Pressable></View><View style={styles.ratingRow}><Ionicons name="star" size={17} color={COLORS.gold} /><Text style={styles.rating}>{staff?.rating.toFixed(1)}</Text><Text style={styles.reviews}>({staff?.reviewCount} đánh giá)</Text></View><View style={styles.metaRow}><Ionicons name="briefcase" size={17} color={COLORS.muted} /><Text style={styles.metaText}>{staff?.experienceYears} năm kinh nghiệm</Text></View><View style={styles.metaRow}><Ionicons name="ribbon-outline" size={18} color={COLORS.sage} /><Text numberOfLines={1} style={styles.metaText}>Chuyên: {staff?.services.slice(0, 2).map((item) => item.name).join(', ')}</Text></View></View></>
+        ) : (
+          <><View style={[styles.staffImage, styles.fallback]}><Ionicons name="people-outline" size={34} color={COLORS.primary} /></View>
+          <View style={styles.staffInfo}><View style={styles.rowBetween}><Text numberOfLines={1} style={styles.staffName}>Bất kỳ chuyên viên</Text><Pressable onPress={() => router.replace({ pathname: '/booking/select-service', params: { staffId } })} style={styles.changeButton}><Text style={styles.changeText}>Thay đổi</Text></Pressable></View><View style={styles.metaRow}><Ionicons name="flash-outline" size={17} color={COLORS.sage} /><Text style={styles.metaText}>Hệ thống tự chọn người còn trống phù hợp nhất lúc đặt lịch</Text></View></View></>
+        )}
       </View>
 
       <View style={styles.serviceCard}>
