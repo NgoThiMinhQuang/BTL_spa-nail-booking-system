@@ -62,11 +62,14 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
       setMessage('Thưởng/khấu trừ phải là số nguyên ≥ 0.');
       return;
     }
+    await savePay(Number(bonus), Number(deduction));
+  }
+
+  async function savePay(bonus: number, deduction: number) {
     setBusy(true);
     setMessage('');
-    const result = await sendAdmin(`/payrolls`, 'POST', {
-      staffId: Number(item.staffId), month: item.periodMonth,
-      bonus: Number(bonus), deduction: Number(deduction),
+    const result = await sendAdmin('/payrolls', 'POST', {
+      staffId: Number(item.staffId), month: item.periodMonth, bonus, deduction,
     });
     setBusy(false);
     if (!result.ok) {
@@ -74,6 +77,41 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
       return;
     }
     onDone();
+  }
+
+  const KIND_TEXT: Record<string, string> = {
+    LATE: 'đi muộn', ABSENT: 'vắng không phép', UNPAID_LEAVE: 'nghỉ không lương',
+    PAID_LEAVE: 'nghỉ có lương', ON_TIME: 'đúng giờ',
+  };
+
+  async function suggest() {
+    setBusy(true);
+    setMessage('');
+    const result = await sendAdmin<{
+      suggestedDeduction: number; lateMinutes: number; lateDays: number;
+      absentDays: number; unpaidLeaveMinutes: number;
+      details: { workDate: string; kind: string; minutes: number; amount: number }[];
+    }>(`/payrolls/suggest-deduction?staffId=${item.staffId}&month=${item.periodMonth}`, 'GET');
+    setBusy(false);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    const s = result.data;
+    const lines = s.details
+      .filter((d) => d.amount > 0)
+      .map((d) => `${d.workDate}: ${KIND_TEXT[d.kind] ?? d.kind} ${d.minutes}p → ${formatVND(d.amount)}`)
+      .join('\n');
+    const ok = window.confirm(
+      `Gợi ý khấu trừ tháng ${item.periodMonth}:\n`
+      + `- Đi muộn: ${s.lateMinutes}p (${s.lateDays} ngày)\n`
+      + `- Vắng không phép: ${s.absentDays} ngày\n`
+      + `- Nghỉ không lương: ${s.unpaidLeaveMinutes}p\n`
+      + `=> Tổng gợi ý: ${formatVND(s.suggestedDeduction)}\n`
+      + (lines ? `\n${lines}\n` : '\n')
+      + `\nÁp dụng ${formatVND(s.suggestedDeduction)} vào ô khấu trừ (giữ nguyên thưởng ${formatVND(item.bonus)})?`,
+    );
+    if (ok) await savePay(item.bonus, s.suggestedDeduction);
   }
 
   async function toggleDetail() {
@@ -102,7 +140,11 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
         <td>{formatVND(item.baseSalary)}<small>{item.commissionRate}% hoa hồng</small></td>
         <td>{formatVND(item.serviceRevenue)}<small>doanh thu tính HH</small></td>
         <td>{formatVND(item.commissionAmount)}</td>
-        <td><strong>{formatVND(item.totalSalary)}</strong></td>
+        <td><strong>{formatVND(item.totalSalary)}</strong>
+          {(item.bonus > 0 || item.deduction > 0) && (
+            <small>+{formatVND(item.bonus)} −{formatVND(item.deduction)}</small>
+          )}
+        </td>
         <td>
           <span className={`badge ${item.status === 'PAID' ? 'completed' : item.status === 'CONFIRMED' ? 'pending' : ''}`}>
             <i />{STATUS_TEXT[item.status]}
@@ -115,6 +157,7 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
             </button>
             {item.status === 'DRAFT' && (
               <>
+                <button className="button secondary" disabled={busy} onClick={suggest}>Gợi ý trừ</button>
                 <button className="button secondary" disabled={busy} onClick={recalc}>Thưởng/Trừ</button>
                 <button className="button" disabled={busy} onClick={confirm}>Chốt</button>
               </>

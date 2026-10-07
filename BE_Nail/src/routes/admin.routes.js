@@ -49,6 +49,7 @@ import {
   payPayroll,
   previewPayroll,
   reopenPayroll,
+  suggestDeduction,
   upsertDraft,
 } from '../controllers/payroll.controller.js';
 import {
@@ -143,6 +144,7 @@ router.get('/attendance', listAttendanceAdmin);
 /* Phiếu lương: xem trước (không lưu) → tạo/tính lại nháp → chốt → trả.
    PAID thì khóa, chỉ mở lại được từ CONFIRMED về DRAFT. */
 router.get('/payrolls/preview', previewPayroll);
+router.get('/payrolls/suggest-deduction', suggestDeduction);
 router.get('/payrolls', listPayrolls);
 router.post('/payrolls', upsertDraft);
 router.get('/payrolls/:id', getPayroll);

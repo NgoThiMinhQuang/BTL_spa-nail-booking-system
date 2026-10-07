@@ -1502,3 +1502,82 @@ describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
     assert.equal(badRes.statusCode, 404);
   });
 });
+
+/* Khau tru luong: muon + vang khong phep + nghi EMERGENCY quy ra tien. */
+describe('Goi y khau tru luong', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+  test('muon 10p + vang 1 ngay + nghi dot xuat 1 ca dung so', async () => {
+    const connection = await connect();
+    try {
+      await connection.query(
+        'UPDATE staff SET base_salary = 26000000, commission_rate = 0 WHERE staff_id = 9001');
+      for (const day of ['2020-01-10', '2020-01-11', '2020-01-12']) {
+        await connection.query(
+          "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, ?, '09:00:00', '18:00:00', 'AVAILABLE') ON DUPLICATE KEY UPDATE start_time = '09:00:00', end_time = '18:00:00', status = 'AVAILABLE'",
+          [day]);
+      }
+      await connection.query(
+        "INSERT INTO staff_attendance (staff_id, work_date, check_in_at) VALUES (9001, '2020-01-10', '2020-01-10 09:20:00') ON DUPLICATE KEY UPDATE check_in_at = '2020-01-10 09:20:00', check_out_at = NULL");
+      await connection.query(
+        "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, status) VALUES (9001, '2020-01-12 09:00:00', '2020-01-12 18:00:00', 'Sot', 'EMERGENCY', 'APPROVED')");
+
+      const { suggestDeduction } = await import('../src/controllers/payroll.controller.js');
+      const res = mockRes();
+      await suggestDeduction(
+        { query: { staffId: '9001', month: '2020-01' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      if (res.statusCode !== 200) console.log('DEBUG suggest body:', JSON.stringify(res.body));
+      const d = res.body.data;
+      assert.equal(d.lateMinutes, 10);
+      assert.equal(d.absentDays, 1);
+      assert.equal(d.unpaidLeaveMinutes, 540);
+      // muon 10p (~20833) + vang 1 cong (1000000) + nghi 540p (1125000)
+      assert.equal(d.suggestedDeduction, 2145833);
+
+      await connection.query(
+        "DELETE FROM staff_attendance WHERE staff_id = 9001 AND work_date IN ('2020-01-10','2020-01-11','2020-01-12')");
+      await connection.query(
+        "DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date IN ('2020-01-10','2020-01-11','2020-01-12')");
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('UPDATE staff SET base_salary = 0, commission_rate = 0 WHERE staff_id = 9001');
+    } finally {
+      await connection.end();
+    }
+  });
+
+  test('nghi NORMAL ca ngay thi khong tru', async () => {
+    const connection = await connect();
+    try {
+      await connection.query(
+        'UPDATE staff SET base_salary = 26000000 WHERE staff_id = 9001');
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, '2020-02-10', '09:00:00', '18:00:00', 'AVAILABLE') ON DUPLICATE KEY UPDATE status = 'AVAILABLE'");
+      await connection.query(
+        "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, status) VALUES (9001, '2020-02-10 09:00:00', '2020-02-10 18:00:00', 'Phep nam', 'NORMAL', 'APPROVED')");
+
+      const { suggestDeduction } = await import('../src/controllers/payroll.controller.js');
+      const res = mockRes();
+      await suggestDeduction(
+        { query: { staffId: '9001', month: '2020-02' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.data.suggestedDeduction, 0);
+
+      await connection.query(
+        "DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = '2020-02-10'");
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('UPDATE staff SET base_salary = 0 WHERE staff_id = 9001');
+    } finally {
+      await connection.end();
+    }
+  });
+
+  test('thang sai dinh dang thi 400', async () => {
+    const { suggestDeduction } = await import('../src/controllers/payroll.controller.js');
+    const res = mockRes();
+    await suggestDeduction({ query: { staffId: '9001', month: '2020-13' } }, res, strictNext);
+    assert.equal(res.statusCode, 400);
+  });
+});

@@ -62,6 +62,169 @@ function totals({ base, rate, revenue, bonus, deduction }) {
   return { commission, total };
 }
 
+/* ================================================================
+   GỢI Ý KHẤU TRỪ từ chấm công + nghỉ duyệt
+   ----------------------------------------------------------------
+   Chuẩn công tháng = 26 ngày × 8 giờ (quy ước phổ biến cho spa).
+     perDay = base / 26 · perMinute = base / (26 × 8 × 60)
+   Nghỉ NORMAL đã duyệt = nghỉ có lương: không trừ.
+   Nghỉ EMERGENCY đã duyệt = nghỉ không lương: trừ đúng số phút nghỉ
+     chồng lên ca làm. Vắng cả ngày không phép (có ca, không check-in,
+     không nghỉ duyệt) = trừ 1 công. Đi muộn quá 10 phút ân hạn = trừ
+     theo phút. Kết quả chỉ là GỢI Ý đưa vào ô deduction — Admin vẫn
+     quyết định con số cuối khi tính phiếu.
+   ================================================================ */
+
+const STANDARD_DAYS = 26;
+const GRACE_MINUTES = 10;
+
+function clockMinutes(value) {
+  if (value instanceof Date) return value.getHours() * 60 + value.getMinutes();
+  const m = /^(\d{2}):(\d{2})/.exec(String(value ?? ''));
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 0 : d.getHours() * 60 + d.getMinutes();
+}
+
+/* Tính gợi ý khấu trừ, dùng chung cho endpoint và test. */
+export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
+  const base = Number(baseSalary ?? 0);
+  const perMinute = base / (STANDARD_DAYS * 8 * 60);
+  const perDay = base / STANDARD_DAYS;
+
+  const [shifts] = await runner.query(
+    `SELECT DATE_FORMAT(work_date,'%Y-%m-%d') AS workDate,
+            TIME_FORMAT(start_time,'%H:%i') AS shiftStart,
+            TIME_FORMAT(end_time,'%H:%i') AS shiftEnd
+       FROM staff_schedule
+      WHERE staff_id = ? AND DATE_FORMAT(work_date,'%Y-%m') = ?
+        AND status = 'AVAILABLE'
+      ORDER BY work_date`,
+    [staffId, period],
+  );
+  const [checks] = await runner.query(
+    `SELECT DATE_FORMAT(work_date,'%Y-%m-%d') AS workDate, check_in_at AS checkInAt
+       FROM staff_attendance WHERE staff_id = ? AND DATE_FORMAT(work_date,'%Y-%m') = ?`,
+    [staffId, period],
+  );
+  const [leaves] = await runner.query(
+    `SELECT start_datetime AS startAt, end_datetime AS endAt, leave_type AS leaveType
+       FROM staff_leave_request
+      WHERE staff_id = ? AND status = 'APPROVED'
+        AND DATE_FORMAT(start_datetime,'%Y-%m') <= ?
+        AND DATE_FORMAT(end_datetime,'%Y-%m') >= ?`,
+    [staffId, period, period],
+  );
+
+  const checkByDay = new Map(checks.map((c) => [c.workDate, c.checkInAt]));
+  let lateMinutes = 0;
+  let lateDays = 0;
+  let absentDays = 0;
+  let unpaidLeaveMinutes = 0;
+  const details = [];
+
+  for (const shift of shifts) {
+    const shiftStart = new Date(`${shift.workDate}T${shift.shiftStart}:00`);
+    const shiftEnd = new Date(`${shift.workDate}T${shift.shiftEnd}:00`);
+    const shiftLen = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+
+    /* Phút nghỉ chồng lên ca, tách theo loại. */
+    let normalCovered = 0;
+    let emergencyCovered = 0;
+    for (const leave of leaves) {
+      const from = new Date(leave.startAt);
+      const to = new Date(leave.endAt);
+      const overlap = Math.max(0, Math.round((Math.min(to, shiftEnd) - Math.max(from, shiftStart)) / 60000));
+      if (overlap <= 0) continue;
+      if ((leave.leaveType ?? 'NORMAL') === 'EMERGENCY') emergencyCovered += overlap;
+      else normalCovered += overlap;
+    }
+    normalCovered = Math.min(normalCovered, shiftLen);
+    emergencyCovered = Math.min(emergencyCovered, shiftLen - normalCovered);
+
+    if (normalCovered >= shiftLen) {
+      details.push({ workDate: shift.workDate, kind: 'PAID_LEAVE', minutes: shiftLen, amount: 0 });
+      continue;
+    }
+    if (emergencyCovered > 0) {
+      const amount = Math.round(emergencyCovered * perMinute);
+      unpaidLeaveMinutes += emergencyCovered;
+      details.push({ workDate: shift.workDate, kind: 'UNPAID_LEAVE', minutes: emergencyCovered, amount });
+    }
+
+    const checkIn = checkByDay.get(shift.workDate);
+    if (!checkIn) {
+      /* Vắng cả ngày không phép = 1 công; đã nghỉ đột xuất một phần thì
+         phần còn lại tính pro-rata theo phút. */
+      if (emergencyCovered > 0 || normalCovered > 0) {
+        const rest = shiftLen - normalCovered - emergencyCovered;
+        const amount = Math.round(rest * perMinute);
+        if (rest > 0) details.push({ workDate: shift.workDate, kind: 'ABSENT', minutes: rest, amount });
+      } else {
+        const amount = Math.round(perDay);
+        absentDays += 1;
+        details.push({ workDate: shift.workDate, kind: 'ABSENT', minutes: shiftLen, amount });
+      }
+      continue;
+    }
+    if (emergencyCovered === 0 && normalCovered === 0) {
+      const late = Math.max(0, clockMinutes(checkIn) - clockMinutes(shift.shiftStart) - GRACE_MINUTES);
+      if (late > 0) {
+        const amount = Math.round(late * perMinute);
+        lateMinutes += late;
+        lateDays += 1;
+        details.push({ workDate: shift.workDate, kind: 'LATE', minutes: late, amount });
+      } else {
+        details.push({ workDate: shift.workDate, kind: 'ON_TIME', minutes: 0, amount: 0 });
+      }
+    }
+  }
+
+  const suggested = details.reduce((sum, d) => sum + d.amount, 0);
+  return {
+    baseSalary: Math.round(base),
+    perMinuteRate: Math.round(perMinute * 100) / 100,
+    perDayRate: Math.round(perDay),
+    lateMinutes,
+    lateDays,
+    absentDays,
+    unpaidLeaveMinutes,
+    unpaidLeaveDays: Math.round((unpaidLeaveMinutes / (8 * 60)) * 100) / 100,
+    suggestedDeduction: suggested,
+    details,
+  };
+}
+
+/* GET /api/admin/payrolls/suggest-deduction?staffId=&month= — chỉ gợi ý,
+   không ghi gì vào phiếu. */
+export async function suggestDeduction(req, res, next) {
+  try {
+    const staffId = Number(req.query.staffId);
+    const period = readPeriod(req.query.month);
+    if (!Number.isInteger(staffId) || staffId <= 0) {
+      return res.status(400).json({ message: 'Mã nhân viên không hợp lệ.' });
+    }
+    if (!period) return res.status(400).json({ message: 'Tháng phải dạng YYYY-MM.' });
+
+    const [[staff]] = await pool.query(
+      `SELECT st.staff_id, u.full_name AS name, COALESCE(st.base_salary, 0) AS baseSalary
+         FROM staff st JOIN users u ON u.user_id = st.user_id
+        WHERE st.staff_id = ? LIMIT 1`,
+      [staffId],
+    );
+    if (!staff) return res.status(404).json({ message: 'Không tìm thấy nhân viên.' });
+
+    const result = await suggestDeductionFor(pool, staffId, period, staff.baseSalary);
+    res.json({
+      data: {
+        staffId: String(staffId), staffName: staff.name, periodMonth: period, ...result,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /* Tính thử (không lưu) — để Admin xem trước khi chốt. */
 export async function previewPayroll(req, res, next) {
   try {
