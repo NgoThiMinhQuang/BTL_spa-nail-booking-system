@@ -414,13 +414,17 @@ function Invoice({ b, code, profile }: { b: Booking; code: string; profile: Staf
                 Thanh toán: {b.paymentStatus === 'PAID' ? 'Đã thu đủ'
                   : b.paymentStatus === 'DEPOSITED'
                     ? `Đã cọc ${money(b.paidAmount ?? 0)}`
-                    : 'Chưa thu'}
+                    : b.paymentStatus === 'REFUNDED'
+                      ? 'Đã hoàn cọc'
+                      : 'Chưa thu'}
               </td>
               <td className="num">
-                {b.paymentStatus === 'PAID' ? money(b.total ?? b.price) : money(b.paidAmount ?? 0)}
+                {b.paymentStatus === 'PAID' ? money(b.total ?? b.price)
+                  : b.paymentStatus === 'REFUNDED' ? money(0)
+                  : money(b.paidAmount ?? 0)}
               </td>
             </tr>
-            {b.paymentStatus !== 'PAID' && (
+            {(b.paymentStatus !== 'PAID' && b.paymentStatus !== 'REFUNDED') && (
               <tr>
                 <td className="txt" colSpan={5}>Còn lại</td>
                 <td className="num">{money((b.total ?? b.price) - (b.paidAmount ?? 0))}</td>

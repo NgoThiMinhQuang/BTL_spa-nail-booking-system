@@ -41,7 +41,9 @@ function BookingCard({ booking, filter, onChanged }: { booking: Booking; filter:
     ? 'Đã thanh toán'
     : booking.paymentStatus === 'DEPOSITED'
       ? `Đã cọc ${(booking.paidAmount ?? 0).toLocaleString('vi-VN')}đ`
-      : 'Chưa thanh toán';
+      : booking.paymentStatus === 'REFUNDED'
+        ? 'Đã hoàn cọc'
+        : 'Chưa thanh toán';
 
   /* Hủy lịch của chính mình. Luật ở backend (PENDING luôn được,
      CONFIRMED còn trên 2 giờ) nên ở đây chỉ hỏi lại cho chắc, lỗi hiện

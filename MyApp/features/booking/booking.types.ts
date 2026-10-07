@@ -1,7 +1,7 @@
 export type BookingStatus = 'pending' | 'confirmed' | 'processing' | 'completed' | 'cancelled' | 'no_show';
 
 /** Trạng thái thanh toán, tách khỏi trạng thái lịch. */
-export type PaymentStatus = 'UNPAID' | 'DEPOSITED' | 'PAID';
+export type PaymentStatus = 'UNPAID' | 'DEPOSITED' | 'PAID' | 'REFUNDED';
 
 export type Booking = {
   id: string;

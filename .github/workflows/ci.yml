@@ -6,9 +6,9 @@ name: CI
 on:
   push:
     branches: [main]
-    paths: ['BE_Nail/**', '.github/workflows/ci.yml']
+    paths: ['BE_Nail/**', 'Admin-web/**', 'AdminPanel-web/**', 'MyApp/**', '.github/workflows/ci.yml']
   pull_request:
-    paths: ['BE_Nail/**']
+    paths: ['BE_Nail/**', 'Admin-web/**', 'AdminPanel-web/**', 'MyApp/**']
 
 jobs:
   business-rules:
@@ -39,3 +39,26 @@ jobs:
           DB_USER: root
           DB_PASSWORD: root
           TEST_DB_NAME: nail_management_test
+
+  typecheck:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - app: Admin-web
+            cmd: npm run typecheck
+          - app: AdminPanel-web
+            cmd: npm run typecheck
+          - app: MyApp
+            cmd: npx tsc --noEmit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.app }}
+      - run: ${{ matrix.cmd }}
+        working-directory: ${{ matrix.app }}

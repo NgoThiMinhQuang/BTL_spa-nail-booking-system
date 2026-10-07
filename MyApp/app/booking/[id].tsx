@@ -171,7 +171,9 @@ export default function BookingDetailScreen() {
               {booking.paymentStatus === 'PAID' ? 'Đã thanh toán'
                 : booking.paymentStatus === 'DEPOSITED'
                   ? `Đã cọc ${(booking.paidAmount ?? 0).toLocaleString('vi-VN')}đ`
-                  : 'Chưa thanh toán'}
+                  : booking.paymentStatus === 'REFUNDED'
+                    ? 'Đã hoàn cọc'
+                    : 'Chưa thanh toán'}
             </Text>}
           </Row>
           <Row icon="cash-outline" label="Tổng tiền">{<Text style={styles.rowText}>{(booking.total ?? 0).toLocaleString('vi-VN')}đ</Text>}</Row>
