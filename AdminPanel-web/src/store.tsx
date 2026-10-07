@@ -244,6 +244,16 @@ export interface ShiftItem {
   status: 'AVAILABLE' | 'OFF'; bookingCount: number;
 }
 
+export interface AttendanceItem {
+  staffId: string; staffName: string;
+  workDate: string;
+  checkInAt: string | null; checkOutAt: string | null;
+  shiftStart: string | null; shiftEnd: string | null;
+  status: 'ON_TIME' | 'LATE' | 'MISSING';
+  lateMinutes: number; earlyMinutes: number; workMinutes: number;
+  onLeave: boolean;
+}
+
 export interface LeaveItem {
   id: string; staffId: string; staffName: string; specialty: string | null;
   startDatetime: string; endDatetime: string; reason: string | null;
@@ -306,6 +316,7 @@ export interface AdminState {
   /** Tổng số liệu toàn danh sách, để bốn thẻ thống kê không phải cộng lại. */
   customerStats: CustomerStats;
   shifts: ShiftItem[];
+  attendance: AttendanceItem[];
   leave: LeaveItem[];
   scheduleRequests: ScheduleRequestItem[];
   reviews: ReviewItem[];
@@ -356,6 +367,7 @@ export const initialState: AdminState = {
   customers: [],
   customerStats: { total: 0, totalSpending: 0, noShowCount: 0, completedCount: 0 },
   shifts: [],
+  attendance: [],
   leave: [],
   scheduleRequests: [],
   reviews: [],
@@ -487,7 +499,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [services, staff, customers, shifts, leave, scheduleRequests, reviews, payments, reports] =
+        const [services, staff, customers, shifts, attendance, leave, scheduleRequests, reviews, payments, reports] =
           await Promise.all([
             /* Danh mục nằm ở /catalog/services (xem admin.routes.js). Trước đây
          gọi /services không tồn tại nên trang Dịch vụ của Admin trắng. */
@@ -495,6 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             getJson<{ data: StaffItem[] }>('/staff'),
             getJson<{ data: CustomerItem[]; meta: CustomerStats }>('/customers'),
             getJson<{ data: ShiftItem[] }>(`/schedule?from=${week[0]}&to=${week[6]}`),
+            getJson<{ data: AttendanceItem[] }>(`/attendance?from=${week[0]}&to=${week[6]}`),
             getJson<{ data: LeaveItem[] }>('/leave'),
             getJson<{ data: ScheduleRequestItem[] }>('/schedule-requests'),
             getJson<{ data: ReviewItem[]; meta: AdminState['reviewStats'] }>('/reviews'),
@@ -515,6 +528,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             customers: customers.data,
       customerStats: customers.meta,
             shifts: shifts.data,
+            attendance: attendance.data,
             leave: leave.data,
             scheduleRequests: scheduleRequests.data,
             reviews: reviews.data,

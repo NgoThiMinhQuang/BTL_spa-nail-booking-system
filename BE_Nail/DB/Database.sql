@@ -593,6 +593,29 @@ CREATE TABLE promotions (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
+--  18. STAFF_ATTENDANCE — chấm công thực tế (check-in / check-out)
+-- ----------------------------------------------------------------------------
+--  Một ngày một dòng. So với ca (staff_schedule) để biết đi muộn / về sớm.
+--  Nghỉ đã duyệt (kể cả EMERGENCY) thì không check-in được.
+-- ============================================================================
+DROP TABLE IF EXISTS `staff_attendance`;
+CREATE TABLE staff_attendance (
+    attendance_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    staff_id BIGINT NOT NULL,
+    work_date DATE NOT NULL,
+    check_in_at DATETIME NULL,
+    check_out_at DATETIME NULL,
+    note VARCHAR(500) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_attendance_day (staff_id, work_date),
+    KEY idx_attendance_date (work_date),
+    CONSTRAINT fk_attendance_staff FOREIGN KEY (staff_id)
+        REFERENCES staff(staff_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ============================================================================
 --  DỮ LIỆU MẪU
 -- ----------------------------------------------------------------------------
 --  Mật khẩu tất cả tài khoản demo: 123456

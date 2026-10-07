@@ -700,6 +700,7 @@ describe('Báº£ng nghiá»‡p vá»¥', () => {
     'staff_leave_request',
     'staff_schedule_request',
     'review_images',
+    'staff_attendance',
   ];
 
   for (const table of tables) {

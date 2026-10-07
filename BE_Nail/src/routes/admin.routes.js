@@ -41,6 +41,7 @@ import {
   updateSchedule,
 } from '../controllers/request.controller.js';
 import { patchPayment, savePayment } from '../controllers/payment.controller.js';
+import { listAttendanceAdmin } from '../controllers/attendance.controller.js';
 import {
   assignServices,
   createCategory,
@@ -126,6 +127,9 @@ router.patch('/schedule-requests/:id/reject', rejectScheduleRequest);
 router.post('/schedule', createSchedule);
 router.put('/schedule/:id', updateSchedule);
 router.delete('/schedule/:id', deleteSchedule);
+
+/* Chấm công toàn cửa hàng trong khoảng ngày. */
+router.get('/attendance', listAttendanceAdmin);
 
 /* Alias giữ lại đường cũ /api/admin/leave cho các màn hình đang dùng. */
 router.get('/leave', listLeaveRequests);

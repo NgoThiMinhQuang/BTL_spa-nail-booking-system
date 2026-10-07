@@ -30,7 +30,7 @@ export async function staffDashboard(req, res, next) {
   if (!date) return res.status(400).json({ message: 'Ngày không hợp lệ.' });
 
   try {
-    const [[profiles], [bookings], [customers], [services], [shifts], [leave], [images], [addonRows], [reviews]] = await Promise.all([
+    const [[profiles], [bookings], [customers], [services], [shifts], [leave], [images], [addonRows], [reviews], [attendance]] = await Promise.all([
       pool.query(
         `SELECT st.staff_id AS id, u.full_name AS name, u.avatar, u.email, u.phone,
           st.specialty, st.experience_year AS experienceYears
@@ -164,6 +164,14 @@ export async function staffDashboard(req, res, next) {
           WHERE b.staff_id = ?
           ORDER BY r.created_at DESC LIMIT 10`, [staffId],
       ),
+
+      /* Chấm công ngày đang xem — để thẻ ca hiển thị nút check-in/out. */
+      pool.query(
+        `SELECT DATE_FORMAT(work_date,'%Y-%m-%d') AS workDate,
+                check_in_at AS checkInAt, check_out_at AS checkOutAt, note
+           FROM staff_attendance WHERE staff_id = ? AND work_date = ? LIMIT 1`,
+        [staffId, date],
+      ),
     ]);
 
     if (!profiles.length) {
@@ -215,6 +223,7 @@ export async function staffDashboard(req, res, next) {
         })),
         shifts,
         leave: leave.map((item) => ({ ...item, id: String(item.id) })),
+        attendance: attendance[0] ?? null,
         recentReviews: reviews.map((review) => ({
           id: String(review.id),
           bookingId: String(review.bookingId),

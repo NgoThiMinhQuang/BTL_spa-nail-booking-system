@@ -74,7 +74,7 @@ function ScheduleRequestRow({ item, onDone }: { item: ScheduleRequestItem; onDon
 
 export function AdminWorkSchedulePage() {
   const { state, anchorDate, setAnchorDate, reload } = useApp();
-  const { shifts, staff, scheduleRequests } = state;
+  const { shifts, staff, scheduleRequests, attendance } = state;
 
   const week = weekAround(anchorDate);
   const isThisWeek = week[0] <= today() && today() <= week[6];
@@ -87,6 +87,10 @@ export function AdminWorkSchedulePage() {
     const list = byStaffDay.get(key);
     if (list) list.push(shift);
     else byStaffDay.set(key, [shift]);
+  }
+  const attByStaffDay = new Map<string, (typeof attendance)[number]>();
+  for (const record of attendance) {
+    attByStaffDay.set(`${record.staffId}|${record.workDate}`, record);
   }
 
   const totalShifts = shifts.length;
@@ -279,6 +283,19 @@ export function AdminWorkSchedulePage() {
                                   {dayShifts.length > 1 ? `${dayShifts.length} ca · ` : ''}
                                   {Math.round((end - start) / 60 * 10) / 10}h · {booked} lịch
                                 </small>
+                                {(() => {
+                                  const att = attByStaffDay.get(`${person.id}|${day}`);
+                                  if (!att) return null;
+                                  if (att.onLeave) return <small>🏖️ Đang nghỉ duyệt</small>;
+                                  if (!att.checkInAt) return <small>⚠️ Chưa chấm công</small>;
+                                  return (
+                                    <small>
+                                      ✓ {String(att.checkInAt).slice(11, 16)}
+                                      {att.checkOutAt ? ` → ${String(att.checkOutAt).slice(11, 16)}` : ' → chưa về'}
+                                      {att.status === 'LATE' ? ` · muộn ${att.lateMinutes}p` : ''}
+                                    </small>
+                                  );
+                                })()}
                               </>
                             )}
                           </div>

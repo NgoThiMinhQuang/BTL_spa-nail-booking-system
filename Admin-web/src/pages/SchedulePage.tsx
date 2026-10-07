@@ -425,15 +425,36 @@ function MonthGrid({ rows }: { rows: Booking[] }) {
   );
 }
 
-/* ===== Ca làm việc trong ngày ===== */
+/* ===== Ca làm việc trong ngày + chấm công ===== */
 
 function WorkdayCard() {
-  const { state } = useApp();
+  const { state, reload } = useApp();
   const allShifts = state.data!.shifts;
   const dayShifts = allShifts.filter((s) => s.date === state.date);
   const available = dayShifts.filter((s) => s.status === 'AVAILABLE');
   const time = new Date().toTimeString().slice(0, 5);
   const working = state.date === localDate() && available.some((s) => s.start <= time && s.end > time);
+  const attendance = state.data!.attendance ?? null;
+  const isToday = state.date === localDate();
+  const [attBusy, setAttBusy] = useState(false);
+  const [attMsg, setAttMsg] = useState('');
+
+  async function mark(action: 'check-in' | 'check-out') {
+    setAttBusy(true);
+    setAttMsg('');
+    try {
+      const saved = await apiRequest<{ checkInAt: string | null; checkOutAt: string | null; message?: string }>(
+        `/api/staff/attendance/${action}`,
+        { method: 'POST' },
+      );
+      setAttMsg(saved?.message ?? (action === 'check-in' ? 'Đã check-in.' : 'Đã check-out.'));
+      reload();
+    } catch (e) {
+      setAttMsg(e instanceof Error ? e.message : 'Chấm công thất bại.');
+    } finally {
+      setAttBusy(false);
+    }
+  }
 
   return (
     <section className="panel workday-card">
@@ -457,7 +478,31 @@ function WorkdayCard() {
       <dl>
         <div><dt>Ngày làm việc</dt><dd>{state.date.split('-').reverse().join('/')}</dd></div>
         <div><dt>Ca được phân công</dt><dd>{available.length} ca</dd></div>
+        <div>
+          <dt>Chấm công</dt>
+          <dd>
+            {attendance?.checkInAt
+              ? `${String(attendance.checkInAt).slice(11, 16)}${attendance.checkOutAt ? ` → ${String(attendance.checkOutAt).slice(11, 16)}` : ' → chưa về'}`
+              : 'Chưa check-in'}
+          </dd>
+        </div>
       </dl>
+      {isToday && available.length > 0 && (
+        <div className="leave-actions" style={{ padding: '0 14px' }}>
+          {!attendance?.checkInAt ? (
+            <button className="leave-submit" disabled={attBusy} onClick={() => mark('check-in')}>
+              {attBusy ? 'Đang ghi…' : 'Check-in vào ca'}
+            </button>
+          ) : !attendance?.checkOutAt ? (
+            <button className="leave-submit" disabled={attBusy} onClick={() => mark('check-out')}>
+              {attBusy ? 'Đang ghi…' : 'Check-out tan ca'}
+            </button>
+          ) : (
+            <span className="badge completed"><i />Đã chấm công đủ</span>
+          )}
+        </div>
+      )}
+      {attMsg && <p className="booking-action-note" style={{ margin: '10px 14px 0' }}>{attMsg}</p>}
       <details className="shift-disclosure">
         <summary>Xem ca làm trong 7 ngày →</summary>
         <div className="shift-list">

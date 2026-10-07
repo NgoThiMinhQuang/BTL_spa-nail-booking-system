@@ -103,12 +103,20 @@ export interface StaffReview {
   images: string[];
 }
 
+export interface Attendance {
+  workDate: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  note: string | null;
+}
+
 export interface Dashboard {
   profile: StaffProfile;
   bookings: Booking[];
   customers: CustomerSummary[];
   services: ServiceItem[];
   shifts: Shift[];
+  attendance?: Attendance | null;
   date: string;
   recentReviews?: StaffReview[];
 }

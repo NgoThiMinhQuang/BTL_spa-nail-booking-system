@@ -6,6 +6,11 @@ import {
   listMyLeaveRequests,
   listMyScheduleRequests,
 } from '../controllers/request.controller.js';
+import {
+  checkIn,
+  checkOut,
+  listMyAttendance,
+} from '../controllers/attendance.controller.js';
 import { staffDashboard } from '../controllers/staff-dashboard.controller.js';
 import { authenticate, requireStaff } from '../lib/auth.js';
 
@@ -30,6 +35,11 @@ router.get('/leave-requests', authenticate, requireStaff, listMyLeaveRequests);
 /* Yêu cầu lịch làm việc — chỉ gửi đề nghị, chưa có hiệu lực. */
 router.post('/schedule-requests', authenticate, requireStaff, createScheduleRequest);
 router.get('/schedule-requests', authenticate, requireStaff, listMyScheduleRequests);
+
+/* Chấm công thực tế — chỉ cho chính mình, chỉ trong hôm nay. */
+router.post('/attendance/check-in', authenticate, requireStaff, checkIn);
+router.post('/attendance/check-out', authenticate, requireStaff, checkOut);
+router.get('/attendance/me', authenticate, requireStaff, listMyAttendance);
 
 /* ================================================================
    2. DANH MỤC NHÂN VIÊN — công khai
