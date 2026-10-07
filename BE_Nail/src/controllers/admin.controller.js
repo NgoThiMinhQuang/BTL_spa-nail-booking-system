@@ -220,19 +220,17 @@ export async function getOverview(req, res, next) {
 
     const today = todayRows[0][0];
 
-    /* Tiền thu hôm nay tính theo NGÀY THANH TOÁN (payment_date), không
-       theo ngày hẹn: khách đặt 07/10 cho lịch 10/10 mà trả ngay 07/10 thì
-       tiền về két ngày 07/10. Đây là "tiền thu", khác "doanh thu dịch vụ"
-       (tính theo ngày thực hiện COMPLETED + PAID) trên biểu đồ.
-       Giới hạn đã biết: một lịch chỉ có một dòng payment nên lịch cọc
-       trước-trả sau vẫn mang payment_date của lần thu đầu — muốn chính
-       xác từng giao dịch phải tách bảng payment_transaction. */
+    /* Tiền thu hôm nay tính theo NGÀY THANH TOÁN THẬT (từng giao dịch
+       cọc/trả nốt/hoàn trong payment_transaction), không theo ngày hẹn:
+       khách đặt 07/10 cho lịch 10/10 mà trả ngay 07/10 thì tiền về két
+       ngày 07/10. Đây là "tiền thu", khác "doanh thu dịch vụ" (tính theo
+       ngày thực hiện COMPLETED + PAID) trên biểu đồ. */
     const [moneyRows] = await pool.query(`SELECT
-        COALESCE(SUM(pay.payment_status = 'PAID'), 0) AS paidCount,
-        COALESCE(SUM(CASE WHEN pay.payment_status = 'PAID' THEN pay.amount END), 0) AS paidAmount,
-        COALESCE(SUM(CASE WHEN pay.payment_status = 'DEPOSITED' THEN pay.amount END), 0) AS depositAmount
-      FROM payment pay
-      WHERE DATE(pay.payment_date) = CURDATE()`);
+        COUNT(CASE WHEN t.type = 'FINAL' THEN 1 END) AS paidCount,
+        COALESCE(SUM(CASE WHEN t.type = 'FINAL' THEN t.amount END), 0) AS paidAmount,
+        COALESCE(SUM(CASE WHEN t.type = 'DEPOSIT' THEN t.amount END), 0) AS depositAmount
+      FROM payment_transaction t
+      WHERE DATE(t.paid_at) = CURDATE()`);
 
     const money = moneyRows[0];
     /* todoRows có dạng [rows, fields] nên phải lấy [0][0] mới ra đối tượng. */
@@ -324,12 +322,19 @@ export async function listServices(req, res, next) {
            JOIN users su ON su.user_id = st.user_id
           WHERE ss.service_id = s.service_id) AS staffNames,
         (SELECT COUNT(*) FROM booking b WHERE b.service_id = s.service_id) AS bookingCount,
-        /* Doanh thu = tiền thực thu (payment.amount gồm cả add-on) trên
-           lịch COMPLETED đã PAID — đồng nhất với báo cáo và payroll. */
-        (SELECT COALESCE(SUM(p3.amount), 0)
+        /* Doanh thu đúng dịch vụ: snapshot dịch vụ chính của các lịch
+           COMPLETED đã PAID cộng add-on của chính dịch vụ này (không dồn
+           cả bill sang dịch vụ chính của lịch). */
+        (SELECT COALESCE(SUM(COALESCE(b3.service_price, s3.price)), 0)
            FROM booking b3
            JOIN payment p3 ON p3.booking_id = b3.booking_id AND p3.payment_status = 'PAID'
-          WHERE b3.service_id = s.service_id AND b3.status = 'COMPLETED') AS revenue,
+           JOIN services s3 ON s3.service_id = b3.service_id
+          WHERE b3.service_id = s.service_id AND b3.status = 'COMPLETED')
+        + (SELECT COALESCE(SUM(ba.price * ba.quantity), 0)
+           FROM booking_addon ba
+           JOIN booking b4 ON b4.booking_id = ba.booking_id AND b4.status = 'COMPLETED'
+           JOIN payment p4 ON p4.booking_id = ba.booking_id AND p4.payment_status = 'PAID'
+          WHERE ba.service_id = s.service_id) AS revenue,
         (SELECT ROUND(AVG(r.rating), 1) FROM review r
           JOIN booking b3 ON b3.booking_id = r.booking_id
           WHERE b3.service_id = s.service_id) AS rating,
@@ -791,7 +796,7 @@ export async function listPayments(req, res, next) {
        đã có dòng payment ghi nhận từ trước. */
     const [rows] = await pool.query(`SELECT
         pay.payment_id AS id,
-        CASE WHEN pay.payment_status IN ('PAID', 'DEPOSITED')
+        CASE WHEN pay.payment_status IN ('PAID', 'DEPOSITED', 'REFUNDED')
           THEN pay.amount
           ELSE COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0)
         END AS amount,
@@ -895,7 +900,15 @@ export async function listPayments(req, res, next) {
    ================================================================ */
 export async function getReports(req, res, next) {
   try {
-    const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? ''));
+    /* Regex chưa đủ: '2026-02-30' qua regex nhưng không phải ngày thật.
+       Dựng Date rồi đối chiếu ngược từng thành phần. */
+    const isDay = (v) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? ''));
+      if (!m) return false;
+      const d = new Date(`${m[1]}-${m[2]}-${m[3]}T12:00:00`);
+      return d.getFullYear() === Number(m[1]) && d.getMonth() + 1 === Number(m[2])
+        && d.getDate() === Number(m[3]);
+    };
     /* Mặc định tháng này (từ mùng 1 tới hôm nay) để mở trang là có số
        của kỳ hiện tại thay vì toàn bộ lịch sử — muốn xem khác thì chọn. */
     const firstOfMonth = new Date();
@@ -932,21 +945,35 @@ export async function getReports(req, res, next) {
         GROUP BY DATE_FORMAT(b.start_time, '%Y-%m-%d')
         ORDER BY day ASC`, [from, to]),
 
+      /* Doanh thu theo đúng dịch vụ: phần dịch vụ chính (snapshot lúc đặt)
+         cộng phần add-on nhóm theo service_id của món phát sinh. Trước đây
+         cả bill (chính + add-on) dồn hết cho dịch vụ chính của lịch. */
       pool.query(`SELECT s.service_name AS name, c.category_name AS category,
           COUNT(DISTINCT b.booking_id) AS bookings,
           COALESCE(SUM(b.status = 'COMPLETED'), 0) AS completed,
           COALESCE(SUM(b.status = 'CANCELLED'), 0) AS cancelled,
           COALESCE(SUM(b.status = 'NO_SHOW'), 0) AS noShow,
           COALESCE(SUM(CASE WHEN b.status = 'COMPLETED' AND pay.payment_status = 'PAID'
-                            THEN pay.amount ELSE 0 END), 0) AS revenue
+                            THEN COALESCE(b.service_price, s.price) ELSE 0 END), 0)
+          + COALESCE(addon.addonRevenue, 0) AS revenue
         FROM services s
         JOIN service_category c ON c.category_id = s.category_id
         LEFT JOIN booking b ON b.service_id = s.service_id
           AND DATE(b.start_time) BETWEEN ? AND ?
         LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+        LEFT JOIN (
+          SELECT ba.service_id AS sid,
+                 SUM(CASE WHEN b2.status = 'COMPLETED' AND p2.payment_status = 'PAID'
+                          THEN ba.price * ba.quantity ELSE 0 END) AS addonRevenue
+            FROM booking_addon ba
+            JOIN booking b2 ON b2.booking_id = ba.booking_id
+             AND DATE(b2.start_time) BETWEEN ? AND ?
+            LEFT JOIN payment p2 ON p2.booking_id = ba.booking_id
+           GROUP BY ba.service_id
+        ) addon ON addon.sid = s.service_id
         GROUP BY s.service_id, s.service_name, c.category_name
         HAVING bookings > 0
-        ORDER BY revenue DESC, completed DESC`, [from, to]),
+        ORDER BY revenue DESC, completed DESC`, [from, to, from, to]),
 
       pool.query(`SELECT u.full_name AS name, st.specialty,
           COUNT(DISTINCT b.booking_id) AS bookings,
@@ -988,22 +1015,29 @@ export async function getReports(req, res, next) {
         HAVING bookings > 0
         ORDER BY completed DESC, spending DESC LIMIT 10`, [from, to]),
 
-      /* Tiền đã thu trong kỳ theo ngày thanh toán (gồm cả cọc). */
+      /* Tiền đã thu trong kỳ theo NGÀY THANH TOÁN THẬT (từng giao dịch
+         cọc/trả nốt/hoàn trong payment_transaction). Cọc tháng 9 + trả nốt
+         tháng 10 tách hai dòng nên mỗi tháng đúng số tiền vào két tháng đó. */
       pool.query(`SELECT
-          COALESCE(SUM(CASE WHEN p.payment_status = 'PAID' THEN p.amount END), 0) AS paid,
-          COALESCE(SUM(CASE WHEN p.payment_status = 'DEPOSITED' THEN p.amount END), 0) AS deposit,
-          COUNT(CASE WHEN p.payment_status = 'PAID' THEN 1 END) AS paidCount
-        FROM payment p
-        WHERE DATE(p.payment_date) BETWEEN ? AND ?`, [from, to]),
+          COALESCE(SUM(CASE WHEN t.type = 'FINAL' THEN t.amount END), 0) AS paid,
+          COALESCE(SUM(CASE WHEN t.type = 'DEPOSIT' THEN t.amount END), 0) AS deposit,
+          COALESCE(SUM(CASE WHEN t.type = 'REFUND' THEN -t.amount END), 0) AS refunded,
+          COALESCE(SUM(t.amount), 0) AS collected,
+          COUNT(CASE WHEN t.type = 'FINAL' THEN 1 END) AS paidCount
+        FROM payment_transaction t
+        WHERE DATE(t.paid_at) BETWEEN ? AND ?`, [from, to]),
 
-      /* Cọc không hoàn lại: lịch đã hủy nhưng khoản DEPOSITED vẫn giữ.
-         Không cộng vào doanh thu dịch vụ, hiện nhóm riêng để đối chiếu két. */
+      /* Cọc giữ lại: khách TỰ HỦY (cancelled_by = CUSTOMER) hoặc KHÔNG ĐẾN
+         mà đã cọc thì shop giữ cọc (payment giữ DEPOSITED). Cửa hàng hủy
+         thì đã hoàn cọc (REFUNDED + giao dịch REFUND âm) nên loại khỏi đây. */
       pool.query(`SELECT
           COUNT(*) AS count,
           COALESCE(SUM(p.amount), 0) AS amount
         FROM payment p
         JOIN booking b ON b.booking_id = p.booking_id
-        WHERE p.payment_status = 'DEPOSITED' AND b.status = 'CANCELLED'
+        WHERE p.payment_status = 'DEPOSITED'
+          AND ((b.status = 'CANCELLED' AND b.cancelled_by = 'CUSTOMER')
+            OR b.status = 'NO_SHOW')
           AND DATE(b.start_time) BETWEEN ? AND ?`, [from, to]),
     ]);
 
@@ -1030,9 +1064,10 @@ export async function getReports(req, res, next) {
           completionRate: finished > 0 ? Math.round((completed / finished) * 100) : 0,
           avgMinutes: Math.round(Number(t.avgMinutes ?? 0)),
           serviceRevenue: Number(t.serviceRevenue ?? 0),
-          cashCollected: Number(cashRows[0][0].paid ?? 0) + Number(cashRows[0][0].deposit ?? 0),
+          cashCollected: Number(cashRows[0][0].collected ?? 0),
           cashPaid: Number(cashRows[0][0].paid ?? 0),
           cashDeposit: Number(cashRows[0][0].deposit ?? 0),
+          cashRefunded: Number(cashRows[0][0].refunded ?? 0),
           forfeitedCount: Number(forfeitRows[0][0].count ?? 0),
           forfeitedAmount: Number(forfeitRows[0][0].amount ?? 0),
         },

@@ -117,6 +117,13 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
   );
 
   const checkByDay = new Map(checks.map((c) => [c.workDate, c.checkInAt]));
+  /* Chỉ chấm ngày đã qua: ca tương lai chưa thể check-in nên không được
+     coi là vắng; ca hôm nay chưa kết thúc mà chưa thấy check-in thì cũng
+     chưa kết luận (nhân viên có thể đến muộn trong ân hạn). */
+  const now = new Date();
+  const todayText =
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   let lateMinutes = 0;
   let lateDays = 0;
   let absentDays = 0;
@@ -124,9 +131,15 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
   const details = [];
 
   for (const shift of shifts) {
+    /* Ca tương lai bỏ qua (chưa thể check-in nên không phải vắng). */
+    if (shift.workDate > todayText) continue;
     const shiftStart = new Date(`${shift.workDate}T${shift.shiftStart}:00`);
     const shiftEnd = new Date(`${shift.workDate}T${shift.shiftEnd}:00`);
     const shiftLen = Math.max(0, Math.round((shiftEnd - shiftStart) / 60000));
+    const checkInDone = checkByDay.get(shift.workDate);
+    /* Ca hôm nay chưa kết thúc mà chưa thấy check-in thì chưa kết luận. */
+    if (shift.workDate === todayText && !checkInDone
+      && nowMinutes <= clockMinutes(shift.shiftEnd)) continue;
 
     /* Phút nghỉ chồng lên ca, tách theo loại. */
     let normalCovered = 0;
@@ -152,8 +165,7 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
       details.push({ workDate: shift.workDate, kind: 'UNPAID_LEAVE', minutes: emergencyCovered, amount });
     }
 
-    const checkIn = checkByDay.get(shift.workDate);
-    if (!checkIn) {
+    if (!checkInDone) {
       /* Vắng cả ngày không phép = 1 công; đã nghỉ đột xuất một phần thì
          phần còn lại tính pro-rata theo phút. */
       if (emergencyCovered > 0 || normalCovered > 0) {
@@ -168,7 +180,7 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
       continue;
     }
     if (emergencyCovered === 0 && normalCovered === 0) {
-      const late = Math.max(0, clockMinutes(checkIn) - clockMinutes(shift.shiftStart) - GRACE_MINUTES);
+      const late = Math.max(0, clockMinutes(checkInDone) - clockMinutes(shift.shiftStart) - GRACE_MINUTES);
       if (late > 0) {
         const amount = Math.round(late * perMinute);
         lateMinutes += late;
@@ -514,11 +526,39 @@ async function moveStatus(id, userId, from, to, extra = {}) {
   }
 }
 
-/* DRAFT -> CONFIRMED: chốt số, chuẩn bị trả. */
+/* DRAFT -> CONFIRMED: chốt số, chuẩn bị trả. Chặn khi tháng còn lịch
+   COMPLETED chưa PAID — nếu cho qua, khoản hoa hồng đó không thuộc về
+   phiếu nào nữa (phiếu đã khóa, tháng sau tính theo start_time cũng loại).
+   Admin phải thu tiền hết rồi mới chốt. */
 export async function confirmPayroll(req, res, next) {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã phiếu không hợp lệ.' });
+
+    const [[payroll]] = await pool.query(
+      `SELECT staff_id AS staffId, period_month AS periodMonth, status
+         FROM payroll WHERE payroll_id = ? LIMIT 1`, [id],
+    );
+    if (!payroll) return res.status(404).json({ message: 'Không tìm thấy phiếu lương.' });
+    if (payroll.status !== 'DRAFT') {
+      return res.status(409).json({ message: `Phiếu này đang ở trạng thái ${payroll.status}, không chốt được.` });
+    }
+
+    const [[unpaid]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM booking b
+        LEFT JOIN payment p ON p.booking_id = b.booking_id
+       WHERE b.staff_id = ? AND b.status = 'COMPLETED'
+         AND DATE_FORMAT(b.start_time, '%Y-%m') = ?
+         AND (p.booking_id IS NULL OR p.payment_status <> 'PAID')`,
+      [payroll.staffId, payroll.periodMonth],
+    );
+    if (Number(unpaid.n ?? 0) > 0) {
+      return res.status(409).json({
+        message: `Tháng ${payroll.periodMonth} còn ${unpaid.n} lịch đã hoàn thành nhưng chưa thu tiền. `
+          + 'Hãy thu tiền hết rồi mới chốt lương, nếu không hoa hồng các lịch đó sẽ không thuộc về phiếu nào.',
+      });
+    }
+
     const note = req.body?.note !== undefined
       ? String(req.body.note ?? '').trim().slice(0, 500) || null : undefined;
     const result = await moveStatus(id, req.user.userId, 'DRAFT', 'CONFIRMED', { note });

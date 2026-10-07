@@ -12,6 +12,7 @@ import {
   bookingCode, clockOf, dayOf,
 } from '../lib/booking-labels.js';
 import { canTransition, SETTLED_STATUSES } from '../lib/booking-state.js';
+import { recordCashFlow } from '../lib/payment-transactions.js';
 import { checkStaffAvailable, freeSlotsForStaff, listAvailableStaff } from '../lib/staff-availability.js';
 import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
@@ -421,8 +422,7 @@ export async function patchBooking(req, res, next) {
 
     /* ---- Ai còn được sửa lịch ----
        Lịch đã xong / đã hủy / khách không đến là dữ liệu lịch sử: sửa người
-       hoặc giờ của nó sẽ làm sai báo cáo doanh thu và lịch làm việc. Lịch đang
-       thực hiện thì dịch vụ đã bắt đầu, đổi giờ không còn ý nghĩa. */
+       hoặc giờ của nó sẽ làm sai báo cáo doanh thu và lịch làm việc. */
     const movingSchedule = body.staffId !== undefined
       || body.date !== undefined || body.time !== undefined;
     if (movingSchedule) {
@@ -433,11 +433,21 @@ export async function patchBooking(req, res, next) {
             + 'nên không đổi được người hoặc giờ.',
         });
       }
+      /* Lịch đang thực hiện: dịch vụ đã bắt đầu nên đổi giờ không còn ý
+         nghĩa, nhưng QUẢN TRỊ được BÀN GIAO người (VD nhân viên ốm giữa
+         ca báo nghỉ đột xuất, người mới làm nốt rồi bấm hoàn thành).
+         Không cho đổi ngày/giờ, không cho đổi kèm trạng thái. */
       if (current.status === 'PROCESSING') {
-        await connection.rollback();
-        return res.status(409).json({
-          message: 'Dịch vụ đang thực hiện nên không đổi được người hoặc giờ.',
-        });
+        const handoverOnly = body.staffId !== undefined
+          && body.date === undefined && body.time === undefined
+          && body.status === undefined;
+        if (!handoverOnly) {
+          await connection.rollback();
+          return res.status(409).json({
+            message: 'Dịch vụ đang thực hiện nên chỉ bàn giao sang nhân viên khác, '
+              + 'không đổi được giờ hay trạng thái.',
+          });
+        }
       }
     }
 
@@ -601,6 +611,40 @@ export async function patchBooking(req, res, next) {
         await logEvent({
           bookingId: id, type: EVENT[0], detail: EVENT[1], actorRole: 'ADMIN', actorName, connection,
         });
+      }
+
+      /* Cửa hàng hủy lịch đã cọc thì TRẢ CỌC cho khách (khác khách tự hủy
+         hoặc không đến — hai trường hợp đó cọc không hoàn lại và payment
+         giữ nguyên DEPOSITED để báo cáo "cọc giữ lại" đối chiếu được).
+         Ghi giao dịch REFUND âm tiền + chuyển payment sang REFUNDED. */
+      if (status === 'CANCELLED') {
+        const [[existingPay]] = await connection.query(
+          `SELECT payment_id AS pid, amount, payment_method AS method, payment_status AS status
+             FROM payment WHERE booking_id = ? LIMIT 1 FOR UPDATE`, [id],
+        );
+        if (existingPay && existingPay.status === 'DEPOSITED') {
+          await connection.query(
+            `UPDATE payment SET payment_status = 'REFUNDED' WHERE payment_id = ?`,
+            [existingPay.pid],
+          );
+          await recordCashFlow(connection, {
+            bookingId: id,
+            type: 'REFUND',
+            amount: -Number(existingPay.amount ?? 0),
+            method: existingPay.method,
+            paidAt: new Date(),
+            createdBy: req.user?.userId ?? null,
+          });
+          await logEvent({
+            bookingId: id,
+            type: 'PAYMENT',
+            detail: `Hoàn cọc ${Number(existingPay.amount ?? 0).toLocaleString('vi-VN')} đ `
+              + 'vì cửa hàng hủy lịch.',
+            actorRole: 'ADMIN',
+            actorName,
+            connection,
+          });
+        }
       }
     }
 

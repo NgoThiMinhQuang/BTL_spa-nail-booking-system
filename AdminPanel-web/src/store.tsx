@@ -306,7 +306,8 @@ export interface Reports {
     bookings: number; completed: number; cancelled: number; noShow: number;
     running: number; completionRate: number; avgMinutes: number;
     serviceRevenue: number; cashCollected: number; cashPaid: number;
-    cashDeposit: number; forfeitedCount: number; forfeitedAmount: number;
+    cashDeposit: number; cashRefunded: number;
+    forfeitedCount: number; forfeitedAmount: number;
   };
   revenueTrend: { day: string; completed: number; revenue: number }[];
   byService: {

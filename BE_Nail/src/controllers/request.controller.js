@@ -136,13 +136,15 @@ export async function createLeaveRequest(req, res, next) {
          tức (approvedLeaveOverlaps chỉ đọc APPROVED). Booking cũ còn lại
          trong khoảng nghỉ giữ nguyên để Admin đổi người / đổi giờ / hủy —
          ngoài đời nhân viên đã nghỉ rồi, không thể bắt hệ thống giả vờ
-         họ vẫn đi làm cho đến khi xử lý xong khách. */
+         họ vẫn đi làm cho đến khi xử lý xong khách. Nếu đang có lịch
+         PROCESSING, Admin bàn giao sang người khác (patchBooking cho phép
+         đổi người khi PROCESSING) rồi người mới bấm hoàn thành. */
       const [result] = await pool.query(
         `INSERT INTO staff_leave_request
             (staff_id, start_datetime, end_datetime, reason, leave_type,
              status, reviewed_by, reviewed_at, review_note)
-         VALUES (?,?,?,?,'EMERGENCY','APPROVED',?,NOW(),'Tự động duyệt nghỉ đột xuất')`,
-        [req.user.staffId, startsAt, endsAt, reason, req.user.userId]);
+         VALUES (?,?,?,?,'EMERGENCY','APPROVED',NULL,NOW(),'Hệ thống tự duyệt nghỉ đột xuất')`,
+        [req.user.staffId, startsAt, endsAt, reason]);
 
       /* Booking còn lại từ hiện tại tới hết khoảng nghỉ — COMPLETED giữ
          nguyên, chỉ PENDING/CONFIRMED/PROCESSING cần xử lý. */

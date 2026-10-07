@@ -10,7 +10,7 @@
    PAID → UNPAID trong khi nơi khác chặn. */
 
 /** Các trạng thái thanh toán hợp lệ. */
-export const PAYMENT_STATUSES = ['UNPAID', 'DEPOSITED', 'PAID'];
+export const PAYMENT_STATUSES = ['UNPAID', 'DEPOSITED', 'PAID', 'REFUNDED'];
 
 /**
  * Bảng chuyển trạng thái.
@@ -27,12 +27,16 @@ export const PAYMENT_TRANSITIONS = {
   UNPAID: ['DEPOSITED', 'PAID'],
   DEPOSITED: ['PAID'],
   PAID: [],
+  /* REFUNDED là trạng thái cuối khi cửa hàng hủy lịch đã cọc và trả cọc
+     (ghi giao dịch REFUND âm tiền trong luồng hủy, không qua máy này). */
+  REFUNDED: [],
 };
 
 export const PAYMENT_TEXT = {
   UNPAID: 'Chưa thanh toán',
   DEPOSITED: 'Đã đặt cọc',
   PAID: 'Đã thanh toán',
+  REFUNDED: 'Đã hoàn cọc',
 };
 
 export const METHOD_TEXT = {

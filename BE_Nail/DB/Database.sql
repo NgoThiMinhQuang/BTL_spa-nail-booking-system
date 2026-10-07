@@ -463,7 +463,7 @@ CREATE TABLE payment (
     amount DECIMAL(12,2) NOT NULL
         COMMENT 'Số tiền đã thu. Với DEPOSITED là số tiền cọc, với PAID là tổng',
     payment_method ENUM('CASH','BANK_TRANSFER','ONLINE') NULL,
-    payment_status ENUM('UNPAID','DEPOSITED','PAID') NOT NULL DEFAULT 'UNPAID',
+    payment_status ENUM('UNPAID','DEPOSITED','PAID','REFUNDED') NOT NULL DEFAULT 'UNPAID',
     payment_date DATETIME NULL COMMENT 'Mốc thời gian nhận tiền',
 
     UNIQUE KEY uq_payment_booking (booking_id),
@@ -473,7 +473,33 @@ CREATE TABLE payment (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  15. REVIEW — đánh giá lịch hẹn
+--  15. PAYMENT_TRANSACTION — từng khoản tiền vào/ra két
+-- ----------------------------------------------------------------------------
+--  payment giữ trạng thái tổng hợp, bảng này giữ lịch sử: cọc tháng 9 +
+--  trả nốt tháng 10 là hai dòng riêng nên báo cáo tiền thu theo kỳ mới đúng.
+--  REFUND (số âm) ghi khi cửa hàng hủy lịch đã cọc và trả cọc cho khách.
+-- ============================================================================
+DROP TABLE IF EXISTS `payment_transaction`;
+CREATE TABLE payment_transaction (
+    transaction_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    booking_id BIGINT NOT NULL,
+    type ENUM('DEPOSIT','FINAL','REFUND') NOT NULL,
+    amount DECIMAL(12,2) NOT NULL COMMENT 'Dương = thu, âm = hoàn',
+    payment_method ENUM('CASH','BANK_TRANSFER','ONLINE') NULL,
+    paid_at DATETIME NOT NULL COMMENT 'Thời điểm tiền thực tế vào/ra két',
+    created_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    KEY idx_txn_booking (booking_id),
+    KEY idx_txn_paid_at (paid_at),
+    CONSTRAINT fk_txn_booking FOREIGN KEY (booking_id)
+        REFERENCES booking(booking_id) ON DELETE CASCADE,
+    CONSTRAINT fk_txn_creator FOREIGN KEY (created_by)
+        REFERENCES users(user_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- ============================================================================
+--  16. REVIEW — đánh giá lịch hẹn
 -- ----------------------------------------------------------------------------
 --  Chỉ đánh giá được lịch đã COMPLETED, mỗi lịch một lần (UNIQUE booking_id).
 --  Không lưu staff_id / service_id: lấy từ booking là ra, tránh hai nơi
@@ -501,7 +527,7 @@ CREATE TABLE review (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  16. REVIEW_IMAGES — nhiều ảnh cho một đánh giá
+--  17. REVIEW_IMAGES — nhiều ảnh cho một đánh giá
 -- ----------------------------------------------------------------------------
 --  Bảng review chỉ có một cột image nên không đủ cho bài viết đánh giá có
 --  nhiều ảnh.
@@ -519,7 +545,7 @@ CREATE TABLE review_images (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  17. NHÓM ẢNH TRANG TRÍ (trang chủ)
+--  18. NHÓM ẢNH TRANG TRÍ (trang chủ)
 -- ============================================================================
 DROP TABLE IF EXISTS `service_images`;
 CREATE TABLE service_images (

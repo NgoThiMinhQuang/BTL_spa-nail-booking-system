@@ -241,10 +241,14 @@ export function AdminReportsPage() {
       </Panel>
 
       <p className="app-note">
-        Doanh thu dịch vụ = lịch COMPLETED + đã PAID theo ngày thực hiện.
-        Tiền đã thu tính theo ngày thanh toán (gồm cả cọc).
+        Doanh thu dịch vụ = lịch COMPLETED + đã PAID theo ngày thực hiện
+        (add-on tính về đúng dịch vụ của món).
+        Tiền đã thu tính theo ngày thanh toán (gồm cả cọc)
+        {summary && summary.cashRefunded > 0 && (
+          <> − đã hoàn {formatVND(summary.cashRefunded)}</>
+        )}.
         {summary && summary.forfeitedAmount > 0 && (
-          <> Cọc giữ lại từ {summary.forfeitedCount} lịch đã hủy: {formatVND(summary.forfeitedAmount)}.</>
+          <> Cọc giữ lại từ {summary.forfeitedCount} lịch khách hủy/không đến: {formatVND(summary.forfeitedAmount)}.</>
         )}
       </p>
     </>

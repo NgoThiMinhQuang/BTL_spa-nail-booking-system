@@ -233,6 +233,7 @@ export function AdminPaymentsPage() {
             <option value="">Tất cả trạng thái</option>
             <option value="PAID">Đã thanh toán</option>
             <option value="DEPOSITED">Đã đặt cọc</option>
+            <option value="REFUNDED">Đã hoàn cọc</option>
             <option value="UNPAID">Chưa thanh toán</option>
           </select>
         </div>

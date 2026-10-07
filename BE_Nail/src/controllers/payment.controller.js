@@ -12,6 +12,7 @@
 import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
 import { canPaymentTransition, finalAmount, resolvePaymentAmount } from '../lib/payment-state.js';
+import { recordCashFlow } from '../lib/payment-transactions.js';
 import { SETTLED_STATUSES } from '../lib/booking-state.js';
 
 const METHODS = ['CASH', 'BANK_TRANSFER', 'ONLINE'];
@@ -78,7 +79,7 @@ export async function savePayment(req, res, next) {
     const [[booking]] = await connection.query(
       `SELECT b.booking_id, b.status, b.staff_id AS staffId,
               COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName,
-              pay.payment_status AS currentStatus
+              pay.payment_status AS currentStatus, pay.amount AS currentAmount
          FROM booking b
          LEFT JOIN payment pay ON pay.booking_id = b.booking_id
          LEFT JOIN customer c ON c.customer_id = b.customer_id
@@ -143,6 +144,7 @@ export async function savePayment(req, res, next) {
     /* PAID thì mốc thời gian là thời điểm nhận tiền; DEPOSITED cũng có
        mốc vì khách đã trả một phần. UNPAID thì không có. */
     const paidAt = ['PAID', 'DEPOSITED'].includes(status) ? new Date() : null;
+    const previousAmount = booking.currentStatus == null ? 0 : Number(booking.currentAmount ?? 0);
 
     if (booking.currentStatus == null) {
       await connection.query(
@@ -158,6 +160,20 @@ export async function savePayment(req, res, next) {
           WHERE booking_id = ?`,
         [amount, method || 'CASH', status, paidAt, bookingId],
       );
+    }
+
+    /* Sổ tiền vào két: chỉ ghi phần thu THÊM so với dòng payment cũ.
+       Cọc 150k tháng 9 + trả nốt 350k tháng 10 thành hai giao dịch riêng
+       nên báo cáo tiền thu đúng tháng; ghi đè cùng số tiền thì không ghi. */
+    if (status === 'DEPOSITED' || status === 'PAID') {
+      await recordCashFlow(connection, {
+        bookingId,
+        type: status === 'DEPOSITED' ? 'DEPOSIT' : 'FINAL',
+        amount: amount - previousAmount,
+        method: method || 'CASH',
+        paidAt,
+        createdBy: req.user?.userId ?? null,
+      });
     }
 
     await logEvent({

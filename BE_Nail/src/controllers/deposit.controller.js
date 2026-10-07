@@ -21,6 +21,7 @@ import {
   DEPOSIT_WINDOW_MINUTES, depositAmount, depositExpiresAt, isDepositExpired, remainingAmount,
 } from '../lib/deposit.js';
 import { canPaymentTransition } from '../lib/payment-state.js';
+import { recordCashFlow } from '../lib/payment-transactions.js';
 import { amountDue } from './payment.controller.js';
 import {
   bookingIdFromTxnRef, buildPaymentUrl, depositTxnRef, verifyReturn, vnpayConfig,
@@ -165,6 +166,15 @@ export async function confirmDepositPayment({ bookingId, amount }) {
         [bookingId, Number(amount)],
       );
     }
+    /* Tiền cọc vào két theo đúng ngày cọc (kể cả qua cổng online). */
+    await recordCashFlow(connection, {
+      bookingId,
+      type: 'DEPOSIT',
+      amount: Number(amount),
+      method: 'ONLINE',
+      paidAt: new Date(),
+      createdBy: null,
+    });
     await logEvent({
       bookingId,
       type: 'PAYMENT',
