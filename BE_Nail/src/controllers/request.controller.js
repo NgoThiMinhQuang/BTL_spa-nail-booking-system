@@ -454,6 +454,15 @@ export async function createScheduleRequest(req, res, next) {
     if (!isDate(workDate)) {
       return res.status(400).json({ message: 'Ngày làm việc không hợp lệ.' });
     }
+    /* Chỉ xin đổi ca tương lai: duyệt yêu cầu cho ngày đã qua sẽ sửa
+       lịch sử sau khi chấm công, lương và booking đã phát sinh. Muốn sửa
+       dữ liệu cũ thì Admin làm đường riêng, không qua duyệt yêu cầu. */
+    const now = new Date();
+    const todayText =
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (workDate < todayText) {
+      return res.status(400).json({ message: 'Chỉ gửi yêu cầu đổi ca cho hôm nay trở đi.' });
+    }
     if (action !== 'REMOVE' && (!CLOCK.test(startTime) || !CLOCK.test(endTime))) {
       return res.status(400).json({ message: 'Giờ bắt đầu và kết thúc phải dạng HH:mm (00:00–23:59).' });
     }

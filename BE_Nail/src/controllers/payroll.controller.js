@@ -544,6 +544,19 @@ export async function confirmPayroll(req, res, next) {
       return res.status(409).json({ message: `Phiếu này đang ở trạng thái ${payroll.status}, không chốt được.` });
     }
 
+    /* Tháng chưa kết thúc thì lương cơ bản tính cả tháng là sai (còn ngày
+       chưa làm) — chỉ cho chốt tháng đã qua. Muốn trả giữa tháng thì làm
+       nghiệp vụ tạm ứng riêng. Xem trước / nháp thì vẫn được. */
+    const now = new Date();
+    const currentMonth =
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (payroll.periodMonth >= currentMonth) {
+      return res.status(409).json({
+        message: `Tháng ${payroll.periodMonth} chưa kết thúc nên chưa chốt được. `
+          + 'Hãy chốt sau ngày cuối tháng.',
+      });
+    }
+
     const [[unpaid]] = await pool.query(
       `SELECT COUNT(*) AS n FROM booking b
         LEFT JOIN payment p ON p.booking_id = b.booking_id

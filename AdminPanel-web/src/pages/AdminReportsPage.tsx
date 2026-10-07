@@ -6,8 +6,9 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
+import { DonutChart, LineChart } from '../components/Charts';
 import { sendAdmin } from '../lib/admin-api';
-import { fmtDay, fmtNum, formatVND, moneyShort } from '../lib/utils';
+import { fmtDay, fmtNum, formatVND, moneyShort, weekdayShort } from '../lib/utils';
 import type { Reports } from '../store';
 
 function isoDay(d: Date): string {
@@ -76,8 +77,6 @@ export function AdminReportsPage() {
 
   const summary = reports?.summary;
   const peakService = Math.max(...(reports?.byService.map((i) => i.revenue) ?? [1]), 1);
-  const peakStaff = Math.max(...(reports?.byStaff.map((i) => i.revenue) ?? [1]), 1);
-  const peakDay = Math.max(...(reports?.revenueTrend.map((i) => i.revenue) ?? [1]), 1);
 
   return (
     <>
@@ -99,7 +98,7 @@ export function AdminReportsPage() {
       <Panel>
         <SectionHeading
           icon={<Icon name="schedule" />}
-          title="Báo cáo theo kỳ"
+          title="Kỳ báo cáo"
           subtitle={reports ? `${fmtDay(reports.from)} – ${fmtDay(reports.to)}` : 'Chọn khoảng thời gian'}
         >
           <div className="mode-tabs">
@@ -123,33 +122,128 @@ export function AdminReportsPage() {
         </div>
         {message && <p className="adm-error" style={{ padding: '0 16px' }}>{message}</p>}
         {loading && <p className="app-note" style={{ padding: '0 16px' }}>Đang tải số liệu…</p>}
-
-        {!reports ? (
-          <EmptyState title="Chưa có số liệu" detail="Chọn khoảng thời gian để xem báo cáo." />
-        ) : (
-          <div className="table-scroll">
-            <table className="adm-table">
-              <thead>
-                <tr><th>Ngày</th><th>Hoàn thành</th><th>Doanh thu dịch vụ</th></tr>
-              </thead>
-              <tbody>
-                {reports.revenueTrend.filter((d) => d.completed > 0 || d.revenue > 0).map((d) => (
-                  <tr key={d.day}>
-                    <td><strong>{fmtDay(d.day)}</strong></td>
-                    <td>
-                      <span className="adm-bar-track" style={{ display: 'inline-block', width: 90, verticalAlign: 'middle' }}>
-                        <span className="adm-bar-fill is-completed"
-                          style={{ width: `${(d.revenue / peakDay) * 100}%` }} />
-                      </span> {d.completed} lịch
-                    </td>
-                    <td><strong>{formatVND(d.revenue)}</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </Panel>
+
+      <Panel style={{ marginTop: 16 }}>
+        <SectionHeading
+          icon={<Icon name="schedule" />}
+          title="Doanh thu dịch vụ theo ngày"
+          subtitle="Lịch COMPLETED + đã trả, theo ngày thực hiện"
+        />
+        <div className="adm-chart-wrap" style={{ padding: '0 16px 16px' }}>
+          {!reports || reports.revenueTrend.every((d) => d.revenue === 0) ? (
+            <EmptyState title="Chưa có doanh thu trong kỳ" detail="Biểu đồ hiện khi có lịch hoàn thành đã trả." />
+          ) : (
+            <LineChart
+              unit="tr"
+              data={reports.revenueTrend.map((d) => ({
+                label: weekdayShort(d.day),
+                value: d.revenue,
+                hint: `${fmtDay(d.day)} · ${d.completed} lịch hoàn thành`,
+              }))}
+            />
+          )}
+        </div>
+      </Panel>
+
+      <div className="adm-dash-row" style={{ marginTop: 16 }}>
+        <Panel>
+          <SectionHeading
+            icon={<Icon name="dollar" />}
+            title="Dòng tiền vào – ra"
+            subtitle="Theo ngày tiền thật vào/ra két"
+          />
+          <div className="adm-tools" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 9 }}>
+            {(reports?.cashTrend.filter((d) => d.deposit + d.final + d.refund > 0).length ?? 0) === 0 ? (
+              <EmptyState title="Không có dòng tiền" detail="Kỳ này chưa thu/hoàn khoản nào." />
+            ) : reports!.cashTrend.filter((d) => d.deposit + d.final + d.refund > 0).map((d) => {
+              const inflow = d.deposit + d.final;
+              const total = inflow + d.refund;
+              return (
+                <div key={d.day} className="adm-bar-row"
+                  style={{ gridTemplateColumns: 'minmax(70px,.8fr) minmax(60px,2fr) auto' }}>
+                  <span className="adm-bar-name">{fmtDay(d.day).slice(0, 5)}</span>
+                  <span className="adm-bar-track" style={{ display: 'flex' }} title={
+                    `Cọc ${formatVND(d.deposit)} · Trả nốt ${formatVND(d.final)}`
+                    + (d.refund > 0 ? ` · Hoàn ${formatVND(d.refund)}` : '')
+                  }>
+                    {total > 0 && (
+                      <span className="adm-bar-fill is-completed"
+                        style={{ width: `${(inflow / total) * 100}%` }} />
+                    )}
+                    {d.refund > 0 && (
+                      <span className="adm-bar-fill"
+                        style={{ width: `${(d.refund / total) * 100}%`, background: '#C0495F' }} />
+                    )}
+                  </span>
+                  <span className="adm-bar-value">+{moneyShort(inflow)}{d.refund > 0 && ` −${moneyShort(d.refund)}`}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+
+        <Panel>
+          <SectionHeading
+            icon={<Icon name="check" />}
+            title="Cơ cấu lịch hẹn"
+            subtitle="Trong kỳ đang chọn"
+          />
+          <div className="adm-tools" style={{ paddingBottom: 16 }}>
+            {!summary || summary.bookings === 0 ? (
+              <EmptyState title="Không có lịch" detail="Kỳ này chưa phát sinh lịch hẹn." />
+            ) : (
+              <div className="adm-donut-row">
+                <DonutChart
+                  centerLabel="lịch trong kỳ"
+                  slices={[
+                    { label: 'Hoàn thành', value: summary.completed, color: '#5F8F6B' },
+                    { label: 'Hủy', value: summary.cancelled, color: '#C0495F' },
+                    { label: 'Không đến', value: summary.noShow, color: '#C99A2C' },
+                    { label: 'Đang mở', value: summary.running, color: '#8AA3C7' },
+                  ]}
+                />
+                <div className="adm-donut-legend">
+                  {[
+                    { label: 'Hoàn thành', value: summary.completed, color: '#5F8F6B' },
+                    { label: 'Hủy', value: summary.cancelled, color: '#C0495F' },
+                    { label: 'Không đến', value: summary.noShow, color: '#C99A2C' },
+                    { label: 'Đang mở', value: summary.running, color: '#8AA3C7' },
+                  ].map((row) => (
+                    <div key={row.label}>
+                      <i style={{ background: row.color }} />
+                      <span>{row.label}</span>
+                      <b>{row.value}</b>
+                      <small>{summary.bookings > 0 ? `${Math.round((row.value / summary.bookings) * 100)}%` : '0%'}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {(reports?.payMethodMix.length ?? 0) > 0 && (
+            <div className="adm-tools" style={{ paddingBottom: 16 }}>
+              <strong style={{ fontSize: 12 }}>Hình thức thu (tiền vào)</strong>
+              {reports!.payMethodMix.map((m, i) => (
+                <div key={m.method} className="adm-bar-row"
+                  style={{ gridTemplateColumns: 'minmax(80px,1fr) minmax(40px,1.4fr) auto' }}>
+                  <span className="adm-bar-name">
+                    {m.method === 'CASH' ? 'Tiền mặt' : m.method === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Online'}
+                  </span>
+                  <span className="adm-bar-track">
+                    <span className="adm-bar-fill"
+                      style={{
+                        width: `${(m.amount / Math.max(...reports!.payMethodMix.map((x) => x.amount), 1)) * 100}%`,
+                        background: ['#5F8F6B', '#8AA3C7', '#C99A2C'][i % 3],
+                      }} />
+                  </span>
+                  <span className="adm-bar-value">{moneyShort(m.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
+      </div>
 
       <div className="adm-dash-row" style={{ marginTop: 16 }}>
         <Panel>
@@ -164,7 +258,10 @@ export function AdminReportsPage() {
             ) : reports!.byService.map((item) => (
               <div key={item.name} className="adm-bar-row"
                 style={{ gridTemplateColumns: 'minmax(90px,1.2fr) minmax(50px,2fr) auto' }}>
-                <span className="adm-bar-name" title={`${item.name} · hoàn thành ${item.completionRate}%`}>
+                <span className="adm-bar-name"
+                  title={`${item.name} · chính ${item.completed}/${item.bookings}`
+                    + (item.addonBookings > 0 ? ` · add-on ${item.addonBookings} lượt ${moneyShort(item.addonRevenue)}` : '')
+                    + ` · hoàn thành ${item.completionRate}%`}>
                   {item.name}
                 </span>
                 <span className="adm-bar-track">
@@ -172,7 +269,7 @@ export function AdminReportsPage() {
                     style={{ width: `${(item.revenue / peakService) * 100}%` }} />
                 </span>
                 <span className="adm-bar-value">
-                  {item.completed}/{item.bookings} · {item.completionRate}% · {moneyShort(item.revenue)}
+                  {item.completed}/{item.bookings}{item.addonBookings > 0 && ` +${item.addonBookings} add-on`} · {item.completionRate}% · {moneyShort(item.revenue)}
                 </span>
               </div>
             ))}
@@ -183,28 +280,30 @@ export function AdminReportsPage() {
           <SectionHeading
             icon={<Icon name="adminStaff" />}
             title="Hiệu suất nhân viên"
-            subtitle="Hoàn thành · doanh thu COMPLETED+PAID · đánh giá"
+            subtitle="Hoàn thành · tỉ lệ · doanh thu · đánh giá"
           />
-          <div className="adm-tools" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 9 }}>
-            {(reports?.byStaff.length ?? 0) === 0 ? (
-              <EmptyState title="Không có số liệu" detail="Kỳ này chưa có lịch hoàn thành." />
-            ) : reports!.byStaff.map((item) => (
-              <div key={item.name} className="adm-bar-row"
-                style={{ gridTemplateColumns: 'minmax(78px,1fr) minmax(40px,1.4fr) auto' }}>
-                <span className="adm-bar-name"
-                  title={`${item.name} · hoàn thành ${item.completionRate}%${item.rating != null ? ` · ★${item.rating} (${item.reviewCount})` : ''}`}>
-                  {item.name}
-                </span>
-                <span className="adm-bar-track">
-                  <span className="adm-bar-fill is-completed"
-                    style={{ width: `${(item.revenue / peakStaff) * 100}%` }} />
-                </span>
-                <span className="adm-bar-value">
-                  {item.completed} lịch · {item.completionRate}% · {moneyShort(item.revenue)}
-                  {item.rating != null && ` · ★${item.rating}`}
-                </span>
-              </div>
-            ))}
+          <div className="table-scroll">
+            <table className="adm-table">
+              <thead>
+                <tr>
+                  <th>Nhân viên</th><th>Hoàn thành</th><th>Tỉ lệ HT</th>
+                  <th>Doanh thu</th><th>Đánh giá</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(reports?.byStaff.length ?? 0) === 0 ? (
+                  <tr><td colSpan={5}>Kỳ này chưa có lịch hoàn thành.</td></tr>
+                ) : reports!.byStaff.map((item) => (
+                  <tr key={item.name}>
+                    <td><strong>{item.name}</strong></td>
+                    <td>{item.completed}/{item.bookings}</td>
+                    <td>{item.completionRate}%</td>
+                    <td><strong>{moneyShort(item.revenue)}</strong></td>
+                    <td>{item.rating != null ? `★${item.rating} (${item.reviewCount})` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Panel>
       </div>
@@ -220,19 +319,21 @@ export function AdminReportsPage() {
             <thead>
               <tr>
                 <th>#</th><th>Khách hàng</th><th>Số điện thoại</th>
-                <th>Hoàn thành</th><th>Tổng chi tiêu</th>
+                <th>Hoàn thành</th><th>TB/lần</th><th>Tổng chi tiêu</th><th>Lần gần nhất</th>
               </tr>
             </thead>
             <tbody>
               {(reports?.byCustomer.length ?? 0) === 0 ? (
-                <tr><td colSpan={5}>Kỳ này chưa có khách hoàn thành dịch vụ.</td></tr>
+                <tr><td colSpan={7}>Kỳ này chưa có khách hoàn thành dịch vụ.</td></tr>
               ) : reports!.byCustomer.map((item, index) => (
                 <tr key={item.phone}>
                   <td>{index + 1}</td>
                   <td><strong>{item.name}</strong></td>
                   <td>{item.phone}</td>
                   <td>{item.completed}/{item.bookings}</td>
+                  <td>{item.completed > 0 ? moneyShort(item.spending / item.completed) : '—'}</td>
                   <td><strong>{formatVND(item.spending)}</strong></td>
+                  <td>{item.lastVisit ? fmtDay(String(item.lastVisit).slice(0, 10)) : '—'}</td>
                 </tr>
               ))}
             </tbody>

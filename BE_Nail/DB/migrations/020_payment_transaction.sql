@@ -37,3 +37,19 @@ SET @stmt = (SELECT IF(COUNT(*) > 0,
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment' AND COLUMN_NAME = 'payment_status'
     AND COLUMN_TYPE NOT LIKE '%REFUNDED%');
 PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- ---------------------------------------------------------------
+-- Backfill: payment cũ (trước code mới) chưa có dòng giao dịch nào.
+-- DEPOSITED -> 1 giao dịch DEPOSIT, PAID -> 1 giao dịch FINAL, giữ đúng
+-- số tiền và mốc payment_date để báo cáo tiền thu lịch sử không mất.
+-- NOT EXISTS nên chạy lại không ghi trùng.
+-- ---------------------------------------------------------------
+INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by)
+SELECT p.booking_id,
+       CASE WHEN p.payment_status = 'DEPOSITED' THEN 'DEPOSIT' ELSE 'FINAL' END,
+       p.amount, p.payment_method, COALESCE(p.payment_date, NOW()), NULL
+  FROM payment p
+ WHERE p.payment_status IN ('DEPOSITED', 'PAID')
+   AND NOT EXISTS (
+     SELECT 1 FROM payment_transaction t WHERE t.booking_id = p.booking_id
+   );

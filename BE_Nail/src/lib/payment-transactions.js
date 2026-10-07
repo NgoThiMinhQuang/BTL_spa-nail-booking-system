@@ -27,3 +27,63 @@ export async function recordCashFlow(runner, {
   );
   return result.insertId;
 }
+
+/* ================================================================
+   Quyết toán tiền khi lịch bị hủy / khách không đến.
+   ----------------------------------------------------------------
+   - mode 'FULL' (cửa hàng hủy: Admin/Staff): hoàn toàn bộ tiền đang giữ.
+     payment → REFUNDED + giao dịch REFUND âm tiền.
+   - mode 'DEPOSIT_ONLY' (khách tự hủy / không đến): chỉ mất cọc. Phần
+     giữ lại = tổng giao dịch DEPOSIT đã ghi (0 nếu chưa từng cọc);
+     phần còn lại hoàn qua giao dịch REFUND. payment giữ DEPOSIT với
+     đúng số cọc giữ lại để báo cáo "cọc giữ lại" đối chiếu được.
+   UNPAID hoặc đã REFUNDED thì không có gì để quyết toán.
+   Trả về { forfeited, refunded } để caller ghi log và báo cho khách.
+   ================================================================ */
+export async function settleCancelPayment(runner, bookingId, { mode, createdBy = null }) {
+  const [[pay]] = await runner.query(
+    `SELECT payment_id AS pid, amount, payment_method AS method, payment_status AS status
+       FROM payment WHERE booking_id = ? LIMIT 1 FOR UPDATE`, [bookingId],
+  );
+  if (!pay || pay.status === 'UNPAID' || pay.status === 'REFUNDED') {
+    return { forfeited: 0, refunded: 0 };
+  }
+  const held = Math.round(Number(pay.amount ?? 0));
+  const now = new Date();
+
+  if (mode === 'FULL') {
+    await runner.query(`UPDATE payment SET payment_status = 'REFUNDED' WHERE payment_id = ?`, [pay.pid]);
+    await recordCashFlow(runner, {
+      bookingId, type: 'REFUND', amount: -held,
+      method: pay.method, paidAt: now, createdBy,
+    });
+    return { forfeited: 0, refunded: held };
+  }
+
+  const [[dep]] = await runner.query(
+    `SELECT COALESCE(SUM(amount), 0) AS kept FROM payment_transaction
+      WHERE booking_id = ? AND type = 'DEPOSIT'`, [bookingId],
+  );
+  /* Dữ liệu cũ chưa có dòng giao dịch nhưng trạng thái DEPOSITED: chính
+     số tiền trên dòng payment là cọc đang giữ. */
+  let keep = Math.round(Number(dep.kept ?? 0));
+  if (keep === 0 && pay.status === 'DEPOSITED') keep = held;
+  keep = Math.min(Math.max(0, keep), held);
+  const refund = held - keep;
+  if (refund > 0) {
+    await recordCashFlow(runner, {
+      bookingId, type: 'REFUND', amount: -refund,
+      method: pay.method, paidAt: now, createdBy,
+    });
+  }
+  if (keep > 0) {
+    await runner.query(
+      `UPDATE payment SET amount = ?, payment_status = 'DEPOSITED' WHERE payment_id = ?`,
+      [keep, pay.pid],
+    );
+  } else {
+    await runner.query(
+      `UPDATE payment SET payment_status = 'REFUNDED' WHERE payment_id = ?`, [pay.pid]);
+  }
+  return { forfeited: keep, refunded: refund };
+}

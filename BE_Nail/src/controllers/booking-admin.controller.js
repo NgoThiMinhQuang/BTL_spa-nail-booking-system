@@ -12,7 +12,7 @@ import {
   bookingCode, clockOf, dayOf,
 } from '../lib/booking-labels.js';
 import { canTransition, SETTLED_STATUSES } from '../lib/booking-state.js';
-import { recordCashFlow } from '../lib/payment-transactions.js';
+import { settleCancelPayment } from '../lib/payment-transactions.js';
 import { checkStaffAvailable, freeSlotsForStaff, listAvailableStaff } from '../lib/staff-availability.js';
 import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
@@ -613,33 +613,38 @@ export async function patchBooking(req, res, next) {
         });
       }
 
-      /* Cửa hàng hủy lịch đã cọc thì TRẢ CỌC cho khách (khác khách tự hủy
-         hoặc không đến — hai trường hợp đó cọc không hoàn lại và payment
-         giữ nguyên DEPOSITED để báo cáo "cọc giữ lại" đối chiếu được).
+      /* Cửa hàng hủy lịch thì TRẢ LẠI toàn bộ tiền đang giữ (cọc hay đã
+         trả đủ đều hoàn), khác khách tự hủy / không đến (chỉ mất cọc).
          Ghi giao dịch REFUND âm tiền + chuyển payment sang REFUNDED. */
       if (status === 'CANCELLED') {
-        const [[existingPay]] = await connection.query(
-          `SELECT payment_id AS pid, amount, payment_method AS method, payment_status AS status
-             FROM payment WHERE booking_id = ? LIMIT 1 FOR UPDATE`, [id],
-        );
-        if (existingPay && existingPay.status === 'DEPOSITED') {
-          await connection.query(
-            `UPDATE payment SET payment_status = 'REFUNDED' WHERE payment_id = ?`,
-            [existingPay.pid],
-          );
-          await recordCashFlow(connection, {
-            bookingId: id,
-            type: 'REFUND',
-            amount: -Number(existingPay.amount ?? 0),
-            method: existingPay.method,
-            paidAt: new Date(),
-            createdBy: req.user?.userId ?? null,
-          });
+        const settled = await settleCancelPayment(connection, id, {
+          mode: 'FULL', createdBy: req.user?.userId ?? null,
+        });
+        if (settled.refunded > 0) {
           await logEvent({
             bookingId: id,
             type: 'PAYMENT',
-            detail: `Hoàn cọc ${Number(existingPay.amount ?? 0).toLocaleString('vi-VN')} đ `
+            detail: `Hoàn ${settled.refunded.toLocaleString('vi-VN')} đ `
               + 'vì cửa hàng hủy lịch.',
+            actorRole: 'ADMIN',
+            actorName,
+            connection,
+          });
+        }
+      }
+
+      /* Khách không đến: chỉ mất cọc, phần trả thừa (nếu đã trả đủ) hoàn
+         lại cùng chính sách như khách tự hủy. */
+      if (status === 'NO_SHOW') {
+        const settled = await settleCancelPayment(connection, id, {
+          mode: 'DEPOSIT_ONLY', createdBy: req.user?.userId ?? null,
+        });
+        if (settled.refunded > 0) {
+          await logEvent({
+            bookingId: id,
+            type: 'PAYMENT',
+            detail: `Khách không đến: giữ cọc ${settled.forfeited.toLocaleString('vi-VN')} đ, `
+              + `hoàn ${settled.refunded.toLocaleString('vi-VN')} đ.`,
             actorRole: 'ADMIN',
             actorName,
             connection,

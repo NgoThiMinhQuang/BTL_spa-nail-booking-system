@@ -310,9 +310,12 @@ export interface Reports {
     forfeitedCount: number; forfeitedAmount: number;
   };
   revenueTrend: { day: string; completed: number; revenue: number }[];
+  cashTrend: { day: string; deposit: number; final: number; refund: number }[];
+  payMethodMix: { method: string; amount: number }[];
   byService: {
     name: string; category: string; bookings: number; completed: number;
     cancelled: number; noShow: number; completionRate: number; revenue: number;
+    addonBookings: number; addonRevenue: number;
   }[];
   byStaff: {
     name: string; specialty: string | null; bookings: number; completed: number;

@@ -1974,3 +1974,147 @@ describe('Hoan coc va ban giao', () => {
     }
   });
 });
+
+/* Chinh sach huy lich theo tien dang giu. */
+describe('Huy lich va tien hoan', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const adminUser = { userId: 9004, name: 'Quan tri Test' };
+
+  async function makePaidBooking(connection, day) {
+    const [b] = await connection.query(
+      "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+      [day + ' 09:00:00', day + ' 10:15:00']);
+    await connection.query(
+      "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', ?)",
+      [b.insertId, day + ' 08:00:00']);
+    await connection.query(
+      "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', ?, NULL), (?, 'FINAL', 140000, 'CASH', ?, NULL)",
+      [b.insertId, day + ' 08:00:00', b.insertId, day + ' 08:30:00']);
+    return b.insertId;
+  }
+
+  async function wipe(connection, bookingId) {
+    await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+  }
+
+  test('Admin huy lich PAID thi hoan toan bo', async () => {
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const day = dayPlus(11);
+    let bookingId = null;
+    try {
+      bookingId = await makePaidBooking(connection, day);
+      const res = mockRes();
+      await patchBooking(
+        { params: { id: String(bookingId) }, body: { status: 'CANCELLED', cancelReason: 'Shop dong cua dot xuat' }, user: adminUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const [[pay]] = await connection.query(
+        'SELECT payment_status AS status FROM payment WHERE booking_id = ?', [bookingId]);
+      assert.equal(pay.status, 'REFUNDED');
+      const [[txn]] = await connection.query(
+        "SELECT COALESCE(SUM(amount), 0) AS net FROM payment_transaction WHERE booking_id = ?", [bookingId]);
+      assert.equal(Number(txn.net), 0);
+    } finally {
+      if (bookingId) await wipe(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('Khach huy lich PAID thi chi mat coc, hoan phan con lai', async () => {
+    const { cancelBooking } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const day = dayPlus(12);
+    let bookingId = null;
+    try {
+      bookingId = await makePaidBooking(connection, day);
+      const res = mockRes();
+      await cancelBooking(
+        { params: { id: String(bookingId) }, body: { reason: 'Ban dot xuat' }, user: { customerId: 9001, name: 'Khach Test' } },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.data.forfeited, 60000);
+      assert.equal(res.body.data.refunded, 140000);
+      const [[pay]] = await connection.query(
+        'SELECT payment_status AS status, amount FROM payment WHERE booking_id = ?', [bookingId]);
+      assert.equal(pay.status, 'DEPOSITED');
+      assert.equal(Number(pay.amount), 60000);
+    } finally {
+      if (bookingId) await wipe(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('dich vu chi xuat hien qua add-on van co trong bao cao', async () => {
+    const { getReports } = await import('../src/controllers/admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-07-10 09:00:00', '2020-07-10 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        'INSERT INTO booking_addon (booking_id, service_id, service_name, quantity, price) VALUES (?, 2, ?, 1, 100000)',
+        [bookingId, 'Dich vu phu']);
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 300000, 'CASH', 'PAID', '2020-07-10 11:00:00')",
+        [bookingId]);
+
+      const res = mockRes();
+      await getReports({ query: { from: '2020-07-01', to: '2020-07-31' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const main = res.body.data.byService.find((x) => x.name === 'Son Gel Cao Cap');
+      const addon = res.body.data.byService.find((x) => x.name === 'Dich vu phu');
+      assert.ok(main, 'dich vu chinh phai co');
+      assert.ok(addon, 'dich vu chi qua add-on phai co');
+      assert.equal(main.revenue, 200000);
+      assert.equal(addon.revenue, 100000);
+      assert.equal(addon.addonBookings, 1);
+    } finally {
+      if (bookingId) {
+        await connection.query('DELETE FROM booking_addon WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.end();
+    }
+  });
+
+  test('bieu do thang thanh toan doc theo ngay tien vao ket', async () => {
+    const { listPayments } = await import('../src/controllers/admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-08-10 09:00:00', '2020-08-10 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', '2020-08-10 11:00:00')",
+        [bookingId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'FINAL', 200000, 'CASH', '2020-08-10 11:00:00', NULL)",
+        [bookingId]);
+
+      const res = mockRes();
+      await listPayments({ query: {} }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const row = res.body.meta.months.find((m) => m.month === '2020-08');
+      assert.ok(row, 'thang co giao dich phai xuat hien');
+      assert.equal(Number(row.paidAmount), 200000);
+    } finally {
+      if (bookingId) {
+        await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.end();
+    }
+  });
+});

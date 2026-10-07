@@ -166,13 +166,13 @@ export async function listMyAttendance(req, res, next) {
       : (() => { const d = new Date(); d.setDate(d.getDate() - 29); return todayText(d); })();
 
     const [rows] = await pool.query(
-      `SELECT DATE_FORMAT(a.work_date,'%Y-%m-%d') AS workDate,
+      `SELECT DATE_FORMAT(d.work_date,'%Y-%m-%d') AS workDate,
               a.check_in_at AS checkInAt, a.check_out_at AS checkOutAt, a.note,
               TIME_FORMAT(sc.start_time,'%H:%i') AS shiftStart,
               TIME_FORMAT(sc.end_time,'%H:%i') AS shiftEnd,
-              (SELECT 1 FROM staff_leave_request lr WHERE lr.staff_id = a.staff_id
-                 AND lr.status = 'APPROVED' AND DATE(lr.start_datetime) <= a.work_date
-                 AND DATE(lr.end_datetime) >= a.work_date LIMIT 1) AS onLeave
+              (SELECT 1 FROM staff_leave_request lr WHERE lr.staff_id = d.staff_id
+                 AND lr.status = 'APPROVED' AND DATE(lr.start_datetime) <= d.work_date
+                 AND DATE(lr.end_datetime) >= d.work_date LIMIT 1) AS onLeave
          FROM (SELECT DISTINCT work_date, staff_id FROM staff_schedule WHERE staff_id = ? AND work_date BETWEEN ? AND ?
                UNION
                SELECT work_date, staff_id FROM staff_attendance WHERE staff_id = ? AND work_date BETWEEN ? AND ?) d

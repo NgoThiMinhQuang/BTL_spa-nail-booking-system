@@ -1345,6 +1345,7 @@ Payment Status:
 UNPAID
 DEPOSITED
 PAID
+REFUNDED
 ```
 
 Ví dụ hợp lệ:
@@ -1422,8 +1423,12 @@ Admin xem:
 Revenue chỉ tính các Payment thực tế:
 
 ```text
+Booking Status = COMPLETED
 Payment Status = PAID
 ```
+
+theo ngày thực hiện dịch vụ (booking.start_time). Tiền thu theo kỳ đọc
+riêng từ payment_transaction theo paid_at.
 
 ---
 
@@ -1774,11 +1779,22 @@ tăng `quantity`.
 payment
 -------
 payment_id
-booking_id     -- UNIQUE: mỗi lịch chỉ có một dòng thanh toán
-amount         -- số tiền đã thu; với DEPOSITED là số tiền cọc
+booking_id     -- UNIQUE: mỗi lịch chỉ có một dòng thanh toán (trạng thái tổng hợp)
+amount         -- số tiền đang giữ; với DEPOSITED là số tiền cọc
 payment_method -- CASH | BANK_TRANSFER | ONLINE
-payment_status -- UNPAID | DEPOSITED | PAID
+payment_status -- UNPAID | DEPOSITED | PAID | REFUNDED
 payment_date
+```
+
+```text
+payment_transaction -- từng khoản tiền vào/ra két (báo cáo tiền thu đọc từ đây)
+-------------------
+transaction_id
+booking_id
+type           -- DEPOSIT (+) | FINAL (+) | REFUND (−)
+amount         -- dương = thu, âm = hoàn
+payment_method
+paid_at        -- ngày tiền thật vào/ra két
 ```
 
 ### Máy trạng thái thanh toán
@@ -1786,10 +1802,13 @@ payment_date
 ```text
 UNPAID ──► DEPOSITED ──► PAID
    └────────────────────►
+
+DEPOSITED / PAID ──► REFUNDED (chỉ khi cửa hàng hủy lịch đã thu tiền)
 ```
 
-`PAID` không quay lại được. Dự án chưa có nghiệp vụ hoàn tiền; mở đường
-đi ngược thì báo cáo doanh thu không bao giờ khớp thực tế.
+`PAID` không quay lại được. Hoàn tiền chỉ xảy ra khi cửa hàng hủy lịch:
+khách tự hủy / không đến thì chỉ mất cọc (giữ `DEPOSITED`), cửa hàng hủy
+thì hoàn toàn bộ đã thu (`REFUNDED` + giao dịch `REFUND` âm tiền).
 
 ---
 

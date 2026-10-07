@@ -187,10 +187,11 @@ export interface DonutSlice {
 }
 
 export function DonutChart({
-  slices, size = 148,
+  slices, size = 148, centerLabel = 'lịch hôm nay',
 }: {
   slices: DonutSlice[];
   size?: number;
+  centerLabel?: string;
 }) {
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
   const radius = size / 2 - 13;
@@ -224,7 +225,7 @@ export function DonutChart({
 
       <div className="adm-donut-center">
         <strong>{total}</strong>
-        <span>lịch hôm nay</span>
+        <span>{centerLabel}</span>
       </div>
     </div>
   );

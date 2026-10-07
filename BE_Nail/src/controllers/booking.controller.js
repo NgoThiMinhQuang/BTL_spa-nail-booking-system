@@ -22,6 +22,7 @@ import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
 } from '../lib/booking-service.js';
 import { freeSlotsForAnyStaff, freeSlotsForStaff } from '../lib/staff-availability.js';
+import { settleCancelPayment } from '../lib/payment-transactions.js';
 import fs from 'node:fs';
 import multer from 'multer';
 import path from 'node:path';
@@ -342,18 +343,20 @@ export async function cancelBooking(req, res, next) {
       [reason, id],
     );
 
-    /* Hủy sau khi đã cọc/trả tiền thì tiền không hoàn lại (không có
-       nghiệp vụ hoàn tiền): dòng payment giữ nguyên để báo cáo còn
-       thấy khoản đã thu, chỉ ghi rõ vào lịch sử và trả về cho app. */
-    const [[paid]] = await connection.query(
-      'SELECT payment_status AS status, amount FROM payment WHERE booking_id = ? LIMIT 1', [id]);
-    const forfeited = paid && paid.status !== 'UNPAID' ? Number(paid.amount) : 0;
+    /* Khách hủy: chỉ mất CỌC, phần đã trả thừa được hoàn lại.
+       VD đã trả đủ 500.000 (cọc 150.000) rồi hủy đúng luật thì giữ 150.000,
+       hoàn 350.000. Không có cọc nào được ghi thì hoàn toàn bộ. */
+    const settled = await settleCancelPayment(connection, id, {
+      mode: 'DEPOSIT_ONLY', createdBy: req.user.customerId ?? null,
+    });
+    const forfeited = settled.forfeited;
 
     await logEvent({
       bookingId: id,
       type: 'CANCELLED',
       detail: `Khách hủy lịch. Lý do: ${reason}.`
-        + (forfeited > 0 ? ` Tiền đã thanh toán (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.` : ''),
+        + (forfeited > 0 ? ` Tiền cọc giữ lại (${forfeited.toLocaleString('vi-VN')} đ).` : '')
+        + (settled.refunded > 0 ? ` Đã hoàn ${settled.refunded.toLocaleString('vi-VN')} đ.` : ''),
       actorRole: 'CUSTOMER',
       actorName: req.user.name,
       connection,
@@ -364,8 +367,9 @@ export async function cancelBooking(req, res, next) {
       data: {
         id: String(id), status: 'CANCELLED', cancelReason: reason,
         forfeited,
+        refunded: settled.refunded,
         forfeitMessage: forfeited > 0
-          ? `Số tiền đã thanh toán (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.`
+          ? `Tiền cọc (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.`
           : null,
       },
     });
