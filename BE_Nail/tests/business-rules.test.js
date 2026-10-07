@@ -1741,3 +1741,68 @@ describe('Smoke controller Admin va Staff', () => {
     }
   });
 });
+
+/* Bao cao theo ky: doanh thu = COMPLETED + PAID, tien thu theo ngay tra. */
+describe('Bao cao theo ky', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  async function makePaidBooking(connection, { day, from, to, status, payStatus, amount, payDate }) {
+    const [b] = await connection.query(
+      'INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, ?, \'MOBILE\')',
+      [day + ' ' + from, day + ' ' + to, status]);
+    await connection.query(
+      'INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, ?, \'CASH\', ?, ?)',
+      [b.insertId, amount, payStatus, payDate]);
+    return b.insertId;
+  }
+
+  test('doanh thu chi tinh COMPLETED+PAID, tien thu theo ngay tra', async () => {
+    const connection = await connect();
+    const ids = [];
+    try {
+      ids.push(await makePaidBooking(connection,
+        { day: '2020-05-10', from: '09:00:00', to: '10:15:00', status: 'COMPLETED', payStatus: 'PAID', amount: 200000, payDate: '2020-05-10 10:30:00' }));
+      ids.push(await makePaidBooking(connection,
+        { day: '2020-05-11', from: '09:00:00', to: '10:15:00', status: 'CONFIRMED', payStatus: 'PAID', amount: 200000, payDate: '2020-05-11 09:30:00' }));
+      ids.push(await makePaidBooking(connection,
+        { day: '2020-05-12', from: '09:00:00', to: '10:15:00', status: 'CANCELLED', payStatus: 'DEPOSITED', amount: 50000, payDate: '2020-05-09 08:00:00' }));
+      const [d] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-05-13 09:00:00', '2020-05-13 10:15:00', 'NO_SHOW', 'MOBILE')");
+      ids.push(d.insertId);
+
+      const { getReports } = await import('../src/controllers/admin.controller.js');
+      const res = mockRes();
+      await getReports({ query: { from: '2020-05-01', to: '2020-05-31' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const r = res.body.data;
+      assert.equal(r.from, '2020-05-01');
+      assert.equal(r.summary.bookings, 4);
+      assert.equal(r.summary.completed, 1);
+      assert.equal(r.summary.serviceRevenue, 200000);
+      assert.equal(r.summary.cashPaid, 400000);
+      assert.equal(r.summary.cashDeposit, 50000);
+      assert.equal(r.summary.forfeitedCount, 1);
+      assert.equal(r.summary.forfeitedAmount, 50000);
+      assert.equal(r.summary.completionRate, 33);
+      assert.equal(r.byService[0].completed, 1);
+      assert.equal(r.byService[0].revenue, 200000);
+      assert.equal(r.byCustomer[0].completed, 1);
+    } finally {
+      for (const id of ids) {
+        await connection.query('DELETE FROM payment WHERE booking_id = ?', [id]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [id]);
+      }
+      await connection.end();
+    }
+  });
+
+  test('khoang ngay sai thi 400', async () => {
+    const { getReports } = await import('../src/controllers/admin.controller.js');
+    const res = mockRes();
+    await getReports({ query: { from: '2020-05-31', to: '2020-05-01' } }, res, strictNext);
+    assert.equal(res.statusCode, 400);
+  });
+});

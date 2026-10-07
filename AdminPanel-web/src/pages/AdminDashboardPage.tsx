@@ -165,8 +165,8 @@ export function AdminDashboardPage() {
           note={`${today.processing} khách đang làm`} onClick={() => go('admin-bookings')} />
         <KpiCard tone="sage" icon="done" label="Đã hoàn thành" value={today.completed}
           note="trong hôm nay" onClick={() => go('admin-bookings')} />
-        <KpiCard tone="rose" icon="dollar" label="Doanh thu hôm nay" value={moneyShort(revenue.paidAmount)}
-          note={`${revenue.paidCount} giao dịch đã trả`} onClick={() => go('admin-payments')} />
+        <KpiCard tone="rose" icon="dollar" label="Tiền thu hôm nay" value={moneyShort(revenue.paidAmount)}
+          note={`${revenue.paidCount} giao dịch đã trả · cọc ${moneyShort(revenue.depositAmount)}`} onClick={() => go('admin-payments')} />
       </div>
 
       {/* Hàng 2 — hai biểu đồ, đặt ngay dưới hàng KPI để có cái nhìn tổng
@@ -175,8 +175,8 @@ export function AdminDashboardPage() {
         <Panel>
           <SectionHeading
             icon={<Icon name="dollar" />}
-            title="Doanh thu"
-            subtitle="Tính trên lịch đã hoàn thành"
+            title="Doanh thu dịch vụ"
+            subtitle="Lịch COMPLETED + đã trả, theo ngày thực hiện"
           >
             <div className="mode-tabs">
               {RANGES.map((item) => (
@@ -370,8 +370,8 @@ export function AdminDashboardPage() {
         <Panel>
           <SectionHeading
             icon={<Icon name="sparkles" />}
-            title="Dịch vụ phổ biến"
-            subtitle="Xếp theo số lượt đặt"
+            title="Dịch vụ nổi bật"
+            subtitle="Hoàn thành trong khoảng đang chọn · xếp theo lượt"
           >
             <button className="text-button" onClick={() => go('admin-services')}>Xem tất cả →</button>
           </SectionHeading>

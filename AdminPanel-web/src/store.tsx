@@ -300,10 +300,28 @@ export interface PayrollItem {
 }
 
 export interface Reports {
-  byService: { name: string; category: string; bookings: number; revenue: number }[];
-  byStaff: { name: string; specialty: string | null; bookings: number; revenue: number }[];
-  byCustomer: { name: string; phone: string; bookings: number; spending: number }[];
-  totals: { bookings: number; completed: number; cancelled: number; noShow: number; avgMinutes: number };
+  from: string;
+  to: string;
+  summary: {
+    bookings: number; completed: number; cancelled: number; noShow: number;
+    running: number; completionRate: number; avgMinutes: number;
+    serviceRevenue: number; cashCollected: number; cashPaid: number;
+    cashDeposit: number; forfeitedCount: number; forfeitedAmount: number;
+  };
+  revenueTrend: { day: string; completed: number; revenue: number }[];
+  byService: {
+    name: string; category: string; bookings: number; completed: number;
+    cancelled: number; noShow: number; completionRate: number; revenue: number;
+  }[];
+  byStaff: {
+    name: string; specialty: string | null; bookings: number; completed: number;
+    cancelled: number; noShow: number; completionRate: number; revenue: number;
+    rating: number | null; reviewCount: number;
+  }[];
+  byCustomer: {
+    name: string; phone: string; bookings: number; completed: number;
+    spending: number; lastVisit: string | null;
+  }[];
 }
 
 export interface AdminState {
