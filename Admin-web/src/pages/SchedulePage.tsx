@@ -200,9 +200,11 @@ interface LeaveRequest {
   startDatetime: string;
   endDatetime: string;
   reason: string | null;
+  leaveType?: 'NORMAL' | 'EMERGENCY';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewNote: string | null;
   reviewerName: string | null;
+  affectedBookings?: number;
 }
 
 const LEAVE_STATUS: Record<LeaveRequest['status'], string> = {
@@ -219,6 +221,7 @@ function LeaveRequestPanel() {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [reason, setReason] = useState('');
+  const [emergency, setEmergency] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState(false);
@@ -241,24 +244,32 @@ function LeaveRequestPanel() {
       setMessage('Hãy chọn thời gian bắt đầu và kết thúc.');
       return;
     }
+    if (emergency && !reason.trim()) {
+      setMessage('Nghỉ đột xuất cần ghi rõ lý do (VD: sốt, việc gia đình gấp).');
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
       /* datetime-local ra 'YYYY-MM-DDTHH:mm' — backend nhận 'YYYY-MM-DD HH:mm'. */
-      await apiRequest('/api/staff/leave-requests', {
+      const saved = await apiRequest<LeaveRequest>('/api/staff/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDatetime: start.replace('T', ' '),
           endDatetime: end.replace('T', ' '),
           reason: reason.trim() || undefined,
+          leave_type: emergency ? 'EMERGENCY' : 'NORMAL',
         }),
       });
       setStart('');
       setEnd('');
       setReason('');
+      setEmergency(false);
       setOpen(false);
-      setMessage('Đã gửi yêu cầu. Quản trị duyệt thì kỳ nghỉ mới có hiệu lực.');
+      setMessage(emergency
+        ? `Đã ghi nhận nghỉ đột xuất. Hệ thống đã chặn nhận khách mới${(saved as LeaveRequest)?.affectedBookings ? `, còn ${(saved as LeaveRequest).affectedBookings} lịch cần quản trị xử lý` : ''}.`
+        : 'Đã gửi yêu cầu. Quản trị duyệt thì kỳ nghỉ mới có hiệu lực.');
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
@@ -297,11 +308,16 @@ function LeaveRequestPanel() {
               onChange={(e) => setReason(e.target.value)} disabled={busy}
               placeholder="Ví dụ: việc gia đình…" />
           </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600 }}>
+            <input type="checkbox" checked={emergency}
+              onChange={(e) => setEmergency(e.target.checked)} disabled={busy} />
+            <span>🚨 Báo nghỉ đột xuất (nghỉ ngay, chặn nhận khách mới)</span>
+          </label>
           <div className="leave-actions">
             <button type="button" className="leave-cancel" disabled={busy}
               onClick={() => setOpen(false)}>Hủy bỏ</button>
             <button type="submit" className="leave-submit" disabled={busy}>
-              {busy ? 'Đang gửi…' : 'Gửi yêu cầu'}
+              {busy ? 'Đang gửi…' : emergency ? 'Báo nghỉ ngay' : 'Gửi yêu cầu'}
             </button>
           </div>
         </form>
@@ -318,7 +334,7 @@ function LeaveRequestPanel() {
                   {String(item.endDatetime).slice(0, 16).replace('T', ' ')}
                 </strong>
                 <small>
-                  {LEAVE_STATUS[item.status]}
+                  {item.leaveType === 'EMERGENCY' ? '🚨 Đột xuất · ' : ''}{LEAVE_STATUS[item.status]}
                   {item.reviewerName ? ` bởi ${item.reviewerName}` : ''}
                   {item.reviewNote ? ` — ${item.reviewNote}` : ''}
                 </small>

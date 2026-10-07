@@ -247,6 +247,7 @@ export interface ShiftItem {
 export interface LeaveItem {
   id: string; staffId: string; staffName: string; specialty: string | null;
   startDatetime: string; endDatetime: string; reason: string | null;
+  leaveType: 'NORMAL' | 'EMERGENCY';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewNote: string | null; reviewerName: string | null;
   affectedBookings: number;

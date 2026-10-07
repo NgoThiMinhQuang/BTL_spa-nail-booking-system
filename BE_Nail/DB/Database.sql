@@ -222,6 +222,8 @@ CREATE TABLE staff_leave_request (
     start_datetime DATETIME NOT NULL,
     end_datetime DATETIME NOT NULL,
     reason VARCHAR(500) NULL,
+    leave_type ENUM('NORMAL','EMERGENCY') NOT NULL DEFAULT 'NORMAL'
+        COMMENT 'NORMAL = xin trước, duyệt mới hiệu lực; EMERGENCY = báo nghỉ ngay, tự APPROVED để chặn booking mới',
     status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
     -- Trỏ tới users.user_id vì người duyệt là quản trị, không phải nhân viên khác.
     reviewed_by BIGINT NULL,

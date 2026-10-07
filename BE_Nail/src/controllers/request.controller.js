@@ -90,6 +90,8 @@ export async function createLeaveRequest(req, res, next) {
     const startsAt = readMoment(req.body?.startDatetime);
     const endsAt = readMoment(req.body?.endDatetime);
     const reason = String(req.body?.reason ?? '').trim().slice(0, 500) || null;
+    const leaveType = String(req.body?.leave_type ?? req.body?.leaveType ?? 'NORMAL')
+      .trim().toUpperCase() === 'EMERGENCY' ? 'EMERGENCY' : 'NORMAL';
 
     if (!startsAt || !endsAt) {
       return res.status(400).json({
@@ -99,12 +101,79 @@ export async function createLeaveRequest(req, res, next) {
     if (endsAt <= startsAt) {
       return res.status(400).json({ message: 'Thời gian kết thúc phải sau thời gian bắt đầu.' });
     }
-    /* Chỉ xin nghỉ cho tương lai: ca sáng xin lúc 10:00 cho khoảng
+
+    /* Nghỉ đột xuất giữa ca: nhân viên đã ốm/phải về ngay nên startsAt
+       có thể đã qua (VD ca 09:00–18:00, 10:00 báo nghỉ 10:00–18:00).
+       Không bắt "tương lai hoàn toàn" như nghỉ thường. Chỉ yêu cầu:
+       khoảng nghỉ còn phần chưa qua (endsAt > now) và startsAt từ
+       00:00 hôm nay trở đi để không lợi dụng ngày cũ. */
+    if (leaveType === 'EMERGENCY') {
+      const now = new Date();
+      if (endsAt <= now) {
+        return res.status(400).json({ message: 'Nghỉ đột xuất phải còn thời gian chưa qua (giờ kết thúc sau hiện tại).' });
+      }
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (startsAt < todayStart) {
+        return res.status(400).json({ message: 'Nghỉ đột xuất chỉ áp dụng cho hôm nay.' });
+      }
+
+      /* Trùng với yêu cầu đang chờ hoặc đã duyệt thì không tạo nữa. */
+      const [[existing]] = await pool.query(
+        `SELECT leave_request_id FROM staff_leave_request
+          WHERE staff_id = ? AND status IN ('PENDING','APPROVED')
+            AND start_datetime < ? AND end_datetime > ? LIMIT 1`,
+        [req.user.staffId, endsAt, startsAt],
+      );
+      if (existing) {
+        return res.status(409).json({
+          message: 'Bạn đã có một yêu cầu nghỉ (chờ duyệt hoặc đã duyệt) '
+            + 'trong khoảng thời gian này.',
+        });
+      }
+
+      /* Tự động APPROVED để staff-availability chặn booking mới ngay lập
+         tức (approvedLeaveOverlaps chỉ đọc APPROVED). Booking cũ còn lại
+         trong khoảng nghỉ giữ nguyên để Admin đổi người / đổi giờ / hủy —
+         ngoài đời nhân viên đã nghỉ rồi, không thể bắt hệ thống giả vờ
+         họ vẫn đi làm cho đến khi xử lý xong khách. */
+      const [result] = await pool.query(
+        `INSERT INTO staff_leave_request
+            (staff_id, start_datetime, end_datetime, reason, leave_type,
+             status, reviewed_by, reviewed_at, review_note)
+         VALUES (?,?,?,?,'EMERGENCY','APPROVED',?,NOW(),'Tự động duyệt nghỉ đột xuất')`,
+        [req.user.staffId, startsAt, endsAt, reason, req.user.userId]);
+
+      /* Booking còn lại từ hiện tại tới hết khoảng nghỉ — COMPLETED giữ
+         nguyên, chỉ PENDING/CONFIRMED/PROCESSING cần xử lý. */
+      const [remaining] = await pool.query(
+        `SELECT COUNT(*) AS n FROM booking b
+          WHERE b.staff_id = ? AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+            AND b.start_time < ? AND b.end_time > NOW()`,
+        [req.user.staffId, endsAt],
+      );
+
+      return res.status(201).json({
+        data: {
+          id: String(result.insertId),
+          staffId: String(req.user.staffId),
+          staffName: req.user.name,
+          startDatetime: startsAt,
+          endDatetime: endsAt,
+          reason,
+          leaveType: 'EMERGENCY',
+          status: 'APPROVED',
+          affectedBookings: Number(remaining[0]?.n ?? 0),
+        },
+      });
+    }
+
+    /* Nghỉ thường: chỉ xin cho tương lai. Ca sáng xin lúc 10:00 cho khoảng
        07:00–15:00 cùng ngày thì 3 tiếng đầu đã qua, duyệt kiểu gì cũng
        dở. Trước đây chỉ chặn end <= now nên khoảng bắt đầu trong quá
        khứ vẫn lọt. */
     if (startsAt <= new Date()) {
-      return res.status(400).json({ message: 'Chỉ xin nghỉ cho khoảng thời gian trong tương lai.' });
+      return res.status(400).json({ message: 'Chỉ xin nghỉ cho khoảng thời gian trong tương lai. Nghỉ ngay giữa ca thì dùng "Báo nghỉ đột xuất".' });
     }
     if (endsAt <= new Date()) {
       return res.status(400).json({ message: 'Không thể xin nghỉ cho khoảng thời gian đã qua.' });
@@ -126,8 +195,8 @@ export async function createLeaveRequest(req, res, next) {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason)
-       VALUES (?,?,?,?)`, [req.user.staffId, startsAt, endsAt, reason]);
+      `INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type)
+       VALUES (?,?,?,?,'NORMAL')`, [req.user.staffId, startsAt, endsAt, reason]);
 
     res.status(201).json({
       data: {
@@ -137,6 +206,7 @@ export async function createLeaveRequest(req, res, next) {
         startDatetime: startsAt,
         endDatetime: endsAt,
         reason,
+        leaveType: 'NORMAL',
         status: 'PENDING',
       },
     });
@@ -151,6 +221,7 @@ export async function listMyLeaveRequests(req, res, next) {
     const [rows] = await pool.query(
       `SELECT lr.leave_request_id AS id, lr.start_datetime AS startDatetime,
               lr.end_datetime AS endDatetime, lr.reason, lr.status,
+              lr.leave_type AS leaveType,
               lr.review_note AS reviewNote, lr.created_at AS createdAt,
               lr.reviewed_at AS reviewedAt,
               COALESCE(u.full_name, '') AS reviewerName
@@ -163,6 +234,7 @@ export async function listMyLeaveRequests(req, res, next) {
       data: rows.map((row) => ({
         ...row,
         id: String(row.id),
+        leaveType: row.leaveType ?? 'NORMAL',
         startDate: row.startDatetime,
         endDate: row.endDatetime,
       })),
@@ -189,7 +261,8 @@ export async function listLeaveRequests(req, res, next) {
       `SELECT lr.leave_request_id AS id, lr.staff_id AS staffId,
               u.full_name AS staffName, st.specialty,
               lr.start_datetime AS startDatetime, lr.end_datetime AS endDatetime,
-              lr.reason, lr.status, lr.review_note AS reviewNote,
+              lr.reason, lr.status, lr.leave_type AS leaveType,
+              lr.review_note AS reviewNote,
               lr.created_at AS createdAt, lr.reviewed_at AS reviewedAt,
               rv.full_name AS reviewerName,
               (SELECT COUNT(*) FROM booking b
@@ -208,7 +281,8 @@ export async function listLeaveRequests(req, res, next) {
     );
 
     /* Danh sách lịch bị ảnh hưởng: Admin cần biết chính xác phải xử lý
-       lịch nào, không chỉ biết có bao nhiêu cái. */
+       lịch nào, không chỉ biết có bao nhiêu cái. Nghỉ đột xuất đã APPROVED
+       vẫn còn lịch chờ đổi người / đổi giờ / hủy nên vẫn phải hiện. */
     const ids = rows.map((row) => Number(row.id));
     const affected = new Map();
     if (ids.length) {
@@ -220,7 +294,8 @@ export async function listLeaveRequests(req, res, next) {
            FROM booking b
            JOIN staff_leave_request lr
              ON lr.staff_id = b.staff_id
-            AND lr.status = 'PENDING'
+            AND (lr.status = 'PENDING'
+              OR (lr.leave_type = 'EMERGENCY' AND lr.status = 'APPROVED'))
             AND b.start_time < lr.end_datetime
             AND b.end_time > lr.start_datetime
            JOIN services s ON s.service_id = b.service_id
@@ -244,6 +319,7 @@ export async function listLeaveRequests(req, res, next) {
         ...row,
         id: String(row.id),
         staffId: String(row.staffId),
+        leaveType: row.leaveType ?? 'NORMAL',
         affectedBookings: Number(row.affectedBookings),
         affectedList: affected.get(row.id) ?? [],
       })),

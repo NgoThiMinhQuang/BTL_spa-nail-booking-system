@@ -59,6 +59,9 @@ function LeaveRow({ item, onDone }: { item: LeaveItem; onDone: () => void }) {
       <td>
         <strong>{fmtDay(item.startDatetime.slice(0, 10))}</strong>
         <small>{item.startDatetime.slice(11, 16)} – {item.endDatetime.slice(11, 16)} ngày {fmtDay(item.endDatetime.slice(0, 10))}</small>
+        {item.leaveType === 'EMERGENCY' && (
+          <small style={{ color: '#b42318', fontWeight: 700 }}>🚨 Nghỉ đột xuất — đã chặn nhận khách mới</small>
+        )}
       </td>
       <td>
         <strong>{item.staffName}</strong>
@@ -72,7 +75,9 @@ function LeaveRow({ item, onDone }: { item: LeaveItem; onDone: () => void }) {
               <i />{item.affectedBookings} lịch cần xử lý
             </span>
           )
-          : <span className="badge completed"><i />Không ảnh hưởng</span>}
+          : item.leaveType === 'EMERGENCY' && item.status === 'APPROVED'
+            ? <span className="badge completed"><i />Đã xử lý xong</span>
+            : <span className="badge completed"><i />Không ảnh hưởng</span>}
       </td>
       <td>
         <span className={`badge ${item.status === 'PENDING' ? 'pending' : item.status === 'APPROVED' ? 'completed' : 'cancelled'}`}>
@@ -106,7 +111,11 @@ export function AdminLeavePage() {
     .sort((a, b) => b.startDatetime.localeCompare(a.startDatetime));
 
   const pending = leave.filter((item) => item.status === 'PENDING');
-  const blocked = pending.reduce((sum, item) => sum + item.affectedBookings, 0);
+  const emergencyOpen = leave.filter(
+    (item) => item.leaveType === 'EMERGENCY' && item.status === 'APPROVED' && item.affectedBookings > 0,
+  );
+  const blocked = pending.reduce((sum, item) => sum + item.affectedBookings, 0)
+    + emergencyOpen.reduce((sum, item) => sum + item.affectedBookings, 0);
 
   return (
     <>
