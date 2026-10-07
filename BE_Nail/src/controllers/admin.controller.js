@@ -187,7 +187,7 @@ export async function getOverview(req, res, next) {
         pool.query(`SELECT s.service_id AS id, s.service_name AS name, c.category_name AS category,
             COUNT(DISTINCT b.booking_id) AS bookings,
             COALESCE(SUM(CASE WHEN p.payment_status = 'PAID'
-                              THEN pay.amount ELSE 0 END), 0) AS revenue
+                              THEN p.amount ELSE 0 END), 0) AS revenue
           FROM services s
           JOIN service_category c ON c.category_id = s.category_id
           LEFT JOIN booking b ON b.service_id = s.service_id

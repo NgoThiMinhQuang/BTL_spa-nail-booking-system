@@ -1581,3 +1581,25 @@ describe('Goi y khau tru luong', () => {
     assert.equal(res.statusCode, 400);
   });
 });
+
+/* Hoi quy: overview tung 500 vi query dich vu noi bat nham alias pay.amount. */
+describe('Tong quan Admin', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  test('overview range=7 tra 200 va du so lieu', async () => {
+    const { getOverview } = await import('../src/controllers/admin.controller.js');
+    const res = mockRes();
+    const mockGet = (name) => (String(name).toLowerCase() === 'host' ? 'localhost:3000' : null);
+    await getOverview(
+      { query: { range: '7' }, protocol: 'http', get: mockGet }, res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.ok(res.body.data.today && typeof res.body.data.today.total === 'number');
+    assert.ok(Array.isArray(res.body.data.topServices));
+    for (const row of res.body.data.topServices) {
+      assert.equal(typeof row.revenue, 'number');
+    }
+  });
+});
