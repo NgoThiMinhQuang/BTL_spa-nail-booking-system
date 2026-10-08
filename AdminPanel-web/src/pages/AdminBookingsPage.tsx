@@ -13,7 +13,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
-import { EmptyState, Panel, SectionHeading, StatusBadge } from '../components/Primitives';
+import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
 import {
   CancelDialog, ChangeStaffDialog, ConfirmDialog, NoShowDialog,
   RescheduleDialog, sendBookingRequest,
@@ -21,7 +21,7 @@ import {
 import { BookingCalendar } from '../components/BookingCalendar';
 import { WalkInDrawer } from '../components/WalkInDrawer';
 import { useApp, type Booking, type BookingScope } from '../store';
-import { fmtDate, fmtTime, formatVND } from '../lib/utils';
+import { fmtDate, fmtTime, formatVND, moneyShort } from '../lib/utils';
 
 const SCOPES: { key: BookingScope; label: string }[] = [
   { key: 'today', label: 'Hôm nay' },
@@ -135,6 +135,15 @@ export function AdminBookingsPage() {
   const totalPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
   const rows = bookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  /* Tiền thu trong danh sách đang tải (tối đa 500 lịch): đã trả đủ + cọc. */
+  const paidTotal = bookings
+    .filter((b) => b.paymentStatus === 'PAID')
+    .reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
+  const depositTotal = bookings
+    .filter((b) => b.paymentStatus === 'DEPOSITED')
+    .reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
+  const paidCount = bookings.filter((b) => b.paymentStatus === 'PAID').length;
+
   async function runMenu(booking: Booking, key: string) {
     setOpenMenu(null);
     /* Lịch đã xong thì hai mục này chỉ là chuyển sang trang tương ứng. */
@@ -212,6 +221,21 @@ export function AdminBookingsPage() {
           <Icon name={flash.startsWith('Đã') ? 'check' : 'ban'} /> {flash}
         </p>
       )}
+
+      {/* Số liệu nhanh theo đúng phạm vi đang xem */}
+      <div className="adm-tiles adm-tiles-5">
+        <StatTile tone="rose" icon="schedule" label={`Lịch hẹn ${scopeDay ?? ''}`.trim()}
+          value={bookingCounts.ALL ?? 0}
+          note={`${bookingCounts.CONFIRMED ?? 0} đã xác nhận`} />
+        <StatTile tone="gold" icon="clock" label="Chờ xác nhận" value={bookingCounts.PENDING ?? 0}
+          note={(bookingCounts.PENDING ?? 0) > 0 ? 'cần xử lý' : 'không còn lịch chờ'} />
+        <StatTile tone="lavender" icon="play" label="Đang thực hiện" value={bookingCounts.PROCESSING ?? 0}
+          note={`${bookingCounts.PROCESSING ?? 0} khách đang làm`} />
+        <StatTile tone="sage" icon="done" label="Đã hoàn thành" value={bookingCounts.COMPLETED ?? 0}
+          note="trong phạm vi đang xem" />
+        <StatTile tone="rose" icon="dollar" label="Tiền thu" value={moneyShort(paidTotal)}
+          note={`${paidCount} đã trả · cọc ${moneyShort(depositTotal)}`} />
+      </div>
 
       {/* Tab đếm nhanh theo trạng thái */}
       <div className="adm-bk-tabs">
