@@ -222,8 +222,12 @@ export function AdminPayrollPage() {
     setLoading(true);
     setMessage('');
     for (const person of staff) {
+      /* Giữ thưởng/phạt đã nhập tay trên phiếu nháp: tính lại chỉ cập nhật
+         lương cơ bản + hoa hồng theo cấu hình mới, không xóa số tay. */
+      const existing = rows.find((r) => r.staffId === person.id && r.status === 'DRAFT');
       const result = await sendAdmin('/payrolls', 'POST', {
-        staffId: Number(person.id), month, bonus: 0, deduction: 0,
+        staffId: Number(person.id), month,
+        bonus: existing?.bonus ?? 0, deduction: existing?.deduction ?? 0,
       });
       if (!result.ok) {
         setMessage(`Tính cho ${person.name} lỗi: ${result.message}`);
