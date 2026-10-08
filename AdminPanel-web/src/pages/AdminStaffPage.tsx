@@ -241,52 +241,55 @@ export function AdminStaffPage() {
                   </span>
                 </div>
 
-                <div className="adm-person-meta">
-                  <span title="Điểm trung bình / số lượt đánh giá">
-                    <Icon name="star" /> {fmtRating(item.rating)}
-                    {item.reviewCount > 0 ? ` (${item.reviewCount})` : ''}
-                  </span>
-                  <span title="Tổng số lịch đã nhận">
-                    <Icon name="schedule" /> {fmtNum(item.bookingCount)} lịch
-                  </span>
-                  <span title="Doanh thu từ lịch hoàn thành">
-                    <Icon name="dollar" /> {moneyShort(item.revenue)}
-                  </span>
-                </div>
-
                 <dl className="adm-person-nums">
+                  <div title="Lịch đã hoàn thành / tổng lịch">
+                    <dt>Hoàn thành</dt>
+                    <dd>{fmtNum(item.completedCount)}<small>/{fmtNum(item.bookingCount)}</small></dd>
+                  </div>
+                  <div title="Doanh thu từ lịch hoàn thành">
+                    <dt>Doanh thu</dt><dd>{moneyShort(item.revenue)}</dd>
+                  </div>
+                  <div title="Điểm trung bình / số lượt đánh giá">
+                    <dt>Đánh giá</dt>
+                    <dd>★ {fmtRating(item.rating)}{item.reviewCount > 0 && <small> ({item.reviewCount})</small>}</dd>
+                  </div>
                   <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
                   <div title="Lương cơ bản + % hoa hồng">
                     <dt>Lương</dt>
                     <dd>{moneyShort(item.baseSalary)}<small> + {item.commissionRate}%</small></dd>
                   </div>
-                  <div title="Lịch đã hoàn thành / tổng lịch">
-                    <dt>Hoàn thành</dt>
-                    <dd>{fmtNum(item.completedCount)}<small>/{fmtNum(item.bookingCount)}</small></dd>
-                  </div>
-                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}</dd></div>
+                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}<small> món</small></dd></div>
                 </dl>
 
                 {item.serviceNames.length > 0 && (
                   <p className="adm-staff-skills" title={item.serviceNames.join(', ')}>
-                    {item.serviceNames.slice(0, 2).join(' · ')}
-                    {item.serviceNames.length > 2 && ` · +${item.serviceNames.length - 2}`}
+                    {item.serviceNames.slice(0, 4).map((name) => (
+                      <span key={name} className="adm-chip">{name}</span>
+                    ))}
+                    {item.serviceNames.length > 4 && (
+                      <span className="adm-chip is-more">+{item.serviceNames.length - 4}</span>
+                    )}
                   </p>
                 )}
 
                 <div className="adm-person-foot">
-                  <a className="adm-person-phone" href={`tel:${item.phone}`}>{item.phone}</a>
-                  {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
-                    <span className="adm-lock-note">Không đăng nhập được</span>
-                  )}
-                </div>
-
-                <div className="adm-staff-actions">
-                  <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
-                  <button className="button secondary" onClick={() => toggleStatus(item)}>
-                    {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở khoá'}
-                  </button>
-                  <button className="button secondary is-danger" onClick={() => removeStaff(item)}>Xoá</button>
+                  <span>
+                    <a className="adm-person-phone" href={`tel:${item.phone}`}>{item.phone}</a>
+                    {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
+                      <span className="adm-lock-note"> · Không đăng nhập được</span>
+                    )}
+                  </span>
+                  <span className="adm-cat-actions">
+                    <button className="button secondary" onClick={() => openEdit(item)}
+                      title={`Sửa ${item.name}`}><Icon name="edit" /> Sửa</button>
+                    <button className="button secondary" onClick={() => toggleStatus(item)}
+                      title={(item.status ?? 'ACTIVE') === 'ACTIVE' ? `Khoá ${item.name}` : `Mở khoá ${item.name}`}>
+                      <Icon name={(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'ban' : 'check'} />
+                      {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở'}
+                    </button>
+                    <button className="button secondary is-danger" onClick={() => removeStaff(item)}
+                      title={`Xoá ${item.name}`}><Icon name="trash" /> Xoá</button>
+                  </span>
                 </div>
               </article>
               );
