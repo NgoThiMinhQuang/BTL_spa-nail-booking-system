@@ -86,6 +86,14 @@ function clockMinutes(value) {
   return Number.isNaN(d.getTime()) ? 0 : d.getHours() * 60 + d.getMinutes();
 }
 
+/* Date hoặc 'YYYY-MM-DD HH:mm:ss' → 'HH:mm' để hiện trong gợi ý. */
+function clockText(value) {
+  if (value instanceof Date) {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  }
+  return String(value ?? '').slice(11, 16);
+}
+
 /* Tính gợi ý khấu trừ, dùng chung cho endpoint và test. */
 export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
   const base = Number(baseSalary ?? 0);
@@ -156,13 +164,19 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
     emergencyCovered = Math.min(emergencyCovered, shiftLen - normalCovered);
 
     if (normalCovered >= shiftLen) {
-      details.push({ workDate: shift.workDate, kind: 'PAID_LEAVE', minutes: shiftLen, amount: 0 });
+      details.push({
+        workDate: shift.workDate, kind: 'PAID_LEAVE', minutes: shiftLen, amount: 0,
+        shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd, checkInAt: null,
+      });
       continue;
     }
     if (emergencyCovered > 0) {
       const amount = Math.round(emergencyCovered * perMinute);
       unpaidLeaveMinutes += emergencyCovered;
-      details.push({ workDate: shift.workDate, kind: 'UNPAID_LEAVE', minutes: emergencyCovered, amount });
+      details.push({
+        workDate: shift.workDate, kind: 'UNPAID_LEAVE', minutes: emergencyCovered, amount,
+        shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd, checkInAt: null,
+      });
     }
 
     if (!checkInDone) {
@@ -171,11 +185,19 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
       if (emergencyCovered > 0 || normalCovered > 0) {
         const rest = shiftLen - normalCovered - emergencyCovered;
         const amount = Math.round(rest * perMinute);
-        if (rest > 0) details.push({ workDate: shift.workDate, kind: 'ABSENT', minutes: rest, amount });
+        if (rest > 0) {
+          details.push({
+            workDate: shift.workDate, kind: 'ABSENT', minutes: rest, amount, fullDay: false,
+            shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd, checkInAt: null,
+          });
+        }
       } else {
         const amount = Math.round(perDay);
         absentDays += 1;
-        details.push({ workDate: shift.workDate, kind: 'ABSENT', minutes: shiftLen, amount });
+        details.push({
+          workDate: shift.workDate, kind: 'ABSENT', minutes: shiftLen, amount, fullDay: true,
+          shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd, checkInAt: null,
+        });
       }
       continue;
     }
@@ -185,9 +207,17 @@ export async function suggestDeductionFor(runner, staffId, period, baseSalary) {
         const amount = Math.round(late * perMinute);
         lateMinutes += late;
         lateDays += 1;
-        details.push({ workDate: shift.workDate, kind: 'LATE', minutes: late, amount });
+        details.push({
+          workDate: shift.workDate, kind: 'LATE', minutes: late, amount,
+          shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd,
+          checkInAt: clockText(checkInDone),
+        });
       } else {
-        details.push({ workDate: shift.workDate, kind: 'ON_TIME', minutes: 0, amount: 0 });
+        details.push({
+          workDate: shift.workDate, kind: 'ON_TIME', minutes: 0, amount: 0,
+          shiftStart: shift.shiftStart, shiftEnd: shift.shiftEnd,
+          checkInAt: clockText(checkInDone),
+        });
       }
     }
   }

@@ -20,10 +20,104 @@ const STATUS_TEXT: Record<PayrollItem['status'], string> = {
   PAID: 'Đã trả',
 };
 
+/** '2026-10-08' → '08/10 (T5)'. */
+function dayLabel(date: string): string {
+  const day = date.split('-').reverse().join('/').slice(0, 5);
+  const weekday = new Date(`${date}T12:00:00`)
+    .toLocaleDateString('vi-VN', { weekday: 'long' })
+    .replace('Thứ ', 'T');
+  return `${day} (${weekday})`;
+}
+
+/** Diễn giải một dòng chấm công thành câu đầy đủ để Admin đối chiếu. */
+function describeDetail(d: SuggestDetail): string {
+  const shift = d.shiftStart && d.shiftEnd
+    ? `ca ${d.shiftStart.slice(0, 5)}–${d.shiftEnd.slice(0, 5)}` : 'ca làm việc';
+  if (d.kind === 'LATE') {
+    return `Đi muộn ${d.minutes}p (chấm ${d.checkInAt ?? '?'}, ${shift}, ân hạn 10p)`;
+  }
+  if (d.kind === 'ABSENT') {
+    return d.fullDay
+      ? `Vắng cả ngày không phép (${shift} = 1 công)`
+      : `Vắng ${d.minutes}p còn lại trong ca (sau giờ nghỉ phép)`;
+  }
+  if (d.kind === 'UNPAID_LEAVE') {
+    return `Nghỉ không lương ${d.minutes}p trong ca`;
+  }
+  return d.kind;
+}
+
+function SuggestBody({ item, data, busy, onClose, onApply }: {
+  item: PayrollItem;
+  data: SuggestData;
+  busy: boolean;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  const parts: string[] = [];
+  if (data.lateMinutes > 0) parts.push(`đi muộn ${data.lateMinutes}p (${data.lateDays} ngày)`);
+  if (data.absentDays > 0) parts.push(`vắng không phép ${data.absentDays} ngày`);
+  if (data.unpaidLeaveMinutes > 0) parts.push(`nghỉ không lương ${data.unpaidLeaveMinutes}p`);
+  const rows = data.details.filter((d) => d.amount > 0);
+
+  return (
+    <div>
+      <h3>Gợi ý khấu trừ — {item.staffName}</h3>
+      <p>Tháng {item.periodMonth} · lương cơ bản {formatVND(data.baseSalary)}.</p>
+      <p>
+        Cách tính: 1 công = cơ bản ÷ 26 = {formatVND(data.perDayRate)};
+        đi muộn quá 10 phút ân hạn trừ {formatVND(Math.round(data.perMinuteRate))}/phút.
+      </p>
+      {parts.length === 0 ? (
+        <p style={{ marginTop: 12 }}>Chấm công sạch, không có gì để trừ.</p>
+      ) : (
+        <p style={{ marginTop: 12 }}>Phát hiện: {parts.join(' · ')}.</p>
+      )}
+      {rows.length > 0 && (
+        <div className="table-scroll" style={{ marginTop: 8 }}>
+          <table className="adm-table">
+            <thead>
+              <tr><th>Ngày</th><th>Nội dung</th><th>Tiền trừ</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((d) => (
+                <tr key={`${d.workDate}-${d.kind}-${d.minutes}`}>
+                  <td><strong>{dayLabel(d.workDate)}</strong></td>
+                  <td>{describeDetail(d)}</td>
+                  <td><strong>{formatVND(d.amount)}</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p style={{ marginTop: 12 }}>
+        <strong>Tổng gợi ý: {formatVND(data.suggestedDeduction)}</strong>
+        {item.bonus > 0 && <> · giữ nguyên thưởng {formatVND(item.bonus)}</>}.
+      </p>
+      <div className="adm-modal-foot">
+        <button type="button" className="button secondary" disabled={busy} onClick={onClose}>
+          Để sau
+        </button>
+        <button type="button" className="button" disabled={busy} onClick={onApply}>
+          {busy ? 'Đang lưu…' : 'Áp dụng'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface SuggestDetail {
+  workDate: string; kind: string; minutes: number; amount: number;
+  fullDay?: boolean; shiftStart: string | null; shiftEnd: string | null;
+  checkInAt: string | null;
+}
+
 interface SuggestData {
   suggestedDeduction: number; lateMinutes: number; lateDays: number;
   absentDays: number; unpaidLeaveMinutes: number;
-  details: { workDate: string; kind: string; minutes: number; amount: number }[];
+  baseSalary: number; perMinuteRate: number; perDayRate: number;
+  details: SuggestDetail[];
 }
 
 type RowModal =
@@ -103,11 +197,6 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
     }
     onDone();
   }
-
-  const KIND_TEXT: Record<string, string> = {
-    LATE: 'đi muộn', ABSENT: 'vắng không phép', UNPAID_LEAVE: 'nghỉ không lương',
-    PAID_LEAVE: 'nghỉ có lương', ON_TIME: 'đúng giờ',
-  };
 
   async function suggest() {
     setBusy(true);
@@ -258,35 +347,13 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
                   </form>
                 )}
                 {modal.type === 'suggest' && (
-                  <div>
-                    <h3>Gợi ý khấu trừ — {item.staffName}</h3>
-                    <p>
-                      Đi muộn {modal.data.lateMinutes}p ({modal.data.lateDays} ngày) ·
-                      vắng {modal.data.absentDays} ngày ·
-                      nghỉ không lương {modal.data.unpaidLeaveMinutes}p.
-                    </p>
-                    <ul style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: 12.5, maxHeight: 220, overflowY: 'auto' }}>
-                      {modal.data.details.filter((d) => d.amount > 0).map((d) => (
-                        <li key={`${d.workDate}-${d.kind}`}>
-                          {d.workDate}: {KIND_TEXT[d.kind] ?? d.kind} {d.minutes}p → {formatVND(d.amount)}
-                        </li>
-                      ))}
-                      {modal.data.details.every((d) => d.amount === 0) && (
-                        <li>Không có ngày nào cần trừ.</li>
-                      )}
-                    </ul>
-                    <p style={{ marginTop: 12 }}>
-                      <strong>Tổng gợi ý: {formatVND(modal.data.suggestedDeduction)}</strong>
-                      {' '}· giữ nguyên thưởng {formatVND(item.bonus)}.
-                    </p>
-                    <div className="adm-modal-foot">
-                      <button type="button" className="button secondary" disabled={busy}
-                        onClick={() => setModal(null)}>Để sau</button>
-                      <button type="button" className="button" disabled={busy} onClick={applySuggest}>
-                        {busy ? 'Đang lưu…' : 'Áp dụng'}
-                      </button>
-                    </div>
-                  </div>
+                  <SuggestBody
+                    item={item}
+                    data={modal.data}
+                    busy={busy}
+                    onClose={() => setModal(null)}
+                    onApply={applySuggest}
+                  />
                 )}
               </div>
             </div>
