@@ -13,7 +13,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
-import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
+import { EmptyState, Panel, SectionHeading, StatusBadge } from '../components/Primitives';
 import {
   CancelDialog, ChangeStaffDialog, ConfirmDialog, NoShowDialog,
   RescheduleDialog, sendBookingRequest,
@@ -83,10 +83,34 @@ const MENU_BY_STATUS: Record<string, { key: string; label: string; icon: IconNam
 
 const PAGE_SIZE = 20;
 
+/* Thẻ số liệu bấm được — cùng ngôn ngữ với Dashboard để Admin nhìn quen:
+   bấm để lọc nhanh theo trạng thái, thẻ tiền thì sang trang Thanh toán. */
+function KpiTile({ tone, icon, label, value, note, active, onClick }: {
+  tone: 'rose' | 'sage' | 'gold' | 'lavender';
+  icon: IconName; label: string; value: string | number; note: string;
+  active?: boolean; onClick?: () => void;
+}) {
+  return (
+    <button
+      className={`svc-stat svc-stat-${tone} adm-kpi${active ? ' is-on' : ''}`}
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${label}: ${value}. ${note}`}
+    >
+      <span className="svc-stat-icon"><Icon name={icon} /></span>
+      <span className="svc-stat-copy">
+        <span className="svc-stat-label">{label}</span>
+        <strong>{value}</strong>
+        <small>{note}</small>
+      </span>
+    </button>
+  );
+}
+
 export function AdminBookingsPage() {
   const { state, dispatch, reload, setBookingQuery, openBookingDetail } = useApp();
   const {
-    bookings, bookingCounts, bookingQuery, staff, services, shifts, loading,
+    bookings, bookingCounts, bookingQuery, staff, services, shifts, loading, overview,
   } = state;
 
   const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -134,15 +158,6 @@ export function AdminBookingsPage() {
 
   const totalPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
   const rows = bookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  /* Tiền thu trong danh sách đang tải (tối đa 500 lịch): đã trả đủ + cọc. */
-  const paidTotal = bookings
-    .filter((b) => b.paymentStatus === 'PAID')
-    .reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
-  const depositTotal = bookings
-    .filter((b) => b.paymentStatus === 'DEPOSITED')
-    .reduce((sum, b) => sum + (b.paidAmount ?? 0), 0);
-  const paidCount = bookings.filter((b) => b.paymentStatus === 'PAID').length;
 
   async function runMenu(booking: Booking, key: string) {
     setOpenMenu(null);
@@ -222,19 +237,26 @@ export function AdminBookingsPage() {
         </p>
       )}
 
-      {/* Số liệu nhanh theo đúng phạm vi đang xem */}
+      {/* Thẻ tổng quan — bấm để lọc nhanh, đồng bộ với tab trạng thái */}
       <div className="adm-tiles adm-tiles-5">
-        <StatTile tone="rose" icon="schedule" label={`Lịch hẹn ${scopeDay ?? ''}`.trim()}
-          value={bookingCounts.ALL ?? 0}
-          note={`${bookingCounts.CONFIRMED ?? 0} đã xác nhận`} />
-        <StatTile tone="gold" icon="clock" label="Chờ xác nhận" value={bookingCounts.PENDING ?? 0}
-          note={(bookingCounts.PENDING ?? 0) > 0 ? 'cần xử lý' : 'không còn lịch chờ'} />
-        <StatTile tone="lavender" icon="play" label="Đang thực hiện" value={bookingCounts.PROCESSING ?? 0}
-          note={`${bookingCounts.PROCESSING ?? 0} khách đang làm`} />
-        <StatTile tone="sage" icon="done" label="Đã hoàn thành" value={bookingCounts.COMPLETED ?? 0}
-          note="trong phạm vi đang xem" />
-        <StatTile tone="rose" icon="dollar" label="Tiền thu" value={moneyShort(paidTotal)}
-          note={`${paidCount} đã trả · cọc ${moneyShort(depositTotal)}`} />
+        <KpiTile tone="rose" icon="schedule" label="Lịch hẹn" value={bookingCounts.ALL ?? 0}
+          note={scopeRange ? `${scopeDay} · ${scopeRange}` : scopeDay ?? ''}
+          active={bookingQuery.status === ''} onClick={() => patch({ status: '' })} />
+        <KpiTile tone="gold" icon="clock" label="Chờ xác nhận" value={bookingCounts.PENDING ?? 0}
+          note={(bookingCounts.PENDING ?? 0) > 0 ? 'cần xử lý' : 'không còn lịch chờ'}
+          active={bookingQuery.status === 'PENDING'} onClick={() => patch({ status: 'PENDING' })} />
+        <KpiTile tone="lavender" icon="play" label="Đang thực hiện" value={bookingCounts.PROCESSING ?? 0}
+          note={`${bookingCounts.PROCESSING ?? 0} khách đang làm`}
+          active={bookingQuery.status === 'PROCESSING'} onClick={() => patch({ status: 'PROCESSING' })} />
+        <KpiTile tone="sage" icon="done" label="Đã hoàn thành" value={bookingCounts.COMPLETED ?? 0}
+          note="trong phạm vi xem"
+          active={bookingQuery.status === 'COMPLETED'} onClick={() => patch({ status: 'COMPLETED' })} />
+        <KpiTile tone="rose" icon="dollar" label="Tiền thu hôm nay"
+          value={overview ? moneyShort(overview.revenue.paidAmount) : '—'}
+          note={overview
+            ? `${overview.revenue.paidCount} giao dịch đã trả · cọc ${moneyShort(overview.revenue.depositAmount)}`
+            : 'đang tải số liệu'}
+          onClick={() => dispatch({ type: 'view', view: 'admin-payments' })} />
       </div>
 
       {/* Tab đếm nhanh theo trạng thái */}

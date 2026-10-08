@@ -316,6 +316,7 @@
 /* Năm thẻ KPI trên một hàng */
 .adm-tiles-5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .adm-kpi{text-align:left;width:100%;cursor:pointer;transition:border-color .16s,box-shadow .16s}
+.adm-kpi.is-on{border-color:var(--nh-primary);box-shadow:0 0 0 1px var(--nh-primary)}
 .adm-kpi:hover{border-color:#E7C4CF;box-shadow:0 6px 16px -12px rgba(45,36,48,.4)}
 .adm-kpi.is-alert{border-color:#F0DFB8}
 .adm-kpi.is-alert small{color:var(--nh-gold)}
