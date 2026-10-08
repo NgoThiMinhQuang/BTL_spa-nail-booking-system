@@ -180,12 +180,17 @@ export function AdminCategoriesPage() {
                       Chi tiết →
                     </button>
                     <span className="adm-cat-actions">
-                      <button className="button secondary" onClick={() => openEdit(item)}>Sửa</button>
-                      <button className="button secondary" onClick={() => toggleStatus(item)}>
-                        {active ? 'Ẩn' : 'Mở'}
+                      <button className="button secondary" onClick={() => openEdit(item)}
+                        title={`Sửa danh mục ${item.name}`}>
+                        <Icon name="edit" /> Sửa
                       </button>
-                      <button className="button secondary is-danger" onClick={() => removeCategory(item)}>
-                        Xoá
+                      <button className="button secondary" onClick={() => toggleStatus(item)}
+                        title={active ? `Ẩn danh mục ${item.name}` : `Mở lại danh mục ${item.name}`}>
+                        <Icon name={active ? 'pause' : 'play'} /> {active ? 'Ẩn' : 'Mở'}
+                      </button>
+                      <button className="button secondary is-danger" onClick={() => removeCategory(item)}
+                        title={`Xoá danh mục ${item.name}`}>
+                        <Icon name="trash" /> Xoá
                       </button>
                     </span>
                   </div>
