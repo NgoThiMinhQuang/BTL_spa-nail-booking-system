@@ -252,9 +252,13 @@
    KHUNG ỨNG DỤNG — menu nhóm, breadcrumb, tài khoản
    ========================================================================== */
 
-/* Nhóm menu trong sidebar: tiêu đề nhỏ + các mục con */
-.nav-group{display:grid;gap:7px;margin-bottom:17px}
+/* Nhóm menu trong sidebar: tiêu đề nhỏ + các mục con.
+   Gọn để đủ 5 nhóm không phải cuộn: reference.css đặt min-height 52px
+   cho mỗi nút nên sidebar bị dài — ở đây nén lại. */
+.nav-group{display:grid;gap:4px;margin-bottom:12px}
 .nav-group .nav-label{margin:0 12px 1px}
+#nailhouse nav{gap:6px}
+#nailhouse nav button{min-height:0}
 
 /* Breadcrumb: dùng gap thay vì dấu phân cách thủ công */
 #nailhouse .breadcrumb{display:flex;align-items:center;gap:7px;font-size:11px}
@@ -473,7 +477,7 @@
 /* ---- Sidebar ---- */
 #nailhouse .sidebar{width:var(--adm-sidebar)}
 #nailhouse .workspace{margin-left:var(--adm-sidebar)}
-#nailhouse nav button{font-size:var(--adm-nav);padding:12px 15px}
+#nailhouse nav button{font-size:var(--adm-nav);padding:9px 15px;min-height:0}
 #nailhouse nav button span{width:24px;font-size:22px}
 #nailhouse .nav-label{font-size:var(--adm-nav-group);letter-spacing:1.4px}
 
