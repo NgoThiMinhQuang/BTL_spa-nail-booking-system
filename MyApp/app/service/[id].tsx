@@ -56,7 +56,7 @@ export default function ServiceDetailScreen() {
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerButton}><Ionicons name="chevron-back" size={24} color="#3B3436" /></Pressable>
         <View style={styles.brand}><View style={styles.logo}><Ionicons name="flower-outline" size={22} color="#BD5A78" /></View><View><Text style={styles.brandName}>Nail<Text style={styles.brandAccent}>House</Text></Text><View style={styles.location}><Ionicons name="location" size={9} color="#4D948A" /><Text style={styles.locationText}>Diamond Plaza, Q.1</Text></View></View></View>
-        <View style={styles.headerRight}><Pressable style={styles.headerButton}><Ionicons name="notifications-outline" size={22} color="#3B3436" /><View style={styles.notificationDot} /></Pressable><View style={styles.avatar}><Text style={styles.avatarText}>M</Text></View></View>
+        <View style={styles.headerRight}><Pressable style={styles.headerButton} onPress={() => router.push('/bookings')} accessibilityLabel="Xem lịch hẹn của tôi"><Ionicons name="notifications-outline" size={22} color="#3B3436" /></Pressable></View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -64,7 +64,6 @@ export default function ServiceDetailScreen() {
           <View style={styles.gallerySection}>
             <Image source={{ uri: selectedImage || service.imageUrl || '' }} style={styles.heroImage} />
             <Pressable onPress={handleFavorite} style={styles.favoriteButton}><Ionicons name={isFav ? 'heart' : 'heart-outline'} size={23} color={isFav ? '#E36071' : '#6B8580'} /></Pressable>
-            <View style={styles.bestSeller}><Ionicons name="ribbon-outline" size={12} color="#A66D20" /><Text style={styles.bestSellerText}>Best Seller</Text></View>
             <View style={styles.counter}><Text style={styles.counterText}>{Math.max(gallery.indexOf(selectedImage) + 1, 1)}/{Math.max(gallery.length, 1)}</Text></View>
           </View>
           <View style={styles.verticalThumbnails}>
@@ -81,8 +80,6 @@ export default function ServiceDetailScreen() {
           <View style={styles.categoryRating}><View style={styles.categoryPill}><Text style={styles.categoryText}>{service.categoryName?.toUpperCase() ?? 'DỊCH VỤ NAIL'}</Text></View><View style={styles.rating}><Ionicons name="star" size={16} color="#E8A931" /><Text style={styles.ratingValue}>{Number(service.rating ?? 0).toFixed(1)}</Text><Text style={styles.reviewCount}>({service.reviewCount ?? 0} đánh giá)</Text></View></View>
           <Text style={styles.title}>{service.name}</Text>
           <View style={styles.priceLine}><Text style={styles.price}>{service.price.toLocaleString('vi-VN')}đ</Text><View style={styles.duration}><Ionicons name="time-outline" size={17} color="#4D948A" /><Text style={styles.durationText}>{service.duration} phút</Text></View></View>
-
-          <View style={styles.recommendation}><View style={styles.recommendIcon}><Ionicons name="flower-outline" size={21} color="#B75978" /></View><View style={styles.recommendCopy}><Text style={styles.recommendTitle}>Lựa chọn được yêu thích</Text><Text style={styles.recommendText}>Phù hợp cho vẻ đẹp thanh lịch, nữ tính và hiện đại.</Text></View><Ionicons name="sparkles-outline" size={20} color="#C09BD1" /></View>
 
           <View style={styles.descriptionHeader}><Text style={styles.sectionTitle}>Mô tả dịch vụ</Text><Pressable onPress={() => setExpanded((value) => !value)} style={styles.expandButton}><Text style={styles.expandText}>{expanded ? 'Thu gọn' : 'Xem thêm'}</Text><Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#4D948A" /></Pressable></View>
           <Text numberOfLines={expanded ? undefined : 3} style={styles.description}>{service.description || 'Dịch vụ được thực hiện bởi nghệ nhân chuyên nghiệp với sản phẩm chất lượng cao, quy trình an toàn và chăm sóc kỹ lưỡng.'}</Text>

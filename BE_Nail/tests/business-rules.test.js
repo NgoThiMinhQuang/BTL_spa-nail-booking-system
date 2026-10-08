@@ -2145,3 +2145,39 @@ describe('Scope lich hen qua khu', () => {
     }
   });
 });
+
+/* Du lieu cong khai trang chu: review va mau nail that tu DB. */
+describe('Du lieu that trang chu Mobile', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const mockGet = (name) => (String(name).toLowerCase() === 'host' ? 'localhost:3000' : null);
+
+  test('danh gia moi nhat tra review that, khong phai pravatar', async () => {
+    const { listRecentReviews } = await import('../src/controllers/home.controller.js');
+    const res = mockRes();
+    await listRecentReviews({ query: { limit: '3' }, protocol: 'http', get: mockGet }, res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(res.body.data));
+    for (const row of res.body.data) {
+      assert.equal(typeof row.rating, 'number');
+      assert.ok(row.rating >= 1 && row.rating <= 5);
+      assert.ok(!String(row.customerAvatarUrl ?? '').includes('pravatar'));
+    }
+  });
+
+  test('danh sach mau nail dem duoc, anh noi bo', async () => {
+    const { listDesigns } = await import('../src/controllers/home.controller.js');
+    const res = mockRes();
+    await listDesigns({ query: {}, protocol: 'http', get: mockGet }, res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(res.body.data));
+    assert.ok(res.body.data.length > 0);
+    for (const row of res.body.data) {
+      assert.ok(String(row.imageUrl).startsWith('http'));
+      assert.ok(!String(row.imageUrl).includes('pravatar'));
+    }
+  });
+});

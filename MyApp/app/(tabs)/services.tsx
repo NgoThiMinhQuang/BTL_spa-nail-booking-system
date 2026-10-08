@@ -1,3 +1,4 @@
+import { fetchDesigns } from "@/features/home/home.service";
 import { fetchServices } from "@/features/service/service.service";
 import type { NailService } from "@/features/service/service.types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -29,51 +30,18 @@ const categories: {
   { id: "extension", label: "Đắp móng", icon: "diamond-stone" },
 ];
 
-const cardMeta: Record<
-  string,
-  {
-    eyebrow: string;
-    rating: string;
-    reviews: number;
-    color: string;
-    softColor: string;
-    badge?: string;
-  }
-> = {
-  gel: {
-    eyebrow: "XU HƯỚNG HÀN QUỐC",
-    rating: "4.9",
-    reviews: 420,
-    color: "#D56B81",
-    softColor: "#FBE8ED",
-    badge: "Best Seller",
-  },
-  art: {
-    eyebrow: "BOUTIQUE ART",
-    rating: "5.0",
-    reviews: 215,
-    color: "#397B76",
-    softColor: "#E3F1EF",
-    badge: "Yêu thích",
-  },
-  french: {
-    eyebrow: "THANH LỊCH",
-    rating: "4.9",
-    reviews: 186,
-    color: "#7D6599",
-    softColor: "#EEE8F5",
-  },
-  extension: {
-    eyebrow: "FORM CHUẨN",
-    rating: "4.8",
-    reviews: 180,
-    color: "#A87932",
-    softColor: "#F6EEDC",
-  },
-};
+/* Màu trang trí xoay vòng theo vị trí — nhãn, điểm và lượt đánh giá
+   đều lấy từ API, không ghi cứng con số nào. */
+const palette: { color: string; softColor: string }[] = [
+  { color: "#D56B81", softColor: "#FBE8ED" },
+  { color: "#397B76", softColor: "#E3F1EF" },
+  { color: "#7D6599", softColor: "#EEE8F5" },
+  { color: "#A87932", softColor: "#F6EEDC" },
+];
 
-function ServiceItem({ service }: { service: NailService }) {
-  const meta = cardMeta[service.id] ?? cardMeta.gel;
+function ServiceItem({ service, index }: { service: NailService; index: number }) {
+  const meta = palette[index % palette.length];
+  const hasRating = (service.reviewCount ?? 0) > 0 && (service.rating ?? 0) > 0;
   return (
     <View style={[styles.card, { borderLeftColor: meta.color }]}>
       <View style={styles.cardMain}>
@@ -86,22 +54,21 @@ function ServiceItem({ service }: { service: NailService }) {
             }
             style={styles.serviceImage}
           />
-          {meta.badge && (
-            <View style={[styles.imageBadge, { backgroundColor: meta.color }]}>
-              <Text style={styles.imageBadgeText}>{meta.badge}</Text>
-            </View>
-          )}
         </View>
         <View style={styles.cardContent}>
           <View style={styles.cardTopRow}>
             <Text style={[styles.eyebrow, { color: meta.color }]}>
-              {meta.eyebrow}
+              {(service.categoryName ?? "DỊCH VỤ").toUpperCase()}
             </Text>
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={12} color="#E5A62B" />
-              <Text style={styles.rating}>{meta.rating}</Text>
-              <Text style={styles.reviews}>({meta.reviews})</Text>
-            </View>
+            {hasRating ? (
+              <View style={styles.ratingRow}>
+                <Ionicons name="star" size={12} color="#E5A62B" />
+                <Text style={styles.rating}>{service.rating?.toFixed(1)}</Text>
+                <Text style={styles.reviews}>({service.reviewCount})</Text>
+              </View>
+            ) : (
+              <Text style={styles.reviews}>Chưa có đánh giá</Text>
+            )}
           </View>
           <Text numberOfLines={1} style={styles.serviceName}>
             {service.name}
@@ -158,11 +125,17 @@ export default function ServicesScreen() {
   const [category, setCategory] = useState<CategoryId>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [designCount, setDesignCount] = useState<number | null>(null);
 
   const loadServices = async () => {
     try {
       setError("");
-      setServices(await fetchServices());
+      const [list, designs] = await Promise.all([
+        fetchServices(),
+        fetchDesigns().catch(() => null),
+      ]);
+      setServices(list);
+      if (designs) setDesignCount(designs.length);
     } catch {
       setError(
         "Không thể kết nối máy chủ. Hãy kiểm tra backend và địa chỉ API.",
@@ -184,6 +157,9 @@ export default function ServicesScreen() {
         ),
       )
       .finally(() => setLoading(false));
+    fetchDesigns()
+      .then((designs) => setDesignCount(designs.length))
+      .catch(() => {});
   }, []);
 
   const filteredServices = useMemo(
@@ -232,19 +208,17 @@ export default function ServicesScreen() {
               <Text style={styles.location}>DIAMOND PLAZA, Q.1</Text>
             </View>
           </View>
-          <View style={styles.headerActions}>
-            <View>
-              <Ionicons
-                name="notifications-outline"
-                size={23}
-                color="#30272A"
-              />
-              <View style={styles.notificationDot} />
-            </View>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>M</Text>
-            </View>
-          </View>
+          <Pressable
+            onPress={() => router.push("/bookings")}
+            accessibilityLabel="Xem lịch hẹn của tôi"
+            style={styles.headerActions}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={23}
+              color="#30272A"
+            />
+          </Pressable>
         </View>
 
         <View style={styles.intro}>
@@ -258,7 +232,9 @@ export default function ServicesScreen() {
               size={15}
               color="#D56B81"
             />
-            <Text style={styles.designCountText}>52 mẫu thiết kế</Text>
+            <Text style={styles.designCountText}>
+              {designCount === null ? "Mẫu thiết kế" : `${designCount} mẫu thiết kế`}
+            </Text>
           </View>
         </View>
 
@@ -326,8 +302,8 @@ export default function ServicesScreen() {
               </Pressable>
             </View>
           )}
-          {filteredServices.map((service) => (
-            <ServiceItem key={service.id} service={service} />
+          {filteredServices.map((service, index) => (
+            <ServiceItem key={service.id} service={service} index={index} />
           ))}
           {!loading && !error && filteredServices.length === 0 && (
             <View style={styles.empty}>

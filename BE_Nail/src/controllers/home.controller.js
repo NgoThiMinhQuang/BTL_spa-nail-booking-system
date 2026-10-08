@@ -94,3 +94,57 @@ export async function getHome(req, res, next) {
     next(error);
   }
 }
+
+/* Đánh giá mới nhất để hiện ở trang chủ — dữ liệu thật từ review của
+   khách đã hoàn thành dịch vụ, mới nhất trước. Công khai vì đây là
+   lời chứng thực cửa hàng muốn khoe; không kèm thông tin liên hệ. */
+export async function listRecentReviews(req, res, next) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 6) || 6, 1), 20);
+    const [rows] = await pool.query(
+      `SELECT r.review_id AS id, r.rating, r.comment, r.created_at AS createdAt,
+              COALESCE(u.full_name, 'Khách hàng') AS customerName,
+              u.avatar AS customerAvatarUrl, s.service_name AS serviceName
+         FROM review r
+         JOIN booking b ON b.booking_id = r.booking_id
+         JOIN services s ON s.service_id = b.service_id
+         LEFT JOIN customer c ON c.customer_id = r.customer_id
+         LEFT JOIN users u ON u.user_id = c.user_id
+        ORDER BY r.created_at DESC LIMIT ?`,
+      [limit],
+    );
+    res.json({
+      data: rows.map((row) => ({
+        ...row,
+        id: String(row.id),
+        rating: Number(row.rating),
+        customerAvatarUrl: imageUrl(req, row.customerAvatarUrl),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/* Toàn bộ mẫu nail đang mở — trang Dịch vụ đếm số mẫu thật thay vì
+   ghi cứng con số. */
+export async function listDesigns(req, res, next) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT design_id AS id, design_name AS name, image,
+              category_id AS categoryId, is_trending AS isTrending
+         FROM nail_designs WHERE status = 'ACTIVE' ORDER BY created_at DESC LIMIT 60`,
+    );
+    res.json({
+      data: rows.map((row) => ({
+        ...row,
+        id: String(row.id),
+        categoryId: row.categoryId == null ? null : String(row.categoryId),
+        isTrending: Boolean(row.isTrending),
+        imageUrl: imageUrl(req, row.image),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
