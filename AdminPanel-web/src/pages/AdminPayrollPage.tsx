@@ -297,7 +297,7 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
         <tr>
           <td colSpan={7} style={{ padding: 0, border: 0 }}>
             <div className="adm-modal-backdrop" onClick={() => setModal(null)}>
-              <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className={`adm-modal${modal.type === 'suggest' ? ' adm-modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
                 {modal.type === 'bonus' && (
                   <form onSubmit={submitBonus}>
                     <h3>Thưởng / Khấu trừ — {item.staffName}</h3>
