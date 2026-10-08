@@ -267,6 +267,14 @@ export function AdminPayrollPage() {
           </button>
         </SectionHeading>
 
+        {staff.some((s) => !s.baseSalary && !s.commissionRate) && (
+          <p className="adm-error" style={{ padding: '0 16px' }}>
+            Có nhân viên chưa cấu hình lương (cơ bản 0đ, hoa hồng 0%) nên tổng lương ra 0đ
+            dù vẫn có doanh thu. Vào trang Nhân viên → Sửa để đặt lương cơ bản + % hoa hồng,
+            rồi bấm Tính lương lại (phiếu nháp tính lại theo cấu hình mới).
+          </p>
+        )}
+
         {message && <p className="adm-error" style={{ padding: '0 16px' }}>{message}</p>}
 
         {rows.length === 0 ? (
