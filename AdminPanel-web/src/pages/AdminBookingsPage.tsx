@@ -10,7 +10,7 @@
    Lưu ý: Booking Calendar và Lịch làm việc là hai thứ khác nhau. Bản đồ lịch
    ở đây chỉ vẽ các lịch hẹn đang tồn tại, không thay thế ca làm việc. */
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Icon, type IconName } from '../components/Icon';
 import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatusBadge } from '../components/Primitives';
@@ -25,6 +25,7 @@ import { fmtDate, fmtTime, formatVND } from '../lib/utils';
 
 const SCOPES: { key: BookingScope; label: string }[] = [
   { key: 'today', label: 'Hôm nay' },
+  { key: 'yesterday', label: 'Hôm qua' },
   { key: 'tomorrow', label: 'Ngày mai' },
   { key: 'week', label: '7 ngày tới' },
   { key: 'all', label: 'Tất cả' },
@@ -90,6 +91,7 @@ export function AdminBookingsPage() {
 
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [page, setPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ kind: string; booking: Booking } | null>(null);
   const [walkIn, setWalkIn] = useState(false);
@@ -118,11 +120,17 @@ export function AdminBookingsPage() {
   const scopeDay = bookingQuery.day
     ? fmtDate(bookingQuery.day)
     : SCOPES.find((item) => item.key === bookingQuery.scope)?.label;
-  const scopeRange = bookingQuery.scope === 'week' && !bookingQuery.day
-    ? `${fmtDate(new Date().toISOString())} – ${fmtDate(new Date(Date.now() + 6 * 86400000).toISOString())}`
-    : bookingQuery.scope === 'today' && !bookingQuery.day
-      ? fmtDate(new Date().toISOString())
-      : null;
+  const scopeRange = bookingQuery.day
+    ? null
+    : bookingQuery.scope === 'week'
+      ? `${fmtDate(new Date().toISOString())} – ${fmtDate(new Date(Date.now() + 6 * 86400000).toISOString())}`
+      : bookingQuery.scope === 'today'
+        ? fmtDate(new Date().toISOString())
+        : bookingQuery.scope === 'yesterday'
+          ? fmtDate(new Date(Date.now() - 86400000).toISOString())
+          : bookingQuery.scope === 'tomorrow'
+            ? fmtDate(new Date(Date.now() + 86400000).toISOString())
+            : null;
 
   const totalPages = Math.max(1, Math.ceil(bookings.length / PAGE_SIZE));
   const rows = bookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -153,6 +161,23 @@ export function AdminBookingsPage() {
   const hasFilter = Boolean(
     bookingQuery.q || bookingQuery.status || bookingQuery.payment || bookingQuery.source
     || bookingQuery.staffId || bookingQuery.serviceId || bookingQuery.day);
+  /* Số bộ lọc đang dùng trong khung thu gọn (tìm kiếm + ngày luôn hiện
+     nên không đếm vào đây). */
+  const advancedCount = [
+    bookingQuery.serviceId, bookingQuery.staffId,
+    bookingQuery.payment, bookingQuery.source,
+  ].filter(Boolean).length;
+
+  /* Gom nhóm theo ngày khi xem nhiều ngày (tuần / tất cả / ngày cụ thể
+     thì chỉ một ngày nên không cần vạch ngăn). */
+  const dayKey = (startsAt: string) => startsAt.slice(0, 10);
+  const dayTitle = (day: string) => {
+    const weekday = new Date(`${day}T12:00:00`)
+      .toLocaleDateString('vi-VN', { weekday: 'long' });
+    return `${weekday}, ${fmtDate(day)}`;
+  };
+  const multiDay = new Set(rows.map((b) => dayKey(b.startsAt))).size > 1;
+  let lastDay = '';
 
   return (
     <>
@@ -167,9 +192,6 @@ export function AdminBookingsPage() {
             </button>
           ))}
         </div>
-        <span className="adm-bk-scope">
-          {scopeDay}{scopeRange && <em> · {scopeRange}</em>}
-        </span>
 
         <div className="mode-tabs adm-bk-views">
           <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
@@ -205,9 +227,9 @@ export function AdminBookingsPage() {
         })}
       </div>
 
-      {/* Bộ lọc */}
+      {/* Tìm kiếm + ngày luôn hiện; bộ lọc chi tiết thu gọn */}
       <Panel className="adm-bk-filters">
-        <div className="adm-bk-filter-grid">
+        <div className="adm-bk-filter-grid adm-bk-filter-main">
           <label className="adm-field">
             <span>Tìm khách hàng</span>
             <input
@@ -218,70 +240,70 @@ export function AdminBookingsPage() {
           </label>
 
           <label className="adm-field">
-            <span>Dịch vụ</span>
-            <select value={bookingQuery.serviceId}
-              onChange={(e) => patch({ serviceId: e.target.value })}>
-              <option value="">Tất cả dịch vụ</option>
-              {services.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="adm-field">
-            <span>Nhân viên</span>
-            <select value={bookingQuery.staffId}
-              onChange={(e) => patch({ staffId: e.target.value })}>
-              <option value="">Tất cả nhân viên</option>
-              {staff.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="adm-field">
             <span>Ngày</span>
             <input type="date" value={bookingQuery.day}
               onChange={(e) => patch({ day: e.target.value })} />
           </label>
 
-          <label className="adm-field">
-            <span>Trạng thái lịch</span>
-            <select value={bookingQuery.status}
-              onChange={(e) => patch({ status: e.target.value })}>
-              {STATUS_TABS.map((tab) => (
-                <option key={tab.key} value={tab.key}>
-                  {tab.key === '' ? 'Tất cả' : tab.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="adm-field">
-            <span>Thanh toán</span>
-            <select value={bookingQuery.payment}
-              onChange={(e) => patch({ payment: e.target.value })}>
-              {PAYMENTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-            </select>
-          </label>
-
-          <label className="adm-field">
-            <span>Nguồn đặt lịch</span>
-            <select value={bookingQuery.source}
-              onChange={(e) => patch({ source: e.target.value })}>
-              {SOURCES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-            </select>
-          </label>
-
-          <button className="button secondary adm-bk-reset" onClick={() => {
-            patch({
-              q: '', status: '', payment: '', source: '',
-              staffId: '', serviceId: '', day: '',
-            });
-          }}>
-            <Icon name="refresh" /> Đặt lại
-          </button>
+          <div className="adm-bk-filter-actions">
+            <button className="button secondary" onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}>
+              Bộ lọc{advancedCount > 0 && ` · ${advancedCount}`} {showFilters ? '▴' : '▾'}
+            </button>
+            {hasFilter && (
+              <button className="adm-link" onClick={() => {
+                patch({
+                  q: '', status: '', payment: '', source: '',
+                  staffId: '', serviceId: '', day: '',
+                });
+              }}>
+                <Icon name="refresh" /> Đặt lại
+              </button>
+            )}
+          </div>
         </div>
+
+        {showFilters && (
+          <div className="adm-bk-filter-grid">
+            <label className="adm-field">
+              <span>Dịch vụ</span>
+              <select value={bookingQuery.serviceId}
+                onChange={(e) => patch({ serviceId: e.target.value })}>
+                <option value="">Tất cả dịch vụ</option>
+                {services.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="adm-field">
+              <span>Nhân viên</span>
+              <select value={bookingQuery.staffId}
+                onChange={(e) => patch({ staffId: e.target.value })}>
+                <option value="">Tất cả nhân viên</option>
+                {staff.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="adm-field">
+              <span>Thanh toán</span>
+              <select value={bookingQuery.payment}
+                onChange={(e) => patch({ payment: e.target.value })}>
+                {PAYMENTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+              </select>
+            </label>
+
+            <label className="adm-field">
+              <span>Nguồn đặt lịch</span>
+              <select value={bookingQuery.source}
+                onChange={(e) => patch({ source: e.target.value })}>
+                {SOURCES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
       </Panel>
 
       {view === 'calendar'
@@ -291,7 +313,7 @@ export function AdminBookingsPage() {
             <SectionHeading
               icon={<Icon name="schedule" />}
               title="Danh sách lịch hẹn"
-              subtitle={`${bookings.length} lịch${hasFilter ? ' theo bộ lọc' : ''}`}
+              subtitle={`${bookings.length} lịch · ${scopeDay}${scopeRange ? ` · ${scopeRange}` : ''}${hasFilter ? ' · đang lọc' : ''}`}
             />
 
             {loading && bookings.length === 0 ? (
@@ -334,8 +356,17 @@ export function AdminBookingsPage() {
                       {rows.map((booking, index) => {
                         const menu = MENU_BY_STATUS[booking.status] ?? [];
                         const done = ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(booking.status);
+                        const day = dayKey(booking.startsAt);
+                        const newDay = multiDay && day !== lastDay;
+                        if (newDay) lastDay = day;
                         return (
-                          <tr key={booking.id} className={done ? 'is-done' : undefined}>
+                          <Fragment key={booking.id}>
+                            {newDay && (
+                              <tr className="adm-day-sep">
+                                <td colSpan={11}>{dayTitle(day)}</td>
+                              </tr>
+                            )}
+                            <tr className={done ? 'is-done' : undefined}>
                             <td className="adm-stt">{(page - 1) * PAGE_SIZE + index + 1}</td>
                             <td>
                               <button className="adm-link" onClick={() => openBookingDetail(booking.id)}>
@@ -439,6 +470,7 @@ export function AdminBookingsPage() {
                               </span>
                             </td>
                           </tr>
+                          </Fragment>
                         );
                       })}
                     </tbody>

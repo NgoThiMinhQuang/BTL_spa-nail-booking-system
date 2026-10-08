@@ -34,7 +34,13 @@
 .adm-bk-filters{margin-bottom:14px}
 .adm-bk-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;
   padding:14px 16px 16px}
+.adm-bk-filter-grid.adm-bk-filter-main{grid-template-columns:2fr 1fr auto;align-items:end}
+.adm-bk-filter-actions{display:flex;gap:10px;align-items:center;padding-bottom:1px}
 .adm-bk-reset{align-self:end;white-space:nowrap}
+
+/* ---- Vạch ngăn ngày trong bảng lịch nhiều ngày ---- */
+.adm-day-sep td{background:#faf7f8;font-weight:700;font-size:var(--adm-td);
+  color:var(--nh-primary-dark);padding:8px 12px;letter-spacing:.2px}
 
 /* ---- Ô nhập trong bộ lọc và hộp thoại ---- */
 .adm-field{display:grid;gap:5px;min-width:0}

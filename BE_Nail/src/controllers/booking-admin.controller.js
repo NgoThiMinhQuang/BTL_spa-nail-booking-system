@@ -43,7 +43,7 @@ export async function listBookings(req, res, next) {
     const serviceId = String(req.query.serviceId ?? '').trim();
     const day = String(req.query.day ?? '').trim();
     const term = String(req.query.q ?? '').trim();
-    const scope = ['today', 'tomorrow', 'week', 'upcoming', 'all'].includes(String(req.query.scope))
+    const scope = ['today', 'yesterday', 'tomorrow', 'week', 'upcoming', 'all'].includes(String(req.query.scope))
       ? String(req.query.scope) : 'all';
 
     const where = [];
@@ -64,6 +64,7 @@ export async function listBookings(req, res, next) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) { where.push('DATE(b.start_time) = ?'); params.push(day); }
 
     if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
+    if (scope === 'yesterday') where.push('DATE(b.start_time) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)');
     if (scope === 'tomorrow') where.push('DATE(b.start_time) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)');
     if (scope === 'week') where.push('DATE(b.start_time) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)');
     if (scope === 'upcoming') where.push('b.start_time >= NOW()');
@@ -154,13 +155,14 @@ export async function listBookings(req, res, next) {
     toàn hệ thống trong khi bảng bên dưới chỉ có vài dòng của một ngày. */
 export async function bookingCounts(req, res, next) {
   try {
-    const scope = ['today', 'tomorrow', 'week', 'upcoming', 'all'].includes(String(req.query.scope))
+    const scope = ['today', 'yesterday', 'tomorrow', 'week', 'upcoming', 'all'].includes(String(req.query.scope))
       ? String(req.query.scope) : 'all';
     const day = String(req.query.day ?? '').trim();
 
     const where = [];
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) where.push('DATE(b.start_time) = ?');
     else if (scope === 'today') where.push('DATE(b.start_time) = CURDATE()');
+    else if (scope === 'yesterday') where.push('DATE(b.start_time) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)');
     else if (scope === 'tomorrow') where.push('DATE(b.start_time) = DATE_ADD(CURDATE(), INTERVAL 1 DAY)');
     else if (scope === 'week') where.push('DATE(b.start_time) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)');
     else if (scope === 'upcoming') where.push('b.start_time >= NOW()');

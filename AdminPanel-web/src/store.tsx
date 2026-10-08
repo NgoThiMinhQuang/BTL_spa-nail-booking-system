@@ -150,7 +150,7 @@ export interface Booking {
 }
 
 /** Khoảng thời gian của bộ chọn nhanh đầu trang Lịch hẹn. */
-export type BookingScope = 'today' | 'tomorrow' | 'week' | 'all';
+export type BookingScope = 'today' | 'yesterday' | 'tomorrow' | 'week' | 'all';
 
 export interface BookingQuery {
   scope: BookingScope;

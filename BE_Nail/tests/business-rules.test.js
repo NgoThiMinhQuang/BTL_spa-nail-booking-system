@@ -2118,3 +2118,30 @@ describe('Huy lich va tien hoan', () => {
     }
   });
 });
+
+/* Lich hen xem duoc ca ngay hom qua. */
+describe('Scope lich hen qua khu', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  test('scope yesterday tra dung lich hom qua', async () => {
+    const { listBookings } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const yd = (() => { const d = new Date(Date.now() - 86400000); return d.toISOString().slice(0, 10); })();
+    const [b] = await connection.query(
+      "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source, note) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'COMPLETED', 'MOBILE', '[TEST] hom qua')",
+      [yd + ' 09:00:00', yd + ' 10:15:00']);
+    const bookingId = b.insertId;
+    try {
+      const res = mockRes();
+      await listBookings({ query: { scope: 'yesterday' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      assert.ok(res.body.data.some((r) => String(r.id) === String(bookingId)), 'phai thay lich hom qua');
+    } finally {
+      await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      await connection.end();
+    }
+  });
+});
