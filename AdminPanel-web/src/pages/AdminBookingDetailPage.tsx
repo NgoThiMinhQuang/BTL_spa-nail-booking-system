@@ -377,15 +377,16 @@ export function AdminBookingDetailPage() {
                 <table className="adm-table">
                   <thead>
                     <tr>
-                      <th>Dịch vụ</th><th className="adm-cs-num">Số lượng</th>
+                      <th className="adm-stt">STT</th><th>Dịch vụ</th><th className="adm-cs-num">Số lượng</th>
                       <th className="adm-cs-num">Đơn giá</th>
                       <th className="adm-cs-num">Thành tiền</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {data.addons.map((addon) => (
+                    {data.addons.map((addon, index) => (
                       <tr key={addon.id}>
+                        <td className="adm-stt">{index + 1}</td>
                         <td>{addon.name}</td>
                         <td className="adm-cs-num">{addon.quantity}</td>
                         <td className="adm-cs-num">{formatVND(addon.price)}</td>

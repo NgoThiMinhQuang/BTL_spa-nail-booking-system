@@ -324,18 +324,19 @@ export function AdminBookingsPage() {
                   <table className="adm-table adm-table-booking">
                     <thead>
                       <tr>
-                        <th>Mã lịch</th><th>Thời gian</th><th>Khách hàng</th>
+                        <th className="adm-stt">STT</th><th>Mã lịch</th><th>Thời gian</th><th>Khách hàng</th>
                         <th>Dịch vụ</th><th>Nhân viên</th><th>Nguồn</th>
                         <th>Tổng tiền</th><th>Trạng thái</th><th>Thanh toán</th>
                         <th>Thao tác</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((booking) => {
+                      {rows.map((booking, index) => {
                         const menu = MENU_BY_STATUS[booking.status] ?? [];
                         const done = ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(booking.status);
                         return (
                           <tr key={booking.id} className={done ? 'is-done' : undefined}>
+                            <td className="adm-stt">{(page - 1) * PAGE_SIZE + index + 1}</td>
                             <td>
                               <button className="adm-link" onClick={() => openBookingDetail(booking.id)}>
                                 {booking.code}

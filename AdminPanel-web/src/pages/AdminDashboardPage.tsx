@@ -250,13 +250,14 @@ export function AdminDashboardPage() {
               <table className="adm-table adm-table-wide">
                 <thead>
                   <tr>
-                    <th>Giờ</th><th>Khách hàng</th><th>Dịch vụ</th>
+                    <th className="adm-stt">STT</th><th>Giờ</th><th>Khách hàng</th><th>Dịch vụ</th>
                     <th>Nhân viên</th><th>Trạng thái</th><th>Thanh toán</th><th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {todayBookings.map((booking) => (
+                  {todayBookings.map((booking, index) => (
                     <tr key={booking.id}>
+                      <td className="adm-stt">{index + 1}</td>
                       <td>
                         <strong>{fmtTime(booking.startsAt)}</strong>
                         <small>{booking.duration}′</small>

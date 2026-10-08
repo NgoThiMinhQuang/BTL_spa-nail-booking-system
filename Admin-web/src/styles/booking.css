@@ -72,6 +72,7 @@
 .admin-table .txt{text-align:left}
 .admin-table .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .admin-table .col-stt{width:52px;text-align:center}
+.schedule-table .col-stt{width:44px;text-align:center;color:var(--nh-muted);font-variant-numeric:tabular-nums}
 .admin-table td strong{font-weight:600}
 .admin-table td small{display:block;font-size:12px;color:var(--nh-muted);margin-top:3px;font-weight:400}
 .admin-table tfoot td{background:#faf7f8;font-size:14px;border-bottom:0}

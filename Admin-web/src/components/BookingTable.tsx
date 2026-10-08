@@ -40,6 +40,7 @@ export function BookingTable({
         <table className="schedule-table">
           <thead>
             <tr>
+              <th className="col-stt">STT</th>
               <th>Thời gian</th>
               <th>Khách hàng</th>
               <th>Dịch vụ</th>
@@ -49,7 +50,7 @@ export function BookingTable({
             </tr>
           </thead>
           <tbody>
-            {info.rows.map((b) => {
+            {info.rows.map((b, index) => {
               const isSelected = String(b.id) === String(selected);
               return (
                 <tr
@@ -57,6 +58,7 @@ export function BookingTable({
                   className={isSelected ? 'is-selected' : ''}
                   data-status={detailed ? b.status.toLowerCase() : undefined}
                 >
+                  <td className="col-stt">{index + 1}</td>
                   <td>
                     <strong>{b.startsAt.slice(11)}</strong>
                     {detailed && <small>{b.endsAt.slice(11)}</small>}

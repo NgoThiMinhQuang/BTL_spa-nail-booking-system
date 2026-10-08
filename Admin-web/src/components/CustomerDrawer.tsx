@@ -254,6 +254,7 @@ function HistoryTable({ rows }: { rows: HistoryItem[] }) {
       <table className="admin-table">
         <thead>
           <tr>
+            <th className="col-stt">STT</th>
             <th className="num">Ngày đặt</th>
             <th className="txt">Dịch vụ</th>
             <th className="txt">Trạng thái</th>
@@ -261,8 +262,9 @@ function HistoryTable({ rows }: { rows: HistoryItem[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((b) => (
+          {rows.map((b, index) => (
             <tr key={b.id}>
+              <td className="col-stt">{index + 1}</td>
               <td className="num">{b.date}<small>{b.time}</small></td>
               <td className="txt">{b.serviceName}<small>{money(b.price)} · {b.duration} phút</small></td>
               <td className="txt"><Badge status={b.status} /></td>

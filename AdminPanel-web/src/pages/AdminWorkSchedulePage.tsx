@@ -17,7 +17,7 @@ const ACTION_TEXT: Record<ScheduleRequestItem['action'], string> = {
   REMOVE: 'Xoá ca',
 };
 
-function ScheduleRequestRow({ item, onDone }: { item: ScheduleRequestItem; onDone: () => void }) {
+function ScheduleRequestRow({ item, index, onDone }: { item: ScheduleRequestItem; index: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -46,6 +46,7 @@ function ScheduleRequestRow({ item, onDone }: { item: ScheduleRequestItem; onDon
 
   return (
     <tr key={item.id}>
+      <td className="adm-stt">{index + 1}</td>
       <td><strong>{item.workDate}</strong><small>{weekdayShort(item.workDate)}</small></td>
       <td><strong>{item.staffName}</strong><small>{item.specialty ?? '—'}</small></td>
       <td>{ACTION_TEXT[item.action]}</td>
@@ -196,13 +197,13 @@ export function AdminWorkSchedulePage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th>Ngày</th><th>Nhân viên</th><th>Loại</th>
+                  <th className="adm-stt">STT</th><th>Ngày</th><th>Nhân viên</th><th>Loại</th>
                   <th>Ca mới</th><th>Lịch vướng</th><th>Duyệt</th>
                 </tr>
               </thead>
               <tbody>
-                {pendingRequests.map((item) => (
-                  <ScheduleRequestRow key={item.id} item={item} onDone={reload} />
+                {pendingRequests.map((item, index) => (
+                  <ScheduleRequestRow key={item.id} item={item} index={index} onDone={reload} />
                 ))}
               </tbody>
             </table>
@@ -251,9 +252,10 @@ export function AdminWorkSchedulePage() {
                 </tr>
               </thead>
               <tbody>
-                {staff.map((person) => (
+                {staff.map((person, index) => (
                   <tr key={person.id}>
                     <th scope="row">
+                      <span className="adm-stt" style={{ display: 'block' }}>{index + 1}</span>
                       <span className="adm-cell-name">
                         <Avatar name={person.name} url={person.avatarUrl} size={32} />
                         <span style={{ minWidth: 0 }}>
@@ -352,11 +354,12 @@ export function AdminWorkSchedulePage() {
           <div className="table-scroll">
             <table className="adm-table">
               <thead>
-                <tr><th>Ngày</th><th>Nhân viên</th><th>Giờ</th><th>Lịch</th><th>Thao tác</th></tr>
+                <tr><th className="adm-stt">STT</th><th>Ngày</th><th>Nhân viên</th><th>Giờ</th><th>Lịch</th><th>Thao tác</th></tr>
               </thead>
               <tbody>
-                {weekShifts.map((shift) => (
+                {weekShifts.map((shift, index) => (
                   <tr key={shift.id}>
+                    <td className="adm-stt">{index + 1}</td>
                     <td><strong>{shift.workDate}</strong></td>
                     <td>{shift.staffName}</td>
                     <td>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</td>

@@ -77,11 +77,12 @@ function SuggestBody({ item, data, busy, onClose, onApply }: {
         <div className="table-scroll" style={{ marginTop: 8 }}>
           <table className="adm-table">
             <thead>
-              <tr><th>Ngày</th><th>Nội dung</th><th>Tiền trừ</th></tr>
+              <tr><th className="adm-stt">STT</th><th>Ngày</th><th>Nội dung</th><th>Tiền trừ</th></tr>
             </thead>
             <tbody>
-              {rows.map((d) => (
+              {rows.map((d, i) => (
                 <tr key={`${d.workDate}-${d.kind}-${d.minutes}`}>
+                  <td className="adm-stt">{i + 1}</td>
                   <td><strong>{dayLabel(d.workDate)}</strong></td>
                   <td>{describeDetail(d)}</td>
                   <td><strong>{formatVND(d.amount)}</strong></td>
@@ -126,7 +127,7 @@ type RowModal =
   | { type: 'suggest'; data: SuggestData }
   | null;
 
-function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void }) {
+function PayrollRow({ item, index, onDone }: { item: PayrollItem; index: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState(false);
@@ -237,6 +238,7 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
   return (
     <>
       <tr>
+        <td className="adm-stt">{index + 1}</td>
         <td>
           <strong>{item.staffName}</strong>
           <small>{item.periodMonth} · {item.completedCount} lịch hoàn thành</small>
@@ -278,14 +280,14 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
       </tr>
       {open && detail && (
         <tr>
-          <td colSpan={7}>
+          <td colSpan={8}>
             {detail.items.length === 0 ? (
               <span className="adm-none">Tháng này không có lịch COMPLETED + PAID nào.</span>
             ) : (
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
-                {detail.items.map((b) => (
+                {detail.items.map((b, i) => (
                   <li key={b.id}>
-                    {String(b.startsAt).slice(0, 16).replace('T', ' ')} · {b.serviceName} · thu {formatVND(b.paidAmount)} → HH {formatVND(b.commissionAmount)}
+                    {i + 1}. {String(b.startsAt).slice(0, 16).replace('T', ' ')} · {b.serviceName} · thu {formatVND(b.paidAmount)} → HH {formatVND(b.commissionAmount)}
                   </li>
                 ))}
               </ul>
@@ -295,9 +297,9 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
       )}
       {modal && (
         <tr>
-          <td colSpan={7} style={{ padding: 0, border: 0 }}>
+          <td colSpan={8} style={{ padding: 0, border: 0 }}>
             <div className="adm-modal-backdrop" onClick={() => setModal(null)}>
-              <div className={`adm-modal${modal.type === 'suggest' ? ' adm-modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
+              <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
                 {modal.type === 'bonus' && (
                   <form onSubmit={submitBonus}>
                     <h3>Thưởng / Khấu trừ — {item.staffName}</h3>
@@ -462,12 +464,12 @@ export function AdminPayrollPage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th>Nhân viên</th><th>Lương cơ bản</th><th>Doanh thu HH</th>
+                  <th className="adm-stt">STT</th><th>Nhân viên</th><th>Lương cơ bản</th><th>Doanh thu HH</th>
                   <th>Hoa hồng</th><th>Tổng lương</th><th>Trạng thái</th><th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((item) => <PayrollRow key={item.id} item={item} onDone={() => { load(month); reload(); }} />)}
+                {rows.map((item, index) => <PayrollRow key={item.id} item={item} index={index} onDone={() => { load(month); reload(); }} />)}
               </tbody>
             </table>
           </div>

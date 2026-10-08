@@ -286,15 +286,16 @@ export function AdminReportsPage() {
             <table className="adm-table">
               <thead>
                 <tr>
-                  <th>Nhân viên</th><th>Hoàn thành</th><th>Tỉ lệ HT</th>
+                  <th className="adm-stt">STT</th><th>Nhân viên</th><th>Hoàn thành</th><th>Tỉ lệ HT</th>
                   <th>Doanh thu</th><th>Đánh giá</th>
                 </tr>
               </thead>
               <tbody>
                 {(reports?.byStaff.length ?? 0) === 0 ? (
-                  <tr><td colSpan={5}>Kỳ này chưa có lịch hoàn thành.</td></tr>
-                ) : reports!.byStaff.map((item) => (
+                  <tr><td colSpan={6}>Kỳ này chưa có lịch hoàn thành.</td></tr>
+                ) : reports!.byStaff.map((item, index) => (
                   <tr key={item.name}>
+                    <td className="adm-stt">{index + 1}</td>
                     <td><strong>{item.name}</strong></td>
                     <td>{item.completed}/{item.bookings}</td>
                     <td>{item.completionRate}%</td>
@@ -318,7 +319,7 @@ export function AdminReportsPage() {
           <table className="adm-table">
             <thead>
               <tr>
-                <th>#</th><th>Khách hàng</th><th>Số điện thoại</th>
+                <th className="adm-stt">#</th><th>Khách hàng</th><th>Số điện thoại</th>
                 <th>Hoàn thành</th><th>TB/lần</th><th>Tổng chi tiêu</th><th>Lần gần nhất</th>
               </tr>
             </thead>

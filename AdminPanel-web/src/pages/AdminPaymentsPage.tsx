@@ -245,7 +245,7 @@ export function AdminPaymentsPage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th>Ngày</th>
+                  <th className="adm-stt">STT</th><th>Ngày</th>
                   <th>Khách hàng</th>
                   <th>Dịch vụ</th>
                   <th>Nhân viên</th>
@@ -256,8 +256,9 @@ export function AdminPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((payment) => (
+                {rows.map((payment, index) => (
                   <tr key={payment.bookingId}>
+                    <td className="adm-stt">{index + 1}</td>
                     <td>
                       <strong>{payment.paymentDate ? fmtDate(payment.paymentDate) : fmtDate(payment.startsAt)}</strong>
                       <small>{payment.paymentMethod ? METHOD_LABEL[payment.paymentMethod] ?? payment.methodText : 'Chưa ghi nhận'}</small>

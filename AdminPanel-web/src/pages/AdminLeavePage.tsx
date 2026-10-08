@@ -26,7 +26,7 @@ const STATUS_TEXT: Record<LeaveItem['status'], string> = {
   REJECTED: 'Đã từ chối',
 };
 
-function LeaveRow({ item, onDone }: { item: LeaveItem; onDone: () => void }) {
+function LeaveRow({ item, index, onDone }: { item: LeaveItem; index: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -56,6 +56,7 @@ function LeaveRow({ item, onDone }: { item: LeaveItem; onDone: () => void }) {
 
   return (
     <tr key={item.id}>
+      <td className="adm-stt">{index + 1}</td>
       <td>
         <strong>{fmtDay(item.startDatetime.slice(0, 10))}</strong>
         <small>{item.startDatetime.slice(11, 16)} – {item.endDatetime.slice(11, 16)} ngày {fmtDay(item.endDatetime.slice(0, 10))}</small>
@@ -154,12 +155,12 @@ export function AdminLeavePage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th>Khoảng nghỉ</th><th>Nhân viên</th><th>Lý do</th>
+                  <th className="adm-stt">STT</th><th>Khoảng nghỉ</th><th>Nhân viên</th><th>Lý do</th>
                   <th>Lịch ảnh hưởng</th><th>Trạng thái</th><th>Duyệt</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((item) => <LeaveRow key={item.id} item={item} onDone={reload} />)}
+                {rows.map((item, index) => <LeaveRow key={item.id} item={item} index={index} onDone={reload} />)}
               </tbody>
             </table>
           </div>

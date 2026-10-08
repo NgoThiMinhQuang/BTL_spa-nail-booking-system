@@ -260,6 +260,10 @@
 #nailhouse nav{gap:6px}
 #nailhouse nav button{min-height:0}
 
+/* Cột STT dùng chung mọi bảng: hẹp, xám, số tabular. */
+#nailhouse .adm-table th.adm-stt,#nailhouse .adm-table td.adm-stt{
+  width:48px;color:var(--nh-muted);font-variant-numeric:tabular-nums;text-align:center}
+
 /* Breadcrumb: dùng gap thay vì dấu phân cách thủ công */
 #nailhouse .breadcrumb{display:flex;align-items:center;gap:7px;font-size:11px}
 #nailhouse .breadcrumb span{color:#A9A2A8;margin:0;white-space:nowrap}
