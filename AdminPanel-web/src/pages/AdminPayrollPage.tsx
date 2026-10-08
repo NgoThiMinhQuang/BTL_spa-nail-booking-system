@@ -20,10 +20,23 @@ const STATUS_TEXT: Record<PayrollItem['status'], string> = {
   PAID: 'Đã trả',
 };
 
+interface SuggestData {
+  suggestedDeduction: number; lateMinutes: number; lateDays: number;
+  absentDays: number; unpaidLeaveMinutes: number;
+  details: { workDate: string; kind: string; minutes: number; amount: number }[];
+}
+
+type RowModal =
+  | { type: 'bonus'; bonus: string; deduction: string }
+  | { type: 'pay'; method: string }
+  | { type: 'suggest'; data: SuggestData }
+  | null;
+
 function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState(false);
+  const [modal, setModal] = useState<RowModal>(null);
   const [detail, setDetail] = useState<{
     items: { id: string; bookingId: string | null; serviceName: string | null; startsAt: string; paidAmount: number; commissionAmount: number }[];
   } | null>(null);
@@ -44,24 +57,36 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
     await act(`/payrolls/${item.id}/confirm`);
   }
 
-  async function pay() {
-    const method = window.prompt('Hình thức trả (VD: tiền mặt, chuyển khoản):', 'tiền mặt') ?? '';
-    await act(`/payrolls/${item.id}/pay`, { paymentMethod: method.trim() || null });
+  function openPay() {
+    setModal({ type: 'pay', method: 'tiền mặt' });
+  }
+
+  async function submitPay(e: React.FormEvent) {
+    e.preventDefault();
+    if (modal?.type !== 'pay') return;
+    const method = modal.method.trim();
+    setModal(null);
+    await act(`/payrolls/${item.id}/pay`, { paymentMethod: method || null });
   }
 
   async function reopen() {
     await act(`/payrolls/${item.id}/reopen`);
   }
 
-  async function recalc() {
-    const bonus = window.prompt('Thưởng (VND):', String(0));
-    if (bonus === null) return;
-    const deduction = window.prompt('Khấu trừ (VND):', String(0));
-    if (deduction === null) return;
-    if (!/^\d+$/.test(bonus.trim()) || !/^\d+$/.test(deduction.trim())) {
+  function openBonus() {
+    setModal({ type: 'bonus', bonus: String(item.bonus), deduction: String(item.deduction) });
+  }
+
+  async function submitBonus(e: React.FormEvent) {
+    e.preventDefault();
+    if (modal?.type !== 'bonus') return;
+    const bonus = modal.bonus.trim();
+    const deduction = modal.deduction.trim();
+    if (!/^\d+$/.test(bonus) || !/^\d+$/.test(deduction)) {
       setMessage('Thưởng/khấu trừ phải là số nguyên ≥ 0.');
       return;
     }
+    setModal(null);
     await savePay(Number(bonus), Number(deduction));
   }
 
@@ -87,31 +112,21 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
   async function suggest() {
     setBusy(true);
     setMessage('');
-    const result = await sendAdmin<{
-      suggestedDeduction: number; lateMinutes: number; lateDays: number;
-      absentDays: number; unpaidLeaveMinutes: number;
-      details: { workDate: string; kind: string; minutes: number; amount: number }[];
-    }>(`/payrolls/suggest-deduction?staffId=${item.staffId}&month=${item.periodMonth}`, 'GET');
+    const result = await sendAdmin<SuggestData>(
+      `/payrolls/suggest-deduction?staffId=${item.staffId}&month=${item.periodMonth}`, 'GET');
     setBusy(false);
     if (!result.ok) {
       setMessage(result.message);
       return;
     }
-    const s = result.data;
-    const lines = s.details
-      .filter((d) => d.amount > 0)
-      .map((d) => `${d.workDate}: ${KIND_TEXT[d.kind] ?? d.kind} ${d.minutes}p → ${formatVND(d.amount)}`)
-      .join('\n');
-    const ok = window.confirm(
-      `Gợi ý khấu trừ tháng ${item.periodMonth}:\n`
-      + `- Đi muộn: ${s.lateMinutes}p (${s.lateDays} ngày)\n`
-      + `- Vắng không phép: ${s.absentDays} ngày\n`
-      + `- Nghỉ không lương: ${s.unpaidLeaveMinutes}p\n`
-      + `=> Tổng gợi ý: ${formatVND(s.suggestedDeduction)}\n`
-      + (lines ? `\n${lines}\n` : '\n')
-      + `\nÁp dụng ${formatVND(s.suggestedDeduction)} vào ô khấu trừ (giữ nguyên thưởng ${formatVND(item.bonus)})?`,
-    );
-    if (ok) await savePay(item.bonus, s.suggestedDeduction);
+    setModal({ type: 'suggest', data: result.data });
+  }
+
+  async function applySuggest() {
+    if (modal?.type !== 'suggest') return;
+    const suggested = modal.data.suggestedDeduction;
+    setModal(null);
+    await savePay(item.bonus, suggested);
   }
 
   async function toggleDetail() {
@@ -158,14 +173,14 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
             {item.status === 'DRAFT' && (
               <>
                 <button className="button secondary" disabled={busy} onClick={suggest}>Gợi ý trừ</button>
-                <button className="button secondary" disabled={busy} onClick={recalc}>Thưởng/Trừ</button>
+                <button className="button secondary" disabled={busy} onClick={openBonus}>Thưởng/Trừ</button>
                 <button className="button" disabled={busy} onClick={confirm}>Chốt</button>
               </>
             )}
             {item.status === 'CONFIRMED' && (
               <>
                 <button className="button secondary" disabled={busy} onClick={reopen}>Mở lại</button>
-                <button className="button" disabled={busy} onClick={pay}>Trả lương</button>
+                <button className="button" disabled={busy} onClick={openPay}>Trả lương</button>
               </>
             )}
           </div>
@@ -186,6 +201,95 @@ function PayrollRow({ item, onDone }: { item: PayrollItem; onDone: () => void })
                 ))}
               </ul>
             )}
+          </td>
+        </tr>
+      )}
+      {modal && (
+        <tr>
+          <td colSpan={7} style={{ padding: 0, border: 0 }}>
+            <div className="adm-modal-backdrop" onClick={() => setModal(null)}>
+              <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
+                {modal.type === 'bonus' && (
+                  <form onSubmit={submitBonus}>
+                    <h3>Thưởng / Khấu trừ — {item.staffName}</h3>
+                    <p>Tổng lương = {formatVND(item.baseSalary)} + {formatVND(item.commissionAmount)} + thưởng − trừ.</p>
+                    <div className="adm-form" style={{ marginTop: 12 }}>
+                      <label className="adm-field">
+                        <span>Thưởng (VND)</span>
+                        <input value={modal.bonus} inputMode="numeric"
+                          onChange={(e) => setModal({ ...modal, bonus: e.target.value })}
+                          disabled={busy} autoFocus />
+                      </label>
+                      <label className="adm-field">
+                        <span>Khấu trừ (VND)</span>
+                        <input value={modal.deduction} inputMode="numeric"
+                          onChange={(e) => setModal({ ...modal, deduction: e.target.value })}
+                          disabled={busy} />
+                      </label>
+                    </div>
+                    <div className="adm-modal-foot">
+                      <button type="button" className="button secondary" disabled={busy}
+                        onClick={() => setModal(null)}>Hủy bỏ</button>
+                      <button type="submit" className="button" disabled={busy}>
+                        {busy ? 'Đang lưu…' : 'Lưu'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {modal.type === 'pay' && (
+                  <form onSubmit={submitPay}>
+                    <h3>Trả lương — {item.staffName}</h3>
+                    <p>{formatVND(item.totalSalary)} · tháng {item.periodMonth}.</p>
+                    <div className="adm-form" style={{ marginTop: 12 }}>
+                      <label className="adm-field">
+                        <span>Hình thức trả</span>
+                        <input value={modal.method}
+                          onChange={(e) => setModal({ ...modal, method: e.target.value })}
+                          disabled={busy} autoFocus placeholder="VD: tiền mặt, chuyển khoản" />
+                      </label>
+                    </div>
+                    <div className="adm-modal-foot">
+                      <button type="button" className="button secondary" disabled={busy}
+                        onClick={() => setModal(null)}>Hủy bỏ</button>
+                      <button type="submit" className="button" disabled={busy}>
+                        {busy ? 'Đang trả…' : 'Xác nhận đã trả'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {modal.type === 'suggest' && (
+                  <div>
+                    <h3>Gợi ý khấu trừ — {item.staffName}</h3>
+                    <p>
+                      Đi muộn {modal.data.lateMinutes}p ({modal.data.lateDays} ngày) ·
+                      vắng {modal.data.absentDays} ngày ·
+                      nghỉ không lương {modal.data.unpaidLeaveMinutes}p.
+                    </p>
+                    <ul style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: 12.5, maxHeight: 220, overflowY: 'auto' }}>
+                      {modal.data.details.filter((d) => d.amount > 0).map((d) => (
+                        <li key={`${d.workDate}-${d.kind}`}>
+                          {d.workDate}: {KIND_TEXT[d.kind] ?? d.kind} {d.minutes}p → {formatVND(d.amount)}
+                        </li>
+                      ))}
+                      {modal.data.details.every((d) => d.amount === 0) && (
+                        <li>Không có ngày nào cần trừ.</li>
+                      )}
+                    </ul>
+                    <p style={{ marginTop: 12 }}>
+                      <strong>Tổng gợi ý: {formatVND(modal.data.suggestedDeduction)}</strong>
+                      {' '}· giữ nguyên thưởng {formatVND(item.bonus)}.
+                    </p>
+                    <div className="adm-modal-foot">
+                      <button type="button" className="button secondary" disabled={busy}
+                        onClick={() => setModal(null)}>Để sau</button>
+                      <button type="button" className="button" disabled={busy} onClick={applySuggest}>
+                        {busy ? 'Đang lưu…' : 'Áp dụng'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </td>
         </tr>
       )}
