@@ -6,6 +6,7 @@
   "scripts": {
     "db:migrate": "node scripts/migrate.js",
     "db:rebuild": "node scripts/rebuild-db.mjs",
+    "db:seed-demo": "node scripts/seed-demo.mjs",
     "db:demo-reset": "node scripts/reset-demo.mjs",
     "dev": "node scripts/dev.js",
     "start": "node src/server.js",

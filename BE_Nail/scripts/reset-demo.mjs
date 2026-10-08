@@ -1,65 +1,71 @@
-/* Xoá dữ liệu mà các script kiểm thử tạo ra, để database về đúng trạng
-   thái dữ liệu mẫu ban đầu.
-
-   Dữ liệu kiểm thử nhận ra là:
-     - lịch của khách vãng lai tên "Khách thử nghiệm"
-     - yêu cầu nghỉ / yêu cầu lịch làm việc do script tạo
-
-   Chạy: node scripts/reset-demo.mjs */
+/* Xoa DUNG du lieu thu do `npm run db:seed-demo` tao ra.
+ *
+ * Nhan dien bang dau hieu demo, KHONG xoa du lieu that:
+ *  - lich co note '[DEMO]%' (con: event, anh, addon, review, payment,
+ *    giao dich tien tu CASCADE theo booking)
+ *  - user co so demo: NV 0901000001-0901000005, khach 0910000001-0910000014,
+ *    0900000001-0900000003 (con: staff, customer, ca lam, yeu cau nghi/doi ca
+ *    tu CASCADE theo staff; lich cua ho phai xoa truoc o buoc 1)
+ *
+ * Khong dong den: dich vu, danh muc, tai khoan admin, lich/thanh toan that.
+ *
+ * Chay: node scripts/reset-demo.mjs (hoac npm run db:demo-reset)
+ */
 
 import 'dotenv/config';
 import mysql from 'mysql2/promise';
 
 const connection = await mysql.createConnection({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST ?? '127.0.0.1',
+  port: Number(process.env.DB_PORT ?? 3306),
+  user: process.env.DB_USER ?? 'root',
+  password: process.env.DB_PASSWORD ?? '',
+  database: process.env.DB_NAME ?? 'nail_management',
 });
 
-const [bookings] = await connection.query(
-  "SELECT booking_id FROM booking WHERE guest_name = 'Khách thử nghiệm'");
-if (bookings.length) {
-  const ids = bookings.map((row) => row.booking_id);
-  await connection.query('DELETE FROM booking_event WHERE booking_id IN (?)', [ids]);
-  await connection.query('DELETE FROM booking_image WHERE booking_id IN (?)', [ids]);
-  await connection.query('DELETE FROM booking_addon WHERE booking_id IN (?)', [ids]);
+const DEMO_PHONES = [
+  '0901000001', '0901000002', '0901000003', '0901000004', '0901000005',
+  '0910000001', '0910000002', '0910000003', '0910000004', '0910000005',
+  '0910000006', '0910000007', '0910000008', '0910000009', '0910000010',
+  '0910000011', '0910000012', '0910000013', '0910000014',
+  '0900000001', '0900000002', '0900000003',
+];
+
+/* 1. Lich demo: theo note, hoac cua user demo (bao ca lich demo cu chua co note). */
+const [marked] = await connection.query(
+  `SELECT booking_id FROM booking WHERE note LIKE '[DEMO]%'`);
+const [ofDemoUsers] = await connection.query(
+  `SELECT b.booking_id FROM booking b
+     LEFT JOIN customer c ON c.customer_id = b.customer_id
+     LEFT JOIN users cu ON cu.user_id = c.user_id
+     LEFT JOIN staff st ON st.staff_id = b.staff_id
+     LEFT JOIN users su ON su.user_id = st.user_id
+    WHERE cu.phone IN (?) OR su.phone IN (?)`,
+  [DEMO_PHONES, DEMO_PHONES]);
+const ids = [...new Set([
+  ...marked.map((r) => r.booking_id),
+  ...ofDemoUsers.map((r) => r.booking_id),
+])];
+if (ids.length) {
+  for (const table of ['booking_event', 'booking_image', 'booking_addon']) {
+    await connection.query(`DELETE FROM ${table} WHERE booking_id IN (?)`, [ids]);
+  }
   await connection.query(
-    'DELETE FROM review_images WHERE review_id IN '
-    + '(SELECT review_id FROM review WHERE booking_id IN (?))', [ids]);
+    'DELETE FROM review_images WHERE review_id IN (SELECT review_id FROM review WHERE booking_id IN (?))',
+    [ids]);
   await connection.query('DELETE FROM review WHERE booking_id IN (?)', [ids]);
+  await connection.query('DELETE FROM payment_transaction WHERE booking_id IN (?)', [ids]);
   await connection.query('DELETE FROM payment WHERE booking_id IN (?)', [ids]);
   await connection.query('DELETE FROM booking WHERE booking_id IN (?)', [ids]);
-  console.log(`Đã xoá ${ids.length} lịch thử nghiệm.`);
-} else {
-  console.log('Không có lịch thử nghiệm nào.');
 }
+console.log(`Da xoa ${ids.length} lich demo.`);
 
-const [leave] = await connection.query('DELETE FROM staff_leave_request');
-console.log(`Đã xoá ${leave.affectedRows} yêu cầu nghỉ.`);
-const [schedule] = await connection.query('DELETE FROM staff_schedule_request');
-console.log(`Đã xoá ${schedule.affectedRows} yêu cầu lịch làm việc.`);
-
-/* Thêm lại ca làm việc cho 30 ngày tới nếu script nào đã xoá mất. */
-await connection.query(
-  `INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status)
-   SELECT st.staff_id, DATE_ADD(CURDATE(), INTERVAL d.n DAY), '09:00:00', '18:00:00', 'AVAILABLE'
-     FROM staff st
-     JOIN users u ON u.user_id = st.user_id AND u.status = 'ACTIVE'
-     CROSS JOIN (
-       SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
-       UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7
-       UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11
-       UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
-       UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19
-       UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23
-       UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27
-       UNION ALL SELECT 28 UNION ALL SELECT 29) d
-    WHERE NOT EXISTS (
-      SELECT 1 FROM staff_schedule sc
-       WHERE sc.staff_id = st.staff_id
-         AND sc.work_date = DATE_ADD(CURDATE(), INTERVAL d.n DAY))`);
-console.log('Đã bổ sung ca làm việc còn thiếu.');
+/* 2. Tai khoan demo (staff/customer/ca/yeu cau tu CASCADE). */
+const [users] = await connection.query('SELECT user_id, phone FROM users WHERE phone IN (?)', [DEMO_PHONES]);
+if (users.length) {
+  const uids = users.map((u) => u.user_id);
+  await connection.query('DELETE FROM users WHERE user_id IN (?)', [uids]);
+}
+console.log(`Da xoa ${users.length} tai khoan demo (${users.map((u) => u.phone).join(', ') || 'khong co'}).`);
 
 await connection.end();
