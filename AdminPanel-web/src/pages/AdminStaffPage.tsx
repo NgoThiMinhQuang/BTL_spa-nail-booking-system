@@ -166,6 +166,20 @@ export function AdminStaffPage() {
       return a.name.localeCompare(b.name, 'vi');
     });
 
+  function SortTh({ label, sortKey, numeric }: {
+    label: string; sortKey: typeof sort; numeric?: boolean;
+  }) {
+    const active = sort === sortKey;
+    return (
+      <th className={numeric ? 'adm-cs-num' : undefined} aria-sort={active ? 'descending' : undefined}>
+        <button className={`adm-sort-th${active ? ' is-on' : ''}`} onClick={() => setSort(sortKey)}
+          title={`Sắp xếp theo ${label}`}>
+          {label} <span aria-hidden="true">{active ? '▼' : ''}</span>
+        </button>
+      </th>
+    );
+  }
+
   const onShift = staff.filter((item) => item.worksToday).length;
   const totalRevenue = staff.reduce((sum, item) => sum + item.revenue, 0);
   const rated = staff.filter((item) => item.reviewCount > 0);
@@ -213,87 +227,88 @@ export function AdminStaffPage() {
             <option value="ACTIVE">Đang làm việc</option>
             <option value="INACTIVE">Đã khoá</option>
           </select>
-          <select aria-label="Sắp xếp" value={sort}
-            onChange={(e) => setSort(e.target.value as typeof sort)}>
-            <option value="revenue">Doanh thu cao</option>
-            <option value="rating">Đánh giá cao</option>
-            <option value="bookings">Nhiều lịch nhất</option>
-            <option value="name">Tên A → Z</option>
-          </select>
         </div>
 
         {rows.length === 0 ? (
           <EmptyState title="Không tìm thấy nhân viên" detail="Thử một từ khoá khác." />
         ) : (
-          <div className="adm-people adm-staff">
-            {rows.map((item) => {
-              const locked = (item.status ?? 'ACTIVE') !== 'ACTIVE';
-              return (
-              <article key={item.id} className={`adm-person${locked ? ' is-off' : ''}`}>
-                <div className="adm-person-head">
-                  <Avatar name={item.name} url={item.avatarUrl} size={44} />
-                  <span style={{ minWidth: 0 }}>
-                    <h3>{item.name}</h3>
-                    <small>{item.specialty ?? 'Chưa cập nhật chuyên môn'}</small>
-                  </span>
-                  <span className={`badge ${locked ? 'cancelled' : item.worksToday ? 'completed' : 'pending'}`}>
-                    <i />{locked ? 'Đã khoá' : item.worksToday ? 'Trong ca' : 'Ngoài ca'}
-                  </span>
-                </div>
-
-                <dl className="adm-person-nums">
-                  <div title="Lịch đã hoàn thành / tổng lịch">
-                    <dt>Hoàn thành</dt>
-                    <dd>{fmtNum(item.completedCount)}<small>/{fmtNum(item.bookingCount)}</small></dd>
-                  </div>
-                  <div title="Doanh thu từ lịch hoàn thành">
-                    <dt>Doanh thu</dt><dd>{moneyShort(item.revenue)}</dd>
-                  </div>
-                  <div title="Điểm trung bình / số lượt đánh giá">
-                    <dt>Đánh giá</dt>
-                    <dd>★ {fmtRating(item.rating)}{item.reviewCount > 0 && <small> ({item.reviewCount})</small>}</dd>
-                  </div>
-                  <div><dt>Kinh nghiệm</dt><dd>{item.experienceYears} năm</dd></div>
-                  <div title="Lương cơ bản + % hoa hồng">
-                    <dt>Lương</dt>
-                    <dd>{moneyShort(item.baseSalary)}<small> + {item.commissionRate}%</small></dd>
-                  </div>
-                  <div><dt>Dịch vụ</dt><dd>{item.serviceCount}<small> món</small></dd></div>
-                </dl>
-
-                {item.serviceNames.length > 0 && (
-                  <p className="adm-staff-skills" title={item.serviceNames.join(', ')}>
-                    {item.serviceNames.slice(0, 4).map((name) => (
-                      <span key={name} className="adm-chip">{name}</span>
-                    ))}
-                    {item.serviceNames.length > 4 && (
-                      <span className="adm-chip is-more">+{item.serviceNames.length - 4}</span>
-                    )}
-                  </p>
-                )}
-
-                <div className="adm-person-foot">
-                  <span>
-                    <a className="adm-person-phone" href={`tel:${item.phone}`}>{item.phone}</a>
-                    {(item.status ?? 'ACTIVE') !== 'ACTIVE' && (
-                      <span className="adm-lock-note"> · Không đăng nhập được</span>
-                    )}
-                  </span>
-                  <span className="adm-cat-actions">
-                    <button className="button secondary" onClick={() => openEdit(item)}
-                      title={`Sửa ${item.name}`}><Icon name="edit" /> Sửa</button>
-                    <button className="button secondary" onClick={() => toggleStatus(item)}
-                      title={(item.status ?? 'ACTIVE') === 'ACTIVE' ? `Khoá ${item.name}` : `Mở khoá ${item.name}`}>
-                      <Icon name={(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'ban' : 'check'} />
-                      {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở'}
-                    </button>
-                    <button className="button secondary is-danger" onClick={() => removeStaff(item)}
-                      title={`Xoá ${item.name}`}><Icon name="trash" /> Xoá</button>
-                  </span>
-                </div>
-              </article>
-              );
-            })}
+          <div className="table-scroll">
+            <table className="adm-table adm-table-wide">
+              <thead>
+                <tr>
+                  <th className="adm-stt">STT</th>
+                  <SortTh label="Nhân viên" sortKey="name" />
+                  <th>Kinh nghiệm</th>
+                  <th>Lương</th>
+                  <SortTh label="Hoàn thành" sortKey="bookings" numeric />
+                  <SortTh label="Doanh thu" sortKey="revenue" numeric />
+                  <SortTh label="Đánh giá" sortKey="rating" numeric />
+                  <th>Dịch vụ</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((item, index) => {
+                  const locked = (item.status ?? 'ACTIVE') !== 'ACTIVE';
+                  const rate = item.bookingCount > 0
+                    ? Math.round((item.completedCount / item.bookingCount) * 100) : 0;
+                  return (
+                    <tr key={item.id}>
+                      <td className="adm-stt">{index + 1}</td>
+                      <td>
+                        <span className="adm-cell-name">
+                          <Avatar name={item.name} url={item.avatarUrl} size={32} />
+                          <span style={{ minWidth: 0 }}>
+                            <strong>{item.name}</strong>
+                            <small>{item.specialty ?? '—'}</small>
+                            <small>{item.phone}</small>
+                          </span>
+                        </span>
+                      </td>
+                      <td className="adm-cs-num">{item.experienceYears} năm</td>
+                      <td className="adm-cs-num" title="Lương cơ bản + % hoa hồng">
+                        <strong>{moneyShort(item.baseSalary)}</strong>
+                        <small> + {item.commissionRate}%</small>
+                      </td>
+                      <td className="adm-cs-num" title="Lịch đã hoàn thành / tổng lịch">
+                        {fmtNum(item.completedCount)}/{fmtNum(item.bookingCount)}
+                        <small> · {rate}%</small>
+                      </td>
+                      <td className="adm-cs-num"><strong>{moneyShort(item.revenue)}</strong></td>
+                      <td className="adm-cs-num">
+                        {item.reviewCount > 0 ? `★ ${fmtRating(item.rating)} (${item.reviewCount})` : '—'}
+                      </td>
+                      <td title={item.serviceNames.join(', ')}>
+                        {item.serviceCount} món
+                        {item.serviceNames.length > 0 && (
+                          <small> · {item.serviceNames.slice(0, 2).join(', ')}
+                            {item.serviceNames.length > 2 && ` +${item.serviceNames.length - 2}`}</small>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`badge ${locked ? 'cancelled' : item.worksToday ? 'completed' : 'pending'}`}
+                          title={locked ? 'Tài khoản đã khoá, không đăng nhập được' : undefined}>
+                          <i />{locked ? 'Đã khoá' : item.worksToday ? 'Trong ca' : 'Ngoài ca'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="adm-cat-actions">
+                          <button className="button secondary" onClick={() => openEdit(item)}
+                            title={`Sửa ${item.name}`}><Icon name="edit" /> Sửa</button>
+                          <button className="button secondary" onClick={() => toggleStatus(item)}
+                            title={(item.status ?? 'ACTIVE') === 'ACTIVE' ? `Khoá ${item.name}` : `Mở khoá ${item.name}`}>
+                            {(item.status ?? 'ACTIVE') === 'ACTIVE' ? 'Khoá' : 'Mở'}
+                          </button>
+                          <button className="button secondary is-danger" onClick={() => removeStaff(item)}
+                            title={`Xoá ${item.name}`}><Icon name="trash" /> Xoá</button>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Panel>

@@ -736,6 +736,13 @@
 .adm-chip{display:inline-block;padding:3px 9px;margin:0 6px 6px 0;border-radius:999px;
   background:#f3edf1;color:var(--nh-ink);font-size:11px;white-space:nowrap}
 .adm-chip.is-more{background:transparent;border:1px dashed var(--nh-line);color:var(--nh-muted)}
+
+/* Tiêu đề cột bấm để sắp xếp (trang Nhân viên). */
+.adm-sort-th{background:transparent;border:0;padding:0;font:inherit;font-weight:inherit;
+  color:inherit;cursor:pointer;white-space:nowrap}
+.adm-sort-th:hover{color:var(--nh-primary-dark)}
+.adm-sort-th.is-on{color:var(--nh-primary-dark);font-weight:700}
+th.adm-cs-num .adm-sort-th{margin-left:auto}
 a.adm-person-phone{color:inherit;text-decoration:none}
 a.adm-person-phone:hover{color:var(--nh-primary-dark);text-decoration:underline}
 .adm-person-nums dd small{font-weight:400;color:var(--nh-muted);font-size:11px}
