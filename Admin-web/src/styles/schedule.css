@@ -16,9 +16,9 @@
 .leave-panel .period-caption{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#FFF1D5;color:#9B6D1D;font-size:12px;font-weight:600;white-space:nowrap}
 .leave-open{display:flex;align-items:center;justify-content:center;gap:8px;width:calc(100% - 32px);margin:0 16px;min-height:46px;border-radius:10px;border:1px dashed #dba6b5;background:#fdf3f6;color:var(--nh-primary-dark);font-weight:600;font-size:14px;cursor:pointer;box-sizing:border-box}
 .leave-open:hover{background:var(--nh-blush)}
-.leave-form{display:grid;gap:12px;padding:0 16px;box-sizing:border-box}
-.leave-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#493B40;min-width:0}
-.leave-form input{border:1px solid #EADFE3;border-radius:10px;padding:0 12px;min-height:44px;background:#FCFAFB;font:inherit;font-size:14px;color:var(--ink);width:100%;max-width:100%;box-sizing:border-box}
+.leave-form{display:grid;gap:12px;padding:0 16px;box-sizing:border-box;max-width:100%;min-width:0}
+.leave-form label{display:grid;gap:6px;font-size:13px;font-weight:600;color:#493B40;min-width:0;max-width:100%;width:100%;margin:0;box-sizing:border-box}
+.leave-form input{border:1px solid #EADFE3;border-radius:10px;padding:0 12px;min-height:44px;background:#FCFAFB;font:inherit;font-size:14px;color:var(--ink);width:100%;max-width:100%;min-width:0;box-sizing:border-box}
 .leave-form input::placeholder{color:#B6A6AE}
 .leave-form input:focus{outline:none;border-color:var(--rose);background:#fff;box-shadow:0 0 0 3px rgba(213,107,129,.15)}
 .leave-form input:disabled{opacity:.55}
