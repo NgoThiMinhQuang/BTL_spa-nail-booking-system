@@ -2,11 +2,12 @@
    Số liệu từ GET /api/admin/payments: tổng đã thu, đã đặt cọc, chưa thanh toán,
    biểu đồ theo tháng và danh sách từng giao dịch kèm lịch hẹn tương ứng. */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
 import { sendAdmin } from '../lib/admin-api';
+import { Drawer } from '../components/Drawer';
 import { PaymentDrawer } from '../components/PaymentDrawer';
 import { fmtDate, fmtNum, formatVND, moneyShort } from '../lib/utils';
 import type { PaymentItem } from '../store';
@@ -42,55 +43,20 @@ export function AdminPaymentsPage() {
 
   const peak = Math.max(...paymentMonths.map((item) => item.paidAmount), 1);
 
-  /* Ghi nhận thanh toán mới. PAID thì backend tự chốt đúng tổng nên ô
-     số tiền để trống được; DEPOSITED bắt buộc nhập số cọc. */
-  const [form, setForm] = useState({
-    bookingId: '', payStatus: 'PAID', amount: '', method: 'CASH', note: '',
-  });
   const [editItem, setEditItem] = useState<PaymentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<PaymentItem | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState('');
-
-  const set = (key: keyof typeof form) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createBookingId, setCreateBookingId] = useState('');
 
   function startEdit(payment: PaymentItem) {
-    /* Lịch chưa có dòng payment thì không sửa được — điền sẵn mã lịch
-       vào form ghi mới bên trên. */
+    /* Lịch chưa có dòng payment thì không sửa được — mở ngăn ghi mới
+       điền sẵn mã lịch. */
     if (!payment.id) {
-      setForm({ bookingId: payment.bookingId, payStatus: 'PAID', amount: '', method: 'CASH', note: '' });
-      setFeedback('');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setCreateBookingId(payment.bookingId);
+      setCreateOpen(true);
       return;
     }
     setEditItem(payment);
-  }
-
-  async function submitPayment(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.bookingId.trim()) {
-      setFeedback('Cần nhập mã lịch hẹn.');
-      return;
-    }
-    setBusy(true);
-    setFeedback('');
-    const body: Record<string, unknown> = {
-      status: form.payStatus,
-      method: form.method,
-      note: form.note.trim() || undefined,
-    };
-    if (form.amount.trim()) body.amount = Number(form.amount);
-    const result = await sendAdmin(`/bookings/${form.bookingId.trim()}/payment`, 'POST', body);
-    setBusy(false);
-    if (!result.ok) {
-      setFeedback(result.message);
-      return;
-    }
-    setFeedback('Đã ghi nhận thanh toán.');
-    setForm({ bookingId: '', payStatus: 'PAID', amount: '', method: 'CASH', note: '' });
-    reload();
   }
 
   return (
@@ -105,68 +71,6 @@ export function AdminPaymentsPage() {
         <StatTile tone="lavender" icon="services" label="Tổng giá trị" value={moneyShort(paymentTotals.all)}
           note="đã thu + cọc + còn nợ" />
       </div>
-
-      <Panel style={{ marginBottom: 18 }}>
-        <SectionHeading
-          icon={<Icon name="card" />}
-          title="Ghi nhận thanh toán"
-          subtitle="Thu tiền tại quầy cho một lịch hẹn"
-        />
-        <form className="adm-form" onSubmit={submitPayment} style={{ padding: '0 16px 16px' }}>
-          <div className="adm-form-row">
-            <label className="adm-field">
-              <span>Mã lịch hẹn</span>
-              <input
-                value={form.bookingId} onChange={set('bookingId')}
-                placeholder="Ví dụ: 294" disabled={busy}
-                inputMode="numeric"
-              />
-            </label>
-            <label className="adm-field">
-              <span>Trạng thái</span>
-              <select value={form.payStatus} onChange={set('payStatus')} disabled={busy}>
-                <option value="PAID">Đã thanh toán đủ</option>
-                <option value="DEPOSITED">Đặt cọc một phần</option>
-                <option value="UNPAID">Chưa thanh toán</option>
-              </select>
-              <small className="adm-field-note">
-                Trả đủ chỉ ghi cho lịch đã hoàn thành (khách vãng lai làm ngay trong ngày thì thu được).
-              </small>
-            </label>
-          </div>
-          <div className="adm-form-row">
-            <label className="adm-field">
-              <span>Số tiền (đ) — PAID để trống = thu đủ tổng</span>
-              <input
-                value={form.amount} onChange={set('amount')}
-                placeholder="Ví dụ: 100000" disabled={busy}
-                inputMode="numeric"
-              />
-            </label>
-            <label className="adm-field">
-              <span>Hình thức</span>
-              <select value={form.method} onChange={set('method')} disabled={busy}>
-                <option value="CASH">Tiền mặt</option>
-                <option value="BANK_TRANSFER">Chuyển khoản</option>
-                <option value="ONLINE">Online</option>
-              </select>
-            </label>
-          </div>
-          <label className="adm-field">
-            <span>Ghi chú</span>
-            <input
-              value={form.note} onChange={set('note')}
-              placeholder="Ví dụ: khách chuyển khoản thiếu..." disabled={busy}
-            />
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="button" type="submit" disabled={busy}>
-              Ghi nhận
-            </button>
-          </div>
-          {feedback && <p className="adm-error">{feedback}</p>}
-        </form>
-      </Panel>
 
       <Panel style={{ marginBottom: 18 }}>
         <SectionHeading
@@ -201,7 +105,11 @@ export function AdminPaymentsPage() {
           icon={<Icon name="card" />}
           title="Danh sách giao dịch"
           subtitle={`${rows.length} trong ${payments.length} giao dịch`}
-        />
+        >
+          <button className="button" onClick={() => { setCreateBookingId(''); setCreateOpen(true); }}>
+            ＋ Ghi nhận
+          </button>
+        </SectionHeading>
 
         <div className="adm-tools">
           <div className="search">
@@ -286,6 +194,15 @@ export function AdminPaymentsPage() {
         />
       )}
 
+      {createOpen && (
+        <PaymentFormDrawer
+          key={createBookingId}
+          bookingId={createBookingId}
+          onClose={() => setCreateOpen(false)}
+          onDone={() => { setCreateOpen(false); reload(); }}
+        />
+      )}
+
       {editItem && (
         <EditPaymentModal
           key={editItem.id ?? editItem.bookingId}
@@ -295,6 +212,104 @@ export function AdminPaymentsPage() {
         />
       )}
     </>
+  );
+}
+
+/* Ngăn trượt ghi nhận thanh toán mới. */
+function PaymentFormDrawer({ bookingId, onClose, onDone }: {
+  bookingId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [formBookingId, setFormBookingId] = useState(bookingId);
+  const [payStatus, setPayStatus] = useState('PAID');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('CASH');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formBookingId.trim()) {
+      setError('Cần nhập mã lịch hẹn.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const body: Record<string, unknown> = {
+      status: payStatus,
+      method,
+      note: note.trim() || undefined,
+    };
+    if (amount.trim()) body.amount = Number(amount);
+    const result = await sendAdmin(`/bookings/${formBookingId.trim()}/payment`, 'POST', body);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <Drawer
+      title="Ghi nhận thanh toán"
+      subtitle="Thu tiền tại quầy cho một lịch hẹn"
+      onClose={onClose}
+      width={560}
+      footer={(
+        <div className="adm-drawer-actions">
+          <button className="button secondary" disabled={busy} onClick={onClose}>
+            Hủy bỏ
+          </button>
+          <button className="button" disabled={busy} onClick={() => formRef.current?.requestSubmit()}>
+            {busy ? 'Đang ghi…' : 'Ghi nhận'}
+          </button>
+        </div>
+      )}
+    >
+      <form ref={formRef} className="adm-form" onSubmit={submit}>
+        <label className="adm-field">
+          <span>Mã lịch hẹn</span>
+          <input value={formBookingId} onChange={(e) => setFormBookingId(e.target.value)}
+            placeholder="Ví dụ: 294" disabled={busy} inputMode="numeric" />
+        </label>
+        <div className="adm-form-row">
+          <label className="adm-field">
+            <span>Trạng thái</span>
+            <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} disabled={busy}>
+              <option value="PAID">Đã thanh toán đủ</option>
+              <option value="DEPOSITED">Đặt cọc một phần</option>
+              <option value="UNPAID">Chưa thanh toán</option>
+            </select>
+            <small className="adm-field-note">
+              Trả đủ chỉ ghi cho lịch đã hoàn thành (khách vãng lai làm ngay trong ngày thì thu được).
+            </small>
+          </label>
+          <label className="adm-field">
+            <span>Hình thức</span>
+            <select value={method} onChange={(e) => setMethod(e.target.value)} disabled={busy}>
+              <option value="CASH">Tiền mặt</option>
+              <option value="BANK_TRANSFER">Chuyển khoản</option>
+              <option value="ONLINE">Online</option>
+            </select>
+          </label>
+        </div>
+        <label className="adm-field">
+          <span>Số tiền (đ) — PAID để trống = thu đủ tổng</span>
+          <input value={amount} onChange={(e) => setAmount(e.target.value)}
+            placeholder="Ví dụ: 100000" disabled={busy} inputMode="numeric" />
+        </label>
+        <label className="adm-field">
+          <span>Ghi chú</span>
+          <input value={note} onChange={(e) => setNote(e.target.value)}
+            placeholder="Ví dụ: khách chuyển khoản thiếu..." disabled={busy} />
+        </label>
+        {error && <p className="adm-error">{error}</p>}
+      </form>
+    </Drawer>
   );
 }
 
