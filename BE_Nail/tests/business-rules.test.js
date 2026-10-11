@@ -2092,6 +2092,38 @@ describe('Huy lich va tien hoan', () => {
     }
   });
 
+  test('tien da ghi nhan xep truoc lich chua thu', async () => {
+    const { listPayments } = await import('../src/controllers/admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const future = dayPlus(40);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [future + ' 09:00:00', future + ' 10:15:00']);
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', '2020-08-10 11:00:00')",
+        [bookingId]);
+
+      const res = mockRes();
+      await listPayments({ query: {} }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const ids = res.body.data.map((r) => String(r.bookingId));
+      const paidIdx = ids.indexOf(String(bookingId));
+      assert.ok(paidIdx >= 0, 'lich da thu phai co trong danh sach');
+      const before = res.body.data.slice(0, paidIdx);
+      assert.ok(before.every((r) => r.paymentDate != null),
+        'truoc lich da thu khong co lich chua thu chen ngang');
+    } finally {
+      if (bookingId) {
+        await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.end();
+    }
+  });
+
   test('bieu do thang thanh toan doc theo ngay tien vao ket', async () => {
     const { listPayments } = await import('../src/controllers/admin.controller.js');
     const connection = await connect();

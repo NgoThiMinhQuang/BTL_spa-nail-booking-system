@@ -821,7 +821,10 @@ export async function listPayments(req, res, next) {
         FROM booking_addon GROUP BY booking_id
       ) addon ON addon.booking_id = b.booking_id
       WHERE (b.status NOT IN ('CANCELLED', 'NO_SHOW') OR pay.booking_id IS NOT NULL)
-      ORDER BY COALESCE(pay.payment_date, b.start_time) DESC
+      /* Tiền đã ghi nhận lên trước theo ngày thu (mới nhất đầu bảng),
+         lịch chưa thu xếp sau theo ngày hẹn — không để lịch tương lai
+         chưa thu đè lên tiền vừa thu về. */
+      ORDER BY (pay.payment_date IS NULL), pay.payment_date DESC, b.start_time DESC
       LIMIT 200`);
 
     /* Tổng hợp theo tháng để vẽ biểu đồ cột ở trang Doanh thu. Đọc từ sổ
