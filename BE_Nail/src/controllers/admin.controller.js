@@ -139,9 +139,10 @@ export async function getOverview(req, res, next) {
           ORDER BY u.full_name ASC`),
 
         /* Biểu đồ doanh thu theo khoảng đã chọn.
-           Bảng ngày được sinh ra từ một dãy số 0..29 trừ dãy 0..6, nên phải
+           Bảng ngày được sinh ra từ một dãy số 0..30 trừ dãy 0..6, nên phải
            DISTINCT: nếu không, mỗi ngày sẽ xuất hiện 7 lần và SUM ở ngoài sẽ
-           cộng doanh thu lên 7 lần.
+           cộng doanh thu lên 7 lần. Dãy phải tới 30 vì tháng 31 ngày mà hôm
+           nay là ngày 31 thì thiếu mốc cuối (lỗi cũ chỉ tới 29).
 
            DOANH THU CHỈ TÍNH LỊCH ĐÃ THU TIỀN. Trước đây câu này lấy
            SUM(s.price) của mọi lịch COMPLETED, nên một lịch đã làm xong
@@ -162,7 +163,7 @@ export async function getOverview(req, res, next) {
                     UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19
                     UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23
                     UNION ALL SELECT 24 UNION ALL SELECT 25 UNION ALL SELECT 26 UNION ALL SELECT 27
-                    UNION ALL SELECT 28 UNION ALL SELECT 29) a
+                    UNION ALL SELECT 28 UNION ALL SELECT 29 UNION ALL SELECT 30) a
               CROSS JOIN (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
                     UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6) b
              ) t
@@ -835,14 +836,19 @@ export async function listPayments(req, res, next) {
       GROUP BY DATE_FORMAT(t.paid_at, '%Y-%m')
       ORDER BY month DESC LIMIT 6`);
 
-    /* Tổng từ góc nhìn "phải thu": đã thu (FINAL) + cọc (DEPOSIT) + còn nợ
-       (gồm cả lịch chưa có dòng payment). Trước đây chỉ SUM trên bảng
-       payment nên lịch chưa ghi nhận không được tính là chưa thanh toán. */
+    /* Tổng từ góc nhìn "phải thu": đã thu (FINAL) + cọc (DEPOSIT) + còn nợ.
+       Còn nợ tính theo PHẦN CÒN LẠI từng lịch = tổng phải thu − tiền đã
+       vào két (DEPOSIT + FINAL): lịch cọc 150k/500k thì 350k còn lại vẫn
+       là công nợ, trước đây bị tính 0đ. Lịch hủy/không đến thì không còn
+       gì để thu (cọc giữ lại hiện riêng ở báo cáo). */
     const [totals] = await pool.query(`SELECT
         COALESCE((SELECT SUM(t.amount) FROM payment_transaction t WHERE t.type = 'FINAL'), 0) AS paidAmount,
         COALESCE((SELECT SUM(t.amount) FROM payment_transaction t WHERE t.type = 'DEPOSIT'), 0) AS depositAmount,
-        COALESCE(SUM(CASE WHEN pay.booking_id IS NULL OR pay.payment_status = 'UNPAID'
-          THEN COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0) END), 0) AS unpaidAmount
+        COALESCE(SUM(CASE WHEN b.status IN ('CANCELLED', 'NO_SHOW') THEN 0
+          ELSE GREATEST(
+            COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0)
+            - COALESCE(paid.txn, 0), 0)
+        END), 0) AS unpaidAmount
       FROM booking b
       LEFT JOIN payment pay ON pay.booking_id = b.booking_id
       JOIN services s ON s.service_id = b.service_id
@@ -850,6 +856,10 @@ export async function listPayments(req, res, next) {
         SELECT booking_id, SUM(price * quantity) AS total
         FROM booking_addon GROUP BY booking_id
       ) addon ON addon.booking_id = b.booking_id
+      LEFT JOIN (
+        SELECT booking_id, SUM(CASE WHEN type IN ('DEPOSIT', 'FINAL') THEN amount ELSE 0 END) AS txn
+        FROM payment_transaction GROUP BY booking_id
+      ) paid ON paid.booking_id = b.booking_id
       WHERE (b.status NOT IN ('CANCELLED', 'NO_SHOW') OR pay.booking_id IS NOT NULL)`);
 
     res.json({

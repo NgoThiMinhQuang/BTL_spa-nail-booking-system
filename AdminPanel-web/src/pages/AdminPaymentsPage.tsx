@@ -114,7 +114,7 @@ export function AdminPaymentsPage() {
         <StatTile tone="rose" icon="ban" label="Chưa thanh toán" value={moneyShort(paymentTotals.unpaid)}
           note="cần thu hồi" />
         <StatTile tone="lavender" icon="services" label="Tổng giá trị" value={moneyShort(paymentTotals.all)}
-          note={`${payments.length} giao dịch`} />
+          note="đã thu + cọc + còn nợ" />
       </div>
 
       <Panel style={{ marginBottom: 18 }}>

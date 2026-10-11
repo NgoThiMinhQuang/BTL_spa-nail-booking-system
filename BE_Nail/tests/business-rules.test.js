@@ -2181,3 +2181,63 @@ describe('Du lieu that trang chu Mobile', () => {
     }
   });
 });
+
+/* Cong no tinh ca phan con lai cua lich coc; bieu do du ngay trong thang. */
+describe('Cong no va truc ngay bieu do', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  test('lich coc 60k/200k thi con no 140k', async () => {
+    const { listPayments } = await import('../src/controllers/admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const before = mockRes();
+      await listPayments({ query: {} }, before, strictNext);
+      const unpaidBefore = Number(before.body.meta.totals.unpaid);
+
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-09-15 09:00:00', '2020-09-15 10:15:00', 'CONFIRMED', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', '2020-09-14 08:00:00')",
+        [bookingId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', '2020-09-14 08:00:00', NULL)",
+        [bookingId]);
+
+      const after = mockRes();
+      await listPayments({ query: {} }, after, strictNext);
+      assert.equal(Number(after.body.meta.totals.unpaid) - unpaidBefore, 140000);
+    } finally {
+      if (bookingId) {
+        await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.end();
+    }
+  });
+
+  test('bieu do thang lien tuc tu mung 1 toi hom nay', async () => {
+    const { getOverview } = await import('../src/controllers/admin.controller.js');
+    const res = mockRes();
+    const mockGet = (name) => (String(name).toLowerCase() === 'host' ? 'localhost:3000' : null);
+    await getOverview({ query: { range: 'month' }, protocol: 'http', get: mockGet }, res, strictNext);
+    assert.equal(res.statusCode, 200);
+    const days = res.body.data.chart.map((p) => p.day);
+    assert.ok(days.length >= 1);
+    assert.ok(days[0].endsWith('-01'), 'bat dau tu mung 1');
+    for (let i = 1; i < days.length; i++) {
+      const prev = new Date(days[i - 1] + 'T12:00:00').getTime();
+      const cur = new Date(days[i] + 'T12:00:00').getTime();
+      assert.equal(cur - prev, 86400000, 'ngay lien tuc, khong sot ngay 31');
+    }
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
+      + '-' + String(now.getDate()).padStart(2, '0');
+    assert.equal(days[days.length - 1], today);
+  });
+});
