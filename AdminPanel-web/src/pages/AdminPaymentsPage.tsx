@@ -138,7 +138,7 @@ export function AdminPaymentsPage() {
             <table className="adm-table adm-table-wide">
               <thead>
                 <tr>
-                  <th className="adm-stt">STT</th><th>Ngày</th>
+                  <th className="adm-stt">STT</th><th>Ngày thu</th>
                   <th>Khách hàng</th>
                   <th>Dịch vụ</th>
                   <th>Nhân viên</th>
@@ -154,8 +154,8 @@ export function AdminPaymentsPage() {
                     onClick={() => setDrawerItem(payment)}>
                     <td className="adm-stt">{index + 1}</td>
                     <td>
-                      <strong>{payment.paymentDate ? fmtDate(payment.paymentDate) : fmtDate(payment.startsAt)}</strong>
-                      <small>{payment.paymentMethod ? METHOD_LABEL[payment.paymentMethod] ?? payment.methodText : 'Chưa ghi nhận'}</small>
+                      <strong>{payment.paymentDate ? fmtDate(payment.paymentDate) : '—'}</strong>
+                      <small>{payment.paymentMethod ? METHOD_LABEL[payment.paymentMethod] ?? payment.methodText : `Chưa ghi nhận · hẹn ${fmtDate(payment.startsAt)}`}</small>
                     </td>
                     <td>{payment.customerName}</td>
                     <td>{payment.serviceName}</td>
