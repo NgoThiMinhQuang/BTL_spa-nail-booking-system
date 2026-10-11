@@ -250,30 +250,51 @@ export function AdminReportsPage() {
           <SectionHeading
             icon={<Icon name="services" />}
             title="Doanh thu theo dịch vụ"
-            subtitle="Lượt = lịch hoàn thành · tỉ lệ trên lịch đã kết thúc"
+            subtitle="Lượt = lịch hoàn thành · tỉ lệ trên lịch đã kết thúc · vạch cùng tỉ lệ"
           />
-          <div className="adm-tools" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 9 }}>
-            {(reports?.byService.length ?? 0) === 0 ? (
-              <EmptyState title="Không có số liệu" detail="Kỳ này chưa có lịch hoàn thành." />
-            ) : reports!.byService.map((item) => (
-              <div key={item.name} className="adm-bar-row"
-                style={{ gridTemplateColumns: 'minmax(90px,1.2fr) minmax(50px,2fr) auto' }}>
-                <span className="adm-bar-name"
-                  title={`${item.name} · chính ${item.completed}/${item.bookings}`
-                    + (item.addonBookings > 0 ? ` · add-on ${item.addonBookings} lượt ${moneyShort(item.addonRevenue)}` : '')
-                    + ` · hoàn thành ${item.completionRate}%`}>
-                  {item.name}
-                </span>
-                <span className="adm-bar-track">
-                  <span className="adm-bar-fill"
-                    style={{ width: `${(item.revenue / peakService) * 100}%` }} />
-                </span>
-                <span className="adm-bar-value">
-                  {item.completed}/{item.bookings}{item.addonBookings > 0 && ` +${item.addonBookings} add-on`} · {item.completionRate}% · {moneyShort(item.revenue)}
-                </span>
-              </div>
-            ))}
-          </div>
+          {(reports?.byService.length ?? 0) === 0 ? (
+            <EmptyState title="Không có số liệu" detail="Kỳ này chưa có lịch hoàn thành." />
+          ) : (
+            <div className="table-scroll">
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th className="adm-stt">STT</th><th>Dịch vụ</th><th style={{ minWidth: 120 }}>So sánh</th>
+                    <th className="adm-cs-num">Hoàn thành</th><th className="adm-cs-num">Tỉ lệ</th>
+                    <th className="adm-cs-num">Doanh thu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reports!.byService.map((item, index) => (
+                    <tr key={item.name} style={item.revenue === 0 ? { opacity: 0.55 } : undefined}>
+                      <td className="adm-stt">{index + 1}</td>
+                      <td>
+                        <strong>{item.name}</strong>
+                        {item.addonBookings > 0 && (
+                          <small> +{item.addonBookings} add-on ({moneyShort(item.addonRevenue)})</small>
+                        )}
+                      </td>
+                      <td>
+                        <span className="adm-bar-track" title={
+                          `${item.name} · chính ${item.completed}/${item.bookings}`
+                          + (item.addonBookings > 0 ? ` · add-on ${item.addonBookings} lượt` : '')
+                          + ` · hoàn thành ${item.completionRate}% · ${formatVND(item.revenue)}`
+                        }>
+                          <span className="adm-bar-fill"
+                            style={{ width: `${peakService > 0 ? (item.revenue / peakService) * 100 : 0}%` }} />
+                        </span>
+                      </td>
+                      <td className="adm-cs-num">{item.completed}/{item.bookings}</td>
+                      <td className="adm-cs-num">{item.completionRate}%</td>
+                      <td className="adm-cs-num">
+                        <strong>{item.revenue > 0 ? moneyShort(item.revenue) : '—'}</strong>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Panel>
 
         <Panel>

@@ -220,6 +220,9 @@
   align-items:center;gap:12px;padding:6px 0}
 .adm-bar-name{font-size:12.5px;color:var(--nh-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-bar-track{height:9px;border-radius:5px;background:#F5EFF2;overflow:hidden}
+/* Vạch trong ô bảng: block để full chiều rộng cột, các vạch cùng tỉ lệ
+   nên nhìn là so được ngay dịch vụ nào hơn kém bao nhiêu. */
+.adm-table .adm-bar-track{display:block;min-width:120px}
 .adm-bar-fill{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,#F3AEC2,#D56B81)}
 .adm-bar-value{font-size:11px;color:var(--nh-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 
