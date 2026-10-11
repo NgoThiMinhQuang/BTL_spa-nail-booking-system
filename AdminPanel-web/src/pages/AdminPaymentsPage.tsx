@@ -280,8 +280,8 @@ function PaymentFormDrawer({ bookingId, onClose, onDone }: {
           <label className="adm-field">
             <span>Trạng thái</span>
             <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} disabled={busy}>
-              <option value="PAID">Đã thanh toán đủ</option>
-              <option value="DEPOSITED">Đặt cọc một phần</option>
+              <option value="PAID">Đã thanh toán</option>
+              <option value="DEPOSITED">Đã đặt cọc</option>
               <option value="UNPAID">Chưa thanh toán</option>
             </select>
             <small className="adm-field-note">
@@ -321,14 +321,14 @@ function PaymentFormDrawer({ bookingId, onClose, onDone }: {
 const PAY_FLOW: Record<string, { value: string; label: string }[]> = {
   UNPAID: [
     { value: 'UNPAID', label: 'Chưa thanh toán' },
-    { value: 'DEPOSITED', label: 'Đặt cọc một phần' },
-    { value: 'PAID', label: 'Đã thanh toán đủ' },
+    { value: 'DEPOSITED', label: 'Đã đặt cọc' },
+    { value: 'PAID', label: 'Đã thanh toán' },
   ],
   DEPOSITED: [
-    { value: 'DEPOSITED', label: 'Đặt cọc một phần' },
-    { value: 'PAID', label: 'Đã thanh toán đủ' },
+    { value: 'DEPOSITED', label: 'Đã đặt cọc' },
+    { value: 'PAID', label: 'Đã thanh toán' },
   ],
-  PAID: [{ value: 'PAID', label: 'Đã thanh toán đủ' }],
+  PAID: [{ value: 'PAID', label: 'Đã thanh toán' }],
   REFUNDED: [{ value: 'REFUNDED', label: 'Đã hoàn cọc' }],
 };
 
