@@ -2712,3 +2712,125 @@ describe('PAID dung luc', () => {
     }
   });
 });
+
+/* Nghiep vu thanh toan: chong ghi de, bien nhan, thong bao, ho tro. */
+describe('Thanh toan dung nghiep vu', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const adminUser = { userId: 9004, name: 'Quan tri Test' };
+  const customerUser = { customerId: 9001, userId: 9001, name: 'Khach Test' };
+
+  async function wipeBooking(connection, bookingId) {
+    await connection.query('DELETE FROM booking_addon WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+  }
+
+  test('giam tien da thu truc tiep thi 409', async () => {
+    const { savePayment } = await import('../src/controllers/payment.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-09-20 09:00:00', '2020-09-20 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 150000, 'CASH', 'DEPOSITED', '2020-09-20 09:30:00')",
+        [bookingId]);
+      const res = mockRes();
+      await savePayment(
+        { params: { id: String(bookingId) }, body: { status: 'DEPOSITED', amount: 100000, method: 'CASH' }, user: adminUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 409);
+      const [[pay]] = await connection.query(
+        'SELECT amount FROM payment WHERE booking_id = ?', [bookingId]);
+      assert.equal(Number(pay.amount), 150000);
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('bien nhan khach khớp sổ admin', async () => {
+    const { getBookingReceipt } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-09-21 09:00:00', '2020-09-21 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', '2020-09-21 11:00:00')",
+        [bookingId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', '2020-09-20 08:00:00', NULL), (?, 'FINAL', 140000, 'CASH', '2020-09-21 11:00:00', NULL)",
+        [bookingId, bookingId]);
+      const res = mockRes();
+      await getBookingReceipt({ params: { id: String(bookingId) }, user: customerUser }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const r = res.body.data;
+      assert.equal(r.total, 200000);
+      assert.equal(r.collected, 200000);
+      assert.equal(r.remaining, 0);
+      assert.equal(r.transactions.length, 2);
+      assert.ok(r.receiptNo.includes(String(bookingId)));
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('thu du thi khach co thong bao thanh cong', async () => {
+    const { savePayment } = await import('../src/controllers/payment.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-09-22 09:00:00', '2020-09-22 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      const res = mockRes();
+      await savePayment(
+        { params: { id: String(bookingId) }, body: { status: 'PAID', method: 'CASH' }, user: adminUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const [[n]] = await connection.query(
+        'SELECT COUNT(*) AS c FROM notification WHERE user_id = 9001 AND type = \'PAYMENT\' AND ref_id = ?', [bookingId]);
+      assert.equal(Number(n.c), 1);
+    } finally {
+      await connection.query(
+        'DELETE FROM notification WHERE ref_type = \'booking\' AND ref_id = ?', [bookingId]);
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('khach bao sai lech thi admin thay duoc', async () => {
+    const { reportIssue } = await import('../src/controllers/notification.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-09-23 09:00:00', '2020-09-23 10:15:00', 'COMPLETED', 'MOBILE')");
+      bookingId = b.insertId;
+      const res = mockRes();
+      await reportIssue(
+        { body: { bookingId: String(bookingId), message: 'Da chuyen khoan nhung chua ghi nhan' }, user: customerUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 201);
+      const admin = mockRes();
+      const { listAll } = await import('../src/controllers/notification.controller.js');
+      await listAll({ query: {} }, admin, strictNext);
+      assert.ok(admin.body.data.some((n) => String(n.refId) === String(bookingId)));
+    } finally {
+      await connection.query(
+        'DELETE FROM notification WHERE ref_type = \'booking\' AND ref_id = ?', [bookingId]);
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+});

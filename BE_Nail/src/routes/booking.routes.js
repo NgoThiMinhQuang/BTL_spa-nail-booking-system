@@ -7,6 +7,7 @@ import {
   createReview,
   getAvailableSlots,
   getBookingDetail,
+  getBookingReceipt,
   getBookings,
   rescheduleBooking,
   updateBookingStatus,
@@ -32,6 +33,10 @@ router.get('/', authenticate, requireCustomer, getBookings);
 /* Chi tiết lịch của chính mình. Đặt sau /availability để không nuốt
    đường khung giờ. */
 router.get('/:id', authenticate, requireCustomer, getBookingDetail);
+
+/* Biên nhận thanh toán của chính mình (/:id chỉ khớp một đoạn nên
+   không nuốt đường hai đoạn này). */
+router.get('/:id/receipt', authenticate, requireCustomer, getBookingReceipt);
 
 router.post('/', authenticate, requireCustomer, createBooking);
 

@@ -1,4 +1,4 @@
-import { cancelBooking, fetchAvailability, fetchBookingDetail, rescheduleBooking, submitReview } from '@/features/booking/booking.service';
+import { cancelBooking, fetchAvailability, fetchBookingDetail, fetchReceipt, reportPaymentIssue, rescheduleBooking, submitReview } from '@/features/booking/booking.service';
 import type { BookingDetail } from '@/features/booking/booking.types';
 import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,11 +49,23 @@ export default function BookingDetailScreen() {
   const [newTime, setNewTime] = useState('');
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [receipt, setReceipt] = useState<{
+    receiptNo: string | null; total: number; collected: number;
+    refunded: number; remaining: number;
+    transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+  } | null>(null);
+  const [issue, setIssue] = useState('');
+  const [showIssue, setShowIssue] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setError('');
       setBooking(await fetchBookingDetail(String(id)));
+      try {
+        setReceipt(await fetchReceipt(String(id)));
+      } catch {
+        setReceipt(null);
+      }
     } catch {
       setError('Không tải được chi tiết lịch hẹn.');
     } finally {
@@ -129,6 +141,25 @@ export default function BookingDetailScreen() {
       await load();
     } catch (e) {
       setMessage(e instanceof ApiError ? e.message : 'Không đổi được lịch. Hãy thử lại.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitIssue() {
+    if (!booking || !issue.trim()) {
+      setMessage('Hãy mô tả sai lệch bạn gặp.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await reportPaymentIssue(booking.id, issue.trim());
+      setIssue('');
+      setShowIssue(false);
+      setMessage('Đã gửi báo sai lệch. Cửa hàng sẽ kiểm tra và phản hồi.');
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : 'Không gửi được. Hãy thử lại.');
     } finally {
       setBusy(false);
     }
@@ -233,6 +264,53 @@ export default function BookingDetailScreen() {
           <Row icon="cash-outline" label="Tổng tiền">{<Text style={styles.rowText}>{(booking.total ?? 0).toLocaleString('vi-VN')}đ</Text>}</Row>
           <Row icon="wallet-outline" label="Còn lại">{<Text style={styles.rowText}>{(booking.remaining ?? 0).toLocaleString('vi-VN')}đ</Text>}</Row>
         </View>
+
+        {receipt && receipt.transactions.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>
+              Biên nhận{receipt.receiptNo ? ` · ${receipt.receiptNo}` : ''}
+            </Text>
+            {receipt.transactions.map((t) => (
+              <View key={t.id} style={styles.addonRow}>
+                <Text style={styles.addonName}>
+                  {t.type === 'DEPOSIT' ? 'Đặt cọc' : t.type === 'FINAL' ? 'Thanh toán' : 'Hoàn tiền'}
+                  {t.method ? ` · ${t.method}` : ''}
+                </Text>
+                <Text style={styles.addonPrice}>{t.amount.toLocaleString('vi-VN')}đ</Text>
+              </View>
+            ))}
+            <View style={styles.addonRow}>
+              <Text style={styles.addonName}>Còn phải thu</Text>
+              <Text style={styles.addonPrice}>{receipt.remaining.toLocaleString('vi-VN')}đ</Text>
+            </View>
+            {!showIssue ? (
+              <Pressable disabled={busy} onPress={() => setShowIssue(true)}>
+                <Text style={styles.retryText}>Thấy sai lệch? Báo cho cửa hàng</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <TextInput
+                  value={issue}
+                  onChangeText={setIssue}
+                  placeholder="Mô tả sai lệch, ví dụ: đã chuyển khoản nhưng chưa ghi nhận…"
+                  placeholderTextColor="#A89A9E"
+                  style={styles.reviewInput}
+                  multiline
+                />
+                <View style={styles.rescheduleActions}>
+                  <Pressable disabled={busy} onPress={() => setShowIssue(false)}
+                    style={[styles.button, styles.greenButton, styles.rescheduleActionsButton]}>
+                    <Text style={styles.buttonText}>Để sau</Text>
+                  </Pressable>
+                  <Pressable disabled={busy} onPress={submitIssue}
+                    style={[styles.button, styles.pinkButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
+                    <Text style={styles.buttonText}>Gửi báo sai lệch</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {booking.addons.length > 0 && (
           <View style={styles.card}>

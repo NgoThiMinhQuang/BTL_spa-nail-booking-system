@@ -58,8 +58,7 @@ export async function sendExpoPush(pushToken, title, body, data = {}) {
  * (SENT/FAILED riêng) để Admin thấy máy nào nhận được, máy nào lỗi.
  * Không bao giờ ném lỗi ra ngoài.
  */
-export async function pushToUser(runner, { userId, title, body, type = 'GENERAL', refType = null, refId = null }) {
-  const [devices] = await runner.query(
+export async function pushToUser(runner, { userId, title, body, type = 'GENERAL', refType = null, refId = null }) {  const [devices] = await runner.query(
     'SELECT push_token AS token FROM device_token WHERE user_id = ? ORDER BY updated_at DESC LIMIT 5',
     [userId],
   );
@@ -80,4 +79,28 @@ export async function pushToUser(runner, { userId, title, body, type = 'GENERAL'
     results.push({ notificationId: row.insertId, ok: sent.ok, error: sent.error ?? null });
   }
   return results;
+}
+
+/* Báo cho chủ một customer_id: hộp thư + đẩy máy. Không bao giờ ném lỗi
+   (thông báo là phụ, không được làm hỏng giao dịch chính). */
+export async function notifyCustomer(runner, {
+  customerId, title, body, type = 'GENERAL', refType = null, refId = null,
+}) {
+  try {
+    if (!customerId) return { notified: false };
+    const [[row]] = await runner.query(
+      `SELECT u.user_id AS userId FROM customer c
+        JOIN users u ON u.user_id = c.user_id
+       WHERE c.customer_id = ? LIMIT 1`, [customerId]);
+    if (!row) return { notified: false };
+    await createNotification(runner, {
+      userId: row.userId, title, body, type, refType, refId,
+    });
+    await pushToUser(runner, {
+      userId: row.userId, title, body, type, refType, refId,
+    });
+    return { notified: true };
+  } catch {
+    return { notified: false };
+  }
 }

@@ -799,6 +799,9 @@ export async function listPayments(req, res, next) {
         pay.payment_id AS id,
         CASE WHEN pay.payment_status IN ('PAID', 'DEPOSITED', 'REFUNDED')
           THEN pay.amount
+          /* Lịch hủy / khách không đến mà chưa từng thu đồng nào thì không
+             còn gì để thu — không hiện tổng dịch vụ như khoản công nợ. */
+          WHEN b.status IN ('CANCELLED', 'NO_SHOW') THEN 0
           ELSE COALESCE(b.service_price, s.price) + COALESCE(addon.total, 0)
         END AS amount,
         pay.payment_method AS paymentMethod,

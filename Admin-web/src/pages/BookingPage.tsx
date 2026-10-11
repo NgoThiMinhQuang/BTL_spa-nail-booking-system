@@ -119,7 +119,7 @@ export function BookingPage() {
           <Badge status={b.status} />
         </div>
         {showInvoice && (
-          <button className="button" onClick={() => window.print()}>🖨 &nbsp; In hóa đơn</button>
+          <button className="button" onClick={() => window.print()}>🖨 &nbsp; In phiếu tổng kết</button>
         )}
       </div>
 
@@ -339,33 +339,41 @@ export function BookingPage() {
   );
 }
 
-/* ===== Hóa đơn mẫu in được ===== */
-
+/* ===== Phiếu tổng kết dịch vụ (nhân viên in cho khách kiểm tra) =====
+   Đây KHÔNG phải biên nhận thanh toán: nhân viên không được xác nhận đã
+   thu tiền. Khi chưa thu đủ, phiếu ghi rõ không phải xác nhận thanh toán. */
 function Invoice({ b, code, profile }: { b: Booking; code: string; profile: StaffProfile }) {
+  const collected = b.paidAmount ?? 0;
+  const remaining = Math.max(0, (b.total ?? b.price) - collected);
   return (
-    <section className="booking-card invoice" id="invoice" aria-label="Hóa đơn dịch vụ">
+    <section className="booking-card invoice" id="invoice" aria-label="Phiếu tổng kết dịch vụ">
       <div className="invoice-head">
         <div className="invoice-brand">
           <span className="invoice-logo">✳</span>
           <div>
             <strong>NailHouse</strong>
             <small>BEAUTY NAILS · BETTER YOU</small>
-            <small>Cửa hàng NailHouse · Liên hệ: {profile.phone || b.phone || '—'}</small>
           </div>
         </div>
         <div className="invoice-title">
-          <h2>HÓA ĐƠN DỊCH VỤ</h2>
-          <p>Số: <strong>{code}</strong></p>
+          <h2>PHIẾU TỔNG KẾT DỊCH VỤ</h2>
+          <p>Mã lịch: <strong>{code}</strong></p>
           <p>Ngày lập: {b.createdAt || longDate(b.startsAt.slice(0, 10))}</p>
           <Badge status={b.status} />
         </div>
       </div>
 
+      {b.paymentStatus !== 'PAID' && (
+        <p className="booking-action-note">
+          Phiếu này chỉ để khách kiểm tra dịch vụ và số tiền —
+          <strong> không phải xác nhận đã thanh toán</strong>. Thu tiền do thu ngân thực hiện.
+        </p>
+      )}
+
       <div className="invoice-customer">
         <span>Khách hàng: <strong>{b.customerName}</strong></span>
         <span>Điện thoại: <strong>{b.phone}</strong></span>
         <span>Email: <strong>{b.email || '—'}</strong></span>
-        <span>Địa chỉ liên hệ: <strong>Chưa cập nhật</strong></span>
         <span>Nhân viên phục vụ: <strong>{profile.name}</strong></span>
         <span>Thời gian hẹn: <strong>{b.startsAt.slice(11)} – {b.endsAt.slice(11)}</strong></span>
       </div>
@@ -410,10 +418,14 @@ function Invoice({ b, code, profile }: { b: Booking; code: string; profile: Staf
               <td className="num">{money(b.total ?? b.price)}</td>
             </tr>
             <tr>
+              <td className="txt" colSpan={5}>Tiền cọc đã nhận</td>
+              <td className="num">{money(collected)}</td>
+            </tr>
+            <tr>
               <td className="txt" colSpan={5}>
                 Thanh toán: {b.paymentStatus === 'PAID' ? 'Đã thu đủ'
                   : b.paymentStatus === 'DEPOSITED'
-                    ? `Đã cọc ${money(b.paidAmount ?? 0)}`
+                    ? `Đã cọc ${money(collected)}`
                     : b.paymentStatus === 'REFUNDED'
                       ? 'Đã hoàn cọc'
                       : 'Chưa thu'}
@@ -421,13 +433,13 @@ function Invoice({ b, code, profile }: { b: Booking; code: string; profile: Staf
               <td className="num">
                 {b.paymentStatus === 'PAID' ? money(b.total ?? b.price)
                   : b.paymentStatus === 'REFUNDED' ? money(0)
-                  : money(b.paidAmount ?? 0)}
+                  : money(collected)}
               </td>
             </tr>
             {(b.paymentStatus !== 'PAID' && b.paymentStatus !== 'REFUNDED') && (
               <tr>
-                <td className="txt" colSpan={5}>Còn lại</td>
-                <td className="num">{money((b.total ?? b.price) - (b.paidAmount ?? 0))}</td>
+                <td className="txt" colSpan={5}>Còn phải thanh toán</td>
+                <td className="num">{money(remaining)}</td>
               </tr>
             )}
           </tfoot>

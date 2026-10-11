@@ -14,6 +14,7 @@ export const SHOP_INFO: { address: string; hotline: string } = {
 
 export interface InvoiceData {
   code: string;
+  receiptNo: string | null;
   startsAt: string;
   customerName: string;
   customerPhone: string;
@@ -28,6 +29,7 @@ export interface InvoiceData {
   paymentText: string | null;
   methodText: string | null;
   paymentDate: string | null;
+  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
 }
 
 export function BookingInvoice({ data }: { data: InvoiceData }) {
@@ -36,6 +38,20 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
   const printedAt =
     `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} `
     + `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const collected = data.transactions
+    .filter((t) => t.type !== 'REFUND')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const refunded = data.transactions
+    .filter((t) => t.type === 'REFUND')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const remaining = Math.max(0, data.total - collected);
+
+  const typeText: Record<string, string> = {
+    DEPOSIT: 'Đặt cọc', FINAL: 'Thanh toán', REFUND: 'Hoàn tiền',
+  };
+  const methodText: Record<string, string> = {
+    CASH: 'Tiền mặt', BANK_TRANSFER: 'Chuyển khoản', ONLINE: 'Online',
+  };
 
   return (
     <div className="invoice-sheet">
@@ -48,7 +64,7 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
         </div>
         <div className="invoice-title">
           <h2>HÓA ĐƠN THANH TOÁN</h2>
-          <span>{data.code}</span>
+          <span>{data.receiptNo ?? data.code}</span>
         </div>
       </div>
 
@@ -87,14 +103,19 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
 
       <dl className="invoice-total">
         <div><dt>Tổng cộng</dt><dd>{formatVND(data.total)}</dd></div>
-        <div>
-          <dt>Đã thu{data.methodText ? ` (${data.methodText})` : ''}</dt>
-          <dd>{formatVND(data.paidAmount ?? 0)}</dd>
-        </div>
+        {data.transactions.map((t) => (
+          <div key={t.id}>
+            <dt>{typeText[t.type] ?? t.type}{t.method ? ` (${methodText[t.method] ?? t.method})` : ''}</dt>
+            <dd>{formatVND(t.amount)}</dd>
+          </div>
+        ))}
+        <div><dt>Đã thu</dt><dd>{formatVND(collected + refunded)}</dd></div>
+        <div><dt>Còn phải thu</dt><dd>{formatVND(remaining)}</dd></div>
       </dl>
 
       <p className="invoice-foot">
-        Cảm ơn quý khách đã tin tưởng NailHouse!
+        Cảm ơn quý khách đã tin tưởng NailHouse! Đây là biên nhận nghiệp vụ,
+        không thay thế hóa đơn điện tử.
         <small> In lúc {printedAt}</small>
       </p>
     </div>

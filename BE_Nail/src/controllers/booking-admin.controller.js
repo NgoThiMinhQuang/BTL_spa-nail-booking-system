@@ -247,6 +247,14 @@ export async function getBooking(req, res, next) {
 
     const events = await listEvents(id);
 
+    /* Sổ giao dịch của lịch để in biên nhận và đối chiếu: cọc, trả nốt,
+       hoàn tiền từng dòng — không gộp, không tính cọc hai lần. */
+    const [transactions] = await pool.query(
+      `SELECT t.transaction_id AS id, t.type, t.amount,
+              t.payment_method AS method, t.paid_at AS paidAt
+         FROM payment_transaction t WHERE t.booking_id = ?
+         ORDER BY t.paid_at ASC, t.transaction_id ASC`, [id]);
+
     const addonTotal = addons.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
 
     /* Kiểm tra nhân viên hiện tại còn nhận được lịch này không. Lịch đã xong
@@ -320,6 +328,16 @@ export async function getBooking(req, res, next) {
         review: review
           ? { ...review, id: String(review.id), rating: Number(review.rating) }
           : null,
+        /* Số biên nhận ổn định theo dòng payment (in lại không đổi số,
+           không sinh giao dịch mới). Chưa có dòng payment thì chưa in. */
+        receiptNo: row.paymentId == null ? null : `BN-${row.id}-${row.paymentId}`,
+        transactions: transactions.map((t) => ({
+          id: String(t.id),
+          type: t.type,
+          amount: Number(t.amount),
+          method: t.method,
+          paidAt: t.paidAt,
+        })),
       },
     });
   } catch (error) {

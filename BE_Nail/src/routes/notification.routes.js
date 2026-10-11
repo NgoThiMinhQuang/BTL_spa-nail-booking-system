@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import {
-  listMine, markRead, registerDevice,
+  listMine, markRead, registerDevice, reportIssue,
 } from '../controllers/notification.controller.js';
-import { authenticate } from '../lib/auth.js';
+import { authenticate, requireCustomer } from '../lib/auth.js';
 
 const router = Router();
 
@@ -12,5 +12,6 @@ router.use(authenticate);
 router.post('/device', registerDevice);
 router.get('/me', listMine);
 router.patch('/:id/read', markRead);
+router.post('/support', requireCustomer, reportIssue);
 
 export default router;

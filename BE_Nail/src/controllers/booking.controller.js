@@ -546,6 +546,100 @@ export async function addCustomerImage(req, res, next) {
 }
 
 /* ================================================================
+   Biên nhận thanh toán của khách — GET /api/bookings/:id/receipt
+   ---------------------------------------------------------------
+   Chỉ chủ lịch xem được. Liệt kê dịch vụ + add-on (snapshot), từng
+   giao dịch đã thu/hoàn và số còn phải thu — cùng một nguồn số với
+   biên nhận Admin in, nên hai bên không bao giờ lệch nhau.
+   ================================================================ */
+export async function getBookingReceipt(req, res, next) {
+  try {
+    const bookingId = Number(req.params.id);
+    if (!Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+
+    const [[booking]] = await pool.query(
+      `SELECT b.booking_id, b.status, b.customer_id AS customerId,
+              b.start_time AS startsAt,
+              COALESCE(b.service_price, s.price) AS servicePrice,
+              s.service_name AS serviceName,
+              COALESCE(u.full_name, b.guest_name) AS customerName,
+              su.full_name AS staffName,
+              pay.payment_id AS paymentId, pay.payment_status AS paymentStatus,
+              pay.payment_method AS paymentMethod, pay.amount AS paidAmount,
+              pay.payment_date AS paymentDate
+         FROM booking b
+         JOIN services s ON s.service_id = b.service_id
+         LEFT JOIN customer c ON c.customer_id = b.customer_id
+         LEFT JOIN users u ON u.user_id = c.user_id
+         LEFT JOIN staff st ON st.staff_id = b.staff_id
+         LEFT JOIN users su ON su.user_id = st.user_id
+         LEFT JOIN payment pay ON pay.booking_id = b.booking_id
+        WHERE b.booking_id = ? LIMIT 1`, [bookingId],
+    );
+    if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    if (booking.customerId !== req.user.customerId) {
+      return res.status(403).json({ message: 'Bạn không có quyền xem biên nhận này.' });
+    }
+
+    const [addons] = await pool.query(
+      `SELECT service_name AS name, quantity, price
+         FROM booking_addon WHERE booking_id = ? ORDER BY addon_id`, [bookingId]);
+    const [transactions] = await pool.query(
+      `SELECT transaction_id AS id, type, amount, payment_method AS method, paid_at AS paidAt
+         FROM payment_transaction WHERE booking_id = ?
+         ORDER BY paid_at ASC, transaction_id ASC`, [bookingId]);
+
+    const addonTotal = addons.reduce(
+      (sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
+    const total = Number(booking.servicePrice) + addonTotal;
+    const collected = transactions
+      .filter((t) => t.type !== 'REFUND')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const refunded = transactions
+      .filter((t) => t.type === 'REFUND')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    res.json({
+      data: {
+        bookingId: String(bookingId),
+        receiptNo: booking.paymentId == null ? null : `BN-${bookingId}-${booking.paymentId}`,
+        status: booking.status,
+        startsAt: booking.startsAt,
+        customerName: booking.customerName,
+        staffName: booking.staffName,
+        service: {
+          name: booking.serviceName,
+          price: Number(booking.servicePrice),
+        },
+        addons: addons.map((item) => ({
+          name: item.name,
+          quantity: Number(item.quantity),
+          price: Number(item.price),
+          total: Number(item.price) * Number(item.quantity),
+        })),
+        total,
+        collected,
+        refunded,
+        remaining: Math.max(0, total - collected),
+        paymentStatus: booking.paymentStatus,
+        paymentMethod: booking.paymentMethod,
+        transactions: transactions.map((t) => ({
+          id: String(t.id),
+          type: t.type,
+          amount: Number(t.amount),
+          method: t.method,
+          paidAt: t.paidAt,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/* ================================================================
    Upload file ảnh mẫu (multipart) — POST /api/bookings/:id/images/upload
    ---------------------------------------------------------------
    Cùng luật với đường JSON: chỉ chủ lịch, lịch còn sống, tổng tối đa

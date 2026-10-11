@@ -152,6 +152,33 @@ export type ReviewDraft = {
   images?: string[];
 };
 
+/** Biên nhận thanh toán của chính mình: từng lần thu/hoàn + còn phải thu. */
+export async function fetchReceipt(id: string): Promise<{
+  bookingId: string; receiptNo: string | null; status: string;
+  service: { name: string; price: number };
+  addons: { name: string; quantity: number; price: number; total: number }[];
+  total: number; collected: number; refunded: number; remaining: number;
+  paymentStatus: string | null;
+  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+}> {
+  const response = await api<ApiResponse<{
+    bookingId: string; receiptNo: string | null; status: string;
+    service: { name: string; price: number };
+    addons: { name: string; quantity: number; price: number; total: number }[];
+    total: number; collected: number; refunded: number; remaining: number;
+    paymentStatus: string | null;
+    transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+  }>>(`/api/bookings/${encodeURIComponent(id)}/receipt`);
+  return response.data;
+}
+
+/** Khách báo sai lệch thanh toán cho lịch của mình (Admin thấy ở trang Thông báo). */
+export async function reportPaymentIssue(bookingId: string, message: string): Promise<void> {
+  await api('/api/notifications/support', {
+    method: 'POST',
+    body: JSON.stringify({ bookingId, message }),
+  });
+}
 /** Khách đánh giá lịch đã hoàn thành. Mỗi lịch chỉ một lần. */
 export async function submitReview(bookingId: string, draft: ReviewDraft) {
   const response = await api<ApiResponse<{ id: string }>>(`/api/bookings/${bookingId}/review`, {

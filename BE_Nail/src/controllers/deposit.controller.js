@@ -21,6 +21,7 @@ import {
   DEPOSIT_WINDOW_MINUTES, depositAmount, depositExpiresAt, isDepositExpired, remainingAmount,
 } from '../lib/deposit.js';
 import { canPaymentTransition } from '../lib/payment-state.js';
+import { notifyCustomer } from '../lib/notifications.js';
 import { recordCashFlow } from '../lib/payment-transactions.js';
 import { amountDue } from './payment.controller.js';
 import {
@@ -112,7 +113,7 @@ export async function confirmDepositPayment({ bookingId, amount }) {
   try {
     await connection.beginTransaction();
     const [[booking]] = await connection.query(
-      `SELECT b.booking_id, b.status, b.staff_id AS staffId
+      `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.customer_id AS customerId
          FROM booking b WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [bookingId],
     );
     if (!booking) {
@@ -207,6 +208,13 @@ export async function confirmDepositPayment({ bookingId, amount }) {
     }
 
     await connection.commit();
+    await notifyCustomer(pool, {
+      customerId: booking.customerId,
+      title: 'Đặt cọc thành công',
+      body: `Lịch hẹn #${bookingId} đã nhận cọc ${Number(amount).toLocaleString('vi-VN')} đ. `
+        + 'Cửa hàng đã giữ chỗ cho bạn.',
+      type: 'PAYMENT', refType: 'booking', refId: bookingId,
+    });
     return { status: 200, already: false, confirmed, bookingStatus: confirmed ? 'CONFIRMED' : 'PENDING' };
   } catch (error) {
     await connection.rollback();

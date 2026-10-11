@@ -74,6 +74,38 @@ export async function markRead(req, res, next) {
   }
 }
 
+/* Khách báo sai lệch thanh toán: ghi vào hộp thư của chính khách (để
+   theo dõi) và hiện lên trang giám sát của Admin theo lịch kèm theo. */
+export async function reportIssue(req, res, next) {
+  try {
+    const bookingId = Number(req.body?.bookingId);
+    const message = String(req.body?.message ?? '').trim().slice(0, 500);
+    if (!Number.isInteger(bookingId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+    if (!message) {
+      return res.status(400).json({ message: 'Vui lòng mô tả sai lệch bạn gặp.' });
+    }
+    const [[booking]] = await pool.query(
+      'SELECT booking_id, customer_id AS customerId FROM booking WHERE booking_id = ? LIMIT 1',
+      [bookingId],
+    );
+    if (!booking) return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    if (booking.customerId !== req.user.customerId) {
+      return res.status(403).json({ message: 'Bạn chỉ báo sai lệch cho lịch của chính mình.' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO notification (user_id, title, body, type, ref_type, ref_id, channel, status)
+       VALUES (?, 'Báo sai lệch thanh toán', ?, 'GENERAL', 'booking', ?, 'INAPP', 'PENDING')`,
+      [req.user.userId, `[Lịch #${bookingId}] ${message}`, bookingId],
+    );
+    res.status(201).json({ data: { id: String(result.insertId) } });
+  } catch (error) {
+    next(error);
+  }
+}
+
 /* Admin giám sát gửi: FAILED nổi trước để gọi tay/SMS cho khách. */
 export async function listAll(req, res, next) {
   try {

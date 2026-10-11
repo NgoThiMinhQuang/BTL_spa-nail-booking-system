@@ -12,6 +12,7 @@
 import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
 import { canPaymentTransition, finalAmount, resolvePaymentAmount } from '../lib/payment-state.js';
+import { notifyCustomer } from '../lib/notifications.js';
 import { recordCashFlow } from '../lib/payment-transactions.js';
 import { SETTLED_STATUSES } from '../lib/booking-state.js';
 
@@ -78,7 +79,7 @@ export async function savePayment(req, res, next) {
 
     const [[booking]] = await connection.query(
       `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.source,
-              b.start_time AS startsAt,
+              b.start_time AS startsAt, b.customer_id AS customerId,
               COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName,
               pay.payment_status AS currentStatus, pay.amount AS currentAmount
          FROM booking b
@@ -165,10 +166,24 @@ export async function savePayment(req, res, next) {
     }
     const amount = resolved.amount;
 
+    /* Không được giảm số tiền đã thu bằng cách ghi đè: tiền đã vào két
+       chỉ đi ra bằng nghiệp vụ hoàn tiền (giao dịch REFUND), không sửa số
+       trực tiếp. Muốn sửa sai sót thì hoàn phần chênh lệch rồi ghi mới. */
+    const previousAmount = booking.currentStatus == null ? 0 : Number(booking.currentAmount ?? 0);
+    if (booking.currentStatus != null
+      && ['DEPOSITED', 'PAID'].includes(booking.currentStatus)
+      && amount < previousAmount) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Không được giảm số tiền đã thu từ ${previousAmount.toLocaleString('vi-VN')} đ `
+          + `xuống ${amount.toLocaleString('vi-VN')} đ bằng cách sửa trực tiếp. `
+          + 'Phần chênh lệch phải xử lý qua nghiệp vụ hoàn tiền.',
+      });
+    }
+
     /* PAID thì mốc thời gian là thời điểm nhận tiền; DEPOSITED cũng có
        mốc vì khách đã trả một phần. UNPAID thì không có. */
     const paidAt = ['PAID', 'DEPOSITED'].includes(status) ? new Date() : null;
-    const previousAmount = booking.currentStatus == null ? 0 : Number(booking.currentAmount ?? 0);
 
     if (booking.currentStatus == null) {
       await connection.query(
@@ -211,6 +226,15 @@ export async function savePayment(req, res, next) {
     });
 
     await connection.commit();
+    if (status === 'PAID') {
+      await notifyCustomer(pool, {
+        customerId: booking.customerId,
+        title: 'Thanh toán thành công',
+        body: `Lịch hẹn #${bookingId} đã thanh toán đủ ${amount.toLocaleString('vi-VN')} đ. `
+          + 'Cảm ơn bạn đã tin tưởng NailHouse!',
+        type: 'PAYMENT', refType: 'booking', refId: bookingId,
+      });
+    }
     res.json({
       data: {
         bookingId: String(bookingId),

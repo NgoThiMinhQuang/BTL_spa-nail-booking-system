@@ -48,6 +48,8 @@ interface Detail {
   availability: { ok: boolean; reason: string | null } | null;
   paymentId: string | null; paymentStatus: string | null; paymentText: string | null;
   methodText: string | null; paidAmount: number | null; paymentDate: string | null;
+  receiptNo: string | null;
+  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
   addonTotal: number; total: number;
   addons: Addon[]; images: { id: string; url: string }[]; events: BookingEvent[];
   review: { id: string; rating: number; comment: string | null; createdAt: string } | null;
@@ -620,6 +622,7 @@ export function AdminBookingDetailPage() {
             <BookingInvoice
               data={{
                 code: data.code,
+                receiptNo: data.receiptNo,
                 startsAt: data.startsAt,
                 customerName: data.customerName,
                 customerPhone: data.customerPhone,
@@ -634,6 +637,7 @@ export function AdminBookingDetailPage() {
                 paymentText: data.paymentText,
                 methodText: data.methodText,
                 paymentDate: data.paymentDate,
+                transactions: data.transactions ?? [],
               }}
             />
           </div>
