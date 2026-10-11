@@ -130,7 +130,17 @@ export function AdminBookingDetailPage() {
     }
   }, [bookingDetailId]);
 
-  useEffect(() => { setLoading(true); load(); }, [load]);
+  useEffect(() => {
+    /* Mở lịch khác (kể cả mở lần 2 sau khi quay lại danh sách) phải xóa
+       sạch dữ liệu/error/hộp thoại của lần xem trước. Nếu không, lúc tải
+       lịch mới mà gặp lỗi, trang sẽ kẹt ở trạng thái nửa cũ nửa mới. */
+    setData(null);
+    setError('');
+    setDialog(null);
+    setShowInvoice(false);
+    setLoading(true);
+    load();
+  }, [load]);
 
   const actorName = state.user?.name ?? 'Quản trị viên';
 
