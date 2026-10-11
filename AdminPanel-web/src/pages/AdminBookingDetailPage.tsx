@@ -14,6 +14,7 @@ import { Avatar } from '../components/Avatar';
 import { EmptyState, Panel, SectionHeading, StatusBadge } from '../components/Primitives';
 import { BookingStatusFlow } from '../components/BookingStatusFlow';
 import { BookingTimeline, type BookingEvent } from '../components/BookingTimeline';
+import { BookingInvoice } from '../components/BookingInvoice';
 import { ReferenceImages } from '../components/ReferenceImages';
 import { AdjustBookingDrawer } from '../components/AdjustBookingDrawer';
 import {
@@ -97,6 +98,20 @@ export function AdminBookingDetailPage() {
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+
+  /* Dọn class in ấn khi hộp thoại in đóng (kể cả bấm Hủy trong hộp
+     thoại hệ thống) để giao diện không kẹt ở chế độ ẩn. */
+  useEffect(() => {
+    const done = () => document.body.classList.remove('printing-invoice');
+    window.addEventListener('afterprint', done);
+    return () => window.removeEventListener('afterprint', done);
+  }, []);
+
+  function printInvoice() {
+    document.body.classList.add('printing-invoice');
+    window.setTimeout(() => window.print(), 60);
+  }
 
   const load = useCallback(async () => {
     if (!bookingDetailId) return;
@@ -457,6 +472,12 @@ export function AdminBookingDetailPage() {
               onClick={() => dispatch({ type: 'view', view: 'admin-payments' })}>
               Xem chi tiết thanh toán →
             </button>
+            {data.paymentStatus === 'PAID' && (
+              <button className="button adm-bd-full" style={{ marginTop: 8 }}
+                onClick={() => setShowInvoice(true)}>
+                <Icon name="card" /> In hóa đơn
+              </button>
+            )}
           </Card>
 
           {/* ---- Đánh giá ---- */}
@@ -583,6 +604,40 @@ export function AdminBookingDetailPage() {
           onClose={() => setDialog(null)}
           onDone={() => { setDialog(null); load(); reload(); }}
         />
+      )}
+
+      {showInvoice && (
+        <div className="invoice-print">
+          <div className="invoice-overlay">
+            <div className="invoice-actions no-print">
+              <button className="button secondary" onClick={() => setShowInvoice(false)}>
+                Đóng
+              </button>
+              <button className="button" onClick={printInvoice}>
+                <Icon name="card" /> In ngay
+              </button>
+            </div>
+            <BookingInvoice
+              data={{
+                code: data.code,
+                startsAt: data.startsAt,
+                customerName: data.customerName,
+                customerPhone: data.customerPhone,
+                staffName: data.staffName,
+                serviceName: data.serviceName,
+                duration: data.duration,
+                price: data.price,
+                addons: data.addons,
+                addonTotal: data.addonTotal,
+                total: data.total,
+                paidAmount: data.paidAmount,
+                paymentText: data.paymentText,
+                methodText: data.methodText,
+                paymentDate: data.paymentDate,
+              }}
+            />
+          </div>
+        </div>
       )}
     </>
   );
