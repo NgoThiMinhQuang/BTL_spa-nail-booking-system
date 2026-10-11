@@ -38,6 +38,7 @@ const ADMIN_GROUPS: NavGroup[] = [
       { view: 'admin-staff', label: 'Nhân viên', icon: 'adminStaff' },
       { view: 'admin-work-schedule', label: 'Lịch làm việc', icon: 'clock' },
       { view: 'admin-leave', label: 'Yêu cầu nghỉ', icon: 'pause' },
+      { view: 'admin-notifications', label: 'Thông báo', icon: 'bell' },
     ],
   },
   {
@@ -68,6 +69,7 @@ const TITLES: Record<ViewName, [string, string]> = {
   'admin-staff': ['Nhân viên', 'Hồ sơ, chuyên môn và khối lượng công việc của nhân sự.'],
   'admin-work-schedule': ['Lịch làm việc', 'Ca làm việc của toàn bộ nhân viên trong tuần.'],
   'admin-leave': ['Yêu cầu nghỉ', 'Các ngày nhân viên đã xếp nghỉ và ảnh hưởng tới lịch hẹn.'],
+  'admin-notifications': ['Thông báo', 'Theo dõi tin đã gửi tới khách, thử lại tin lỗi.'],
   'admin-payments': ['Thanh toán', 'Theo dõi doanh thu và từng giao dịch của cửa hàng.'],
   'admin-payroll': ['Lương', 'Lương cơ bản + hoa hồng COMPLETED+PAID, chốt và trả theo tháng.'],
   'admin-reports': ['Báo cáo', 'Tổng hợp doanh thu theo dịch vụ, nhân viên và khách hàng.'],

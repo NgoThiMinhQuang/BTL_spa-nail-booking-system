@@ -17,6 +17,15 @@
 
 import { pool } from '../config/database.js';
 import { isDate } from '../lib/booking-service.js';
+import { createNotification, pushToUser } from '../lib/notifications.js';
+
+/* 'YYYY-MM-DD HH:mm' → 'HH:mm ngày DD/MM' để nhắn cho khách. */
+function fmtSlot(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value ?? '');
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())} ngày ${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+}
 
 /* Giờ HH:mm chặt: 00:00–23:59. Regex cũ /^\d{2}:\d{2}/ không neo cuối
    (lọt "12:34:56") và cho qua cả "99:99". */
@@ -155,6 +164,52 @@ export async function createLeaveRequest(req, res, next) {
         [req.user.staffId, endsAt],
       );
 
+      /* Tự động thông báo cho từng khách bị ảnh hưởng NGAY (không đợi
+         Admin tìm người thay): ghi hộp thư INAPP + đẩy push tới máy đã
+         đăng ký. Không tiết lộ lý do riêng của nhân viên. Lỗi gửi chỉ ghi
+         FAILED để thử lại — không được làm hỏng yêu cầu nghỉ. */
+      let notified = 0;
+      let walkinCount = 0;
+      try {
+        const [affected] = await pool.query(
+          `SELECT b.booking_id AS bookingId, b.start_time AS startsAt,
+                  s.service_name AS serviceName, u.user_id AS userId,
+                  COALESCE(u.full_name, b.guest_name) AS customerName,
+                  COALESCE(u.phone, b.guest_phone) AS phone
+             FROM booking b
+             JOIN services s ON s.service_id = b.service_id
+             LEFT JOIN customer c ON c.customer_id = b.customer_id
+             LEFT JOIN users u ON u.user_id = c.user_id
+            WHERE b.staff_id = ? AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+              AND b.start_time < ? AND b.end_time > NOW()
+            ORDER BY b.start_time`,
+          [req.user.staffId, endsAt],
+        );
+        for (const booking of affected) {
+          const when = fmtSlot(booking.startsAt);
+          const title = 'Lịch hẹn của bạn bị ảnh hưởng';
+          const body = `Lịch ${booking.serviceName} lúc ${when} của bạn bị ảnh hưởng `
+            + 'do nhân viên bận đột xuất. Cửa hàng đang sắp xếp phương án phục vụ mới '
+            + 'và sẽ báo lại ngay — bạn không cần làm gì lúc này.';
+          if (booking.userId) {
+            await createNotification(pool, {
+              userId: booking.userId, title, body,
+              type: 'LEAVE_DISRUPTION', refType: 'booking', refId: booking.bookingId,
+            });
+            await pushToUser(pool, {
+              userId: booking.userId, title, body,
+              type: 'LEAVE_DISRUPTION', refType: 'booking', refId: booking.bookingId,
+            });
+            notified += 1;
+          } else {
+            /* Khách vãng lai không có tài khoản: Admin gọi/SMS theo số. */
+            walkinCount += 1;
+          }
+        }
+      } catch {
+        /* Bỏ qua — yêu cầu nghỉ đã có hiệu lực, gửi lỗi xem ở trang Admin. */
+      }
+
       return res.status(201).json({
         data: {
           id: String(result.insertId),
@@ -166,6 +221,8 @@ export async function createLeaveRequest(req, res, next) {
           leaveType: 'EMERGENCY',
           status: 'APPROVED',
           affectedBookings: Number(remaining[0]?.n ?? 0),
+          notifiedCustomers: notified,
+          walkinCustomers: walkinCount,
         },
       });
     }

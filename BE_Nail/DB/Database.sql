@@ -499,7 +499,52 @@ CREATE TABLE payment_transaction (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  16. REVIEW — đánh giá lịch hẹn
+--  16. NOTIFICATION — hộp thư trong app của khách
+-- ----------------------------------------------------------------------------
+--  Nghỉ đột xuất, đổi lịch, hoàn tiền... đều ghi một dòng ở đây để khách
+--  mở app là đọc được ngay. Trạng thái gửi push/SMS nằm cùng dòng để Admin
+--  đối chiếu (đã gửi? lỗi gì? thử lại chưa?).
+-- ============================================================================
+DROP TABLE IF EXISTS `device_token`;
+DROP TABLE IF EXISTS `notification`;
+CREATE TABLE notification (
+    notification_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NULL COMMENT 'NULL = khách vãng lai, chỉ gửi SMS',
+    title VARCHAR(150) NOT NULL,
+    body VARCHAR(1000) NOT NULL,
+    type ENUM('LEAVE_DISRUPTION','RESCHEDULE','REFUND','BOOKING','PAYMENT','GENERAL') NOT NULL DEFAULT 'GENERAL',
+    ref_type VARCHAR(30) NULL COMMENT 'booking | leave_request | payroll ...',
+    ref_id BIGINT NULL,
+    channel ENUM('INAPP','PUSH','SMS') NOT NULL DEFAULT 'INAPP',
+    status ENUM('PENDING','SENT','FAILED','READ') NOT NULL DEFAULT 'PENDING',
+    attempts INT NOT NULL DEFAULT 0,
+    error_message VARCHAR(500) NULL,
+    sent_at DATETIME NULL,
+    read_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    KEY idx_notif_user (user_id, status),
+    KEY idx_notif_ref (ref_type, ref_id),
+    CONSTRAINT fk_notif_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE device_token (
+    device_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    platform ENUM('android','ios','web') NOT NULL DEFAULT 'android',
+    push_token VARCHAR(255) NOT NULL COMMENT 'ExponentPushToken[...] (Expo) hoặc FCM token',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_device_token (push_token),
+    KEY idx_device_user (user_id),
+    CONSTRAINT fk_device_user FOREIGN KEY (user_id)
+        REFERENCES users(user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ============================================================================
+--  17. REVIEW — đánh giá lịch hẹn
 -- ----------------------------------------------------------------------------
 --  Chỉ đánh giá được lịch đã COMPLETED, mỗi lịch một lần (UNIQUE booking_id).
 --  Không lưu staff_id / service_id: lấy từ booking là ra, tránh hai nơi
@@ -527,7 +572,7 @@ CREATE TABLE review (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  17. REVIEW_IMAGES — nhiều ảnh cho một đánh giá
+--  18. REVIEW_IMAGES — nhiều ảnh cho một đánh giá
 -- ----------------------------------------------------------------------------
 --  Bảng review chỉ có một cột image nên không đủ cho bài viết đánh giá có
 --  nhiều ảnh.
@@ -545,7 +590,7 @@ CREATE TABLE review_images (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  18. NHÓM ẢNH TRANG TRÍ (trang chủ)
+--  19. NHÓM ẢNH TRANG TRÍ (trang chủ)
 -- ============================================================================
 DROP TABLE IF EXISTS `service_images`;
 CREATE TABLE service_images (
@@ -621,7 +666,7 @@ CREATE TABLE promotions (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  18. STAFF_ATTENDANCE — chấm công thực tế (check-in / check-out)
+--  20. STAFF_ATTENDANCE — chấm công thực tế (check-in / check-out)
 -- ----------------------------------------------------------------------------
 --  Một ngày một dòng. So với ca (staff_schedule) để biết đi muộn / về sớm.
 --  Nghỉ đã duyệt (kể cả EMERGENCY) thì không check-in được.
@@ -644,7 +689,7 @@ CREATE TABLE staff_attendance (
 ) ENGINE=InnoDB;
 
 -- ============================================================================
---  19. PAYROLL — phiếu lương theo tháng (cơ bản + hoa hồng + thưởng − trừ)
+--  21. PAYROLL — phiếu lương theo tháng (cơ bản + hoa hồng + thưởng − trừ)
 -- ----------------------------------------------------------------------------
 --  Hoa hồng chỉ tính lịch COMPLETED có payment PAID, thuộc về nhân viên
 --  thực sự hoàn thành (booking.staff_id lúc COMPLETED — đổi người trước

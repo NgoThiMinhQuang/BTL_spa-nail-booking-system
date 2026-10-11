@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes.js';
 import bookingRoutes from './routes/booking.routes.js';
 import customerRoutes from './routes/customer.routes.js';
 import homeRoutes from './routes/home.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 import serviceRoutes from './routes/service.routes.js';
 import staffServiceRoutes from './routes/staff-service.routes.js';
 import staffRoutes from './routes/staff.routes.js';
@@ -78,6 +79,9 @@ app.use('/api/staff', staffRoutes);
    Router tự gắn middleware theo từng nhóm: xem lịch và đặt lịch cần
    token CUSTOMER, bắt đầu/hoàn thành cần token STAFF. */
 app.use('/api/bookings', bookingRoutes);
+
+/* ---- Hộp thư + máy nhận push của người đang đăng nhập ---- */
+app.use('/api/notifications', notificationRoutes);
 
 /* ---- Thanh toán của khách ---- */
 app.get('/api/customer/payments', authenticate, requireCustomer, getMyPayments);

@@ -17,7 +17,7 @@ import type { Role, AuthUser } from './types';
 export type ViewName =
   | 'admin-dashboard' | 'admin-bookings' | 'admin-customers'
   | 'admin-services' | 'admin-categories'
-  | 'admin-staff' | 'admin-work-schedule' | 'admin-leave'
+  | 'admin-staff' | 'admin-work-schedule' | 'admin-leave' | 'admin-notifications'
   | 'admin-payments' | 'admin-payroll' | 'admin-reports'
   | 'admin-reviews' | 'admin-settings';
 

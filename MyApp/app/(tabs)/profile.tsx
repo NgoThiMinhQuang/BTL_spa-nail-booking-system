@@ -1,6 +1,8 @@
 import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeCustomer } from '@/features/home/home.types';
 import { logout } from '@/features/auth/auth.service';
+import { fetchInbox } from '@/features/notifications/notification.service';
+import { setupPushNotifications } from '@/lib/push';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -38,18 +40,26 @@ export default function ProfileScreen() {
       .then((home) => { if (active) { setCustomer(home.customer); setError(''); } })
       .catch(() => { if (active) setError('Không thể tải thông tin cá nhân.'); })
       .finally(() => { if (active) setLoading(false); });
+    /* Đã đăng nhập rồi mới đăng ký được push — mỗi lần vào Cá nhân thử
+       một lần (hàm tự bỏ qua khi chưa login / máy ảo / thiếu projectId). */
+    setupPushNotifications();
+    fetchInbox().then(
+      (inbox) => { if (active) setUnread(inbox.unread); },
+      () => {},
+    );
     return () => { active = false; };
   }, []));
 
   const comingSoon = (label: string) => Alert.alert(label, 'Tính năng này đang được hoàn thiện.');
+  const [unread, setUnread] = useState(0);
   const menuItems: MenuItem[] = [
     { icon: 'person-outline', label: 'Thông tin cá nhân', action: () => router.push('/personal-info') },
     { icon: 'calendar-outline', label: 'Lịch hẹn của tôi', action: () => router.push('/bookings') },
     { icon: 'heart-outline', label: 'Yêu thích', action: () => router.push('/favorites') },
+    { icon: 'notifications-outline', label: 'Thông báo', badge: unread || undefined, action: () => router.push('/notifications') },
     /* Các mục dưới chưa có nghiệp vụ thật (comingSoon + badge cứng) nên
        ẩn khỏi bản demo: nút giả bấm vào chỉ hiện "đang hoàn thiện" sẽ bị
        hỏi khi bảo vệ. Mở lại khi làm thật từng tính năng. */
-    // { icon: 'notifications-outline', label: 'Thông báo', badge: 5, action: () => comingSoon('Thông báo') },
     // { icon: 'gift-outline', label: 'Ưu đãi của tôi', action: () => comingSoon('Ưu đãi của tôi') },
     // { icon: 'help-circle-outline', label: 'Hỗ trợ, liên hệ', action: () => comingSoon('Hỗ trợ, liên hệ') },
     // { icon: 'settings-outline', label: 'Cài đặt', action: () => comingSoon('Cài đặt') },

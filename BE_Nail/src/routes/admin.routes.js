@@ -42,6 +42,7 @@ import {
 } from '../controllers/request.controller.js';
 import { patchPayment, savePayment } from '../controllers/payment.controller.js';
 import { listAttendanceAdmin } from '../controllers/attendance.controller.js';
+import { listAll as listNotifications, retrySend as retryNotification } from '../controllers/notification.controller.js';
 import {
   confirmPayroll,
   getPayroll,
@@ -140,6 +141,10 @@ router.delete('/schedule/:id', deleteSchedule);
 
 /* Chấm công toàn cửa hàng trong khoảng ngày. */
 router.get('/attendance', listAttendanceAdmin);
+
+/* Giám sát gửi thông báo: FAILED nổi trước, thử đẩy lại khi cần. */
+router.get('/notifications', listNotifications);
+router.post('/notifications/:id/retry', retryNotification);
 
 /* Phiếu lương: xem trước (không lưu) → tạo/tính lại nháp → chốt → trả.
    PAID thì khóa, chỉ mở lại được từ CONFIRMED về DRAFT. */

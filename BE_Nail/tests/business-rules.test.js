@@ -2492,3 +2492,86 @@ describe('Doi lich cua khach va slot nghi dai', () => {
     }
   });
 });
+
+/* Nghi dot xuat tu tao thong bao cho khach bi anh huong. */
+describe('Thong bao nghi dot xuat', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const staffUser = { staffId: 9001, userId: 9002, name: 'Nhan vien Test' };
+  const customerUser = { customerId: 9001, userId: 9001 };
+
+  const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0')
+    + ':' + String(d.getMinutes()).padStart(2, '0');
+
+  test('bao nghi dot xuat thi khach co tin INAPP trong hop thu', async () => {
+    const { createLeaveRequest } = await import('../src/controllers/request.controller.js');
+    const { listMine } = await import('../src/controllers/notification.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const start = new Date(Date.now() + 2 * 86400000);
+      start.setHours(9, 0, 0, 0);
+      const end = new Date(start.getTime() + 75 * 60000);
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const day = start.getFullYear() + '-' + pad2(start.getMonth() + 1) + '-' + pad2(start.getDate());
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [day + ' 09:00:00', day + ' 10:15:00']);
+      bookingId = b.insertId;
+
+      const leaveStart = fmt(new Date(Date.now() + 30 * 60000));
+      const leaveEnd = day + ' 18:00';
+      const created = mockRes();
+      await createLeaveRequest(
+        { body: { startDatetime: leaveStart, endDatetime: leaveEnd, reason: 'Sot', leave_type: 'EMERGENCY' }, user: staffUser },
+        created, strictNext);
+      assert.equal(created.statusCode, 201);
+      assert.ok((created.body.data.notifiedCustomers ?? 0) >= 1);
+
+      const inbox = mockRes();
+      await listMine({ query: {}, user: customerUser }, inbox, strictNext);
+      assert.equal(inbox.statusCode, 200);
+      const found = inbox.body.data.find((n) => String(n.refId) === String(bookingId));
+      assert.ok(found, 'khach phai co thong bao ve lich bi anh huong');
+      assert.equal(found.channel, 'INAPP');
+      assert.ok(!String(found.body).includes('Sot'), 'khong tiet lo ly do rieng');
+    } finally {
+      await connection.query('DELETE FROM notification WHERE ref_type = ? AND ref_id = ?', ['booking', bookingId]);
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      if (bookingId) await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      await connection.end();
+    }
+  });
+
+  test('dang ky may sai dinh dang thi 400, dung thi 201', async () => {
+    const { registerDevice } = await import('../src/controllers/notification.controller.js');
+    const bad = mockRes();
+    await registerDevice({ body: { pushToken: 'abc' }, user: customerUser }, bad, strictNext);
+    assert.equal(bad.statusCode, 400);
+
+    const ok = mockRes();
+    await registerDevice(
+      { body: { pushToken: 'ExponentPushToken[testtoken1234567890]', platform: 'android' }, user: customerUser },
+      ok, strictNext);
+    assert.equal(ok.statusCode, 201);
+
+    const connection = await connect();
+    try {
+      await connection.query('DELETE FROM device_token WHERE user_id = 9001');
+    } finally {
+      await connection.end();
+    }
+  });
+
+  test('admin xem duoc tin gui loi', async () => {
+    const { listAll } = await import('../src/controllers/notification.controller.js');
+    const res = mockRes();
+    await listAll({ query: { status: 'FAILED' } }, res, strictNext);
+    assert.equal(res.statusCode, 200);
+    assert.ok(Array.isArray(res.body.data));
+  });
+});

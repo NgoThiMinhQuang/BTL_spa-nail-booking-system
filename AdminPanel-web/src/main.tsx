@@ -18,6 +18,7 @@ import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
 import { AdminCustomersPage } from './pages/AdminCustomersPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminLeavePage } from './pages/AdminLeavePage';
+import { AdminNotificationsPage } from './pages/AdminNotificationsPage';
 import { AdminPaymentsPage } from './pages/AdminPaymentsPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminReportsPage } from './pages/AdminReportsPage';
@@ -50,6 +51,7 @@ function Routes() {
   else if (view === 'admin-staff') page = <AdminStaffPage />;
   else if (view === 'admin-work-schedule') page = <AdminWorkSchedulePage />;
   else if (view === 'admin-leave') page = <AdminLeavePage />;
+  else if (view === 'admin-notifications') page = <AdminNotificationsPage />;
   else if (view === 'admin-payments') page = <AdminPaymentsPage />;
   else if (view === 'admin-payroll') page = <AdminPayrollPage />;
   else if (view === 'admin-reports') page = <AdminReportsPage />;
