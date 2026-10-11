@@ -721,21 +721,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /* Đồng bộ hai chiều giữa hash và trạng thái: bấm vào lịch thì hash đổi,
-     người dùng bấm nút Back hoặc dán URL thì trang mở đúng lịch đó. */
+     người dùng bấm nút Back hoặc dán URL thì trang mở đúng lịch đó.
+     dispatch trực tiếp (không chờ hashchange) vì bấm lại cùng một lịch lần 2
+     thì hash không đổi → không có sự kiện → trang chi tiết không mở. */
   const openBookingDetail = useCallback((id: string) => {
-    window.location.hash = bookingHash(id);
+    dispatch({ type: 'bookingDetail', id });
+    if (window.location.hash !== bookingHash(id)) window.location.hash = bookingHash(id);
   }, []);
 
   const closeBookingDetail = useCallback(() => {
-    window.location.hash = '#/bookings';
+    dispatch({ type: 'bookingDetail', id: null });
+    if (window.location.hash !== '#/bookings') window.location.hash = '#/bookings';
   }, []);
 
   const openCustomerDetail = useCallback((id: string) => {
-    window.location.hash = customerHash(id);
+    dispatch({ type: 'customerDetail', id });
+    if (window.location.hash !== customerHash(id)) window.location.hash = customerHash(id);
   }, []);
 
   const closeCustomerDetail = useCallback(() => {
-    window.location.hash = '#/customers';
+    dispatch({ type: 'customerDetail', id: null });
+    if (window.location.hash !== '#/customers') window.location.hash = '#/customers';
   }, []);
 
   /* Đồng bộ hai chiều giữa hash và trạng thái: bấm vào khách thì hash đổi,
