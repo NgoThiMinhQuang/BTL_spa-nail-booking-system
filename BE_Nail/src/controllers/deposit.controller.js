@@ -62,7 +62,7 @@ export async function createDepositIntent(req, res, next) {
 
     /* Quá hạn 15 phút thì hủy ngay để trả slot, khỏi chờ sweeper. */
     if (isDepositExpired(booking.createdAt)) {
-      await cancelExpiredBooking(id, 'Quá hạn thanh toán đặt cọc.');
+      await cancelExpiredBooking(id, 'Hết hạn giữ chỗ (quá 15 phút chờ đặt cọc, tự động hủy).');
       return res.status(410).json({
         message: 'Lịch đã quá 15 phút chờ đặt cọc nên bị hủy. Vui lòng đặt lịch mới.',
       });
@@ -429,7 +429,7 @@ export async function sweepExpiredDeposits() {
   let cancelled = 0;
   for (const row of rows) {
     const done = await cancelExpiredBooking(
-      row.id, `Quá ${DEPOSIT_WINDOW_MINUTES} phút chờ thanh toán đặt cọc (tự động hủy).`);
+      row.id, `Hết hạn giữ chỗ (quá ${DEPOSIT_WINDOW_MINUTES} phút chờ thanh toán đặt cọc, tự động hủy).`);
     if (done) cancelled += 1;
   }
   return { cancelled };

@@ -1246,8 +1246,9 @@ describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
     await testPool.query("INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())", [paidId]);
     const out2 = await sweepExpiredDeposits();
     assert.ok(out2.cancelled >= 1);
-    const [[e]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [expiredId]);
+    const [[e]] = await testPool.query('SELECT status, cancel_reason AS reason FROM booking WHERE booking_id = ?', [expiredId]);
     assert.equal(e.status, 'CANCELLED');
+    assert.ok(String(e.reason).includes('Hết hạn giữ chỗ'), 'ly do huy phai ghi het han giu cho');
     const [[f]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [freshId]);
     assert.equal(f.status, 'PENDING');
     const [[g]] = await testPool.query('SELECT status FROM booking WHERE booking_id = ?', [paidId]);
