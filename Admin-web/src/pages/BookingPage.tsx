@@ -1,4 +1,5 @@
-/* ===== Trang chi tiết lịch hẹn (kèm hóa đơn khi đã hoàn thành) ===== */
+/* ===== Trang chi tiết lịch hẹn (nhân viên phục vụ, không in hóa đơn) =====
+   Hóa đơn chỉ do admin in cho lịch đã PAID ở trang quản trị. */
 
 import { useState } from 'react';
 import { Avatar } from '../components/Avatar';
@@ -7,7 +8,6 @@ import { Icon } from '../components/Icon';
 import { useApp } from '../store';
 import { useNavigation } from '../hooks/useNavigation';
 import { fmtNum, longDate, money, safeImage } from '../lib/utils';
-import type { Booking, StaffProfile } from '../types';
 
 const STEPS = ['Đặt lịch', 'Xác nhận', 'Đang thực hiện', 'Hoàn thành'];
 const ORDER = ['PENDING', 'CONFIRMED', 'PROCESSING', 'COMPLETED'] as const;
@@ -101,8 +101,6 @@ export function BookingPage() {
   }
 
   const stage = ORDER.indexOf(b.status as typeof ORDER[number]);
-  const code = `HD${String(b.id).padStart(6, '0')}`;
-  const showInvoice = b.status === 'COMPLETED';
   const customer = state.data!.customers.find((c) => String(c.id) === String(b.customerId));
   const following = [...state.data!.bookings]
     .filter((item) => item.startsAt > b.startsAt
@@ -111,21 +109,16 @@ export function BookingPage() {
 
   return (
     <>
-      <div className="booking-topline no-print">
+      <div className="booking-topline">
         <button className="booking-back" onClick={() => goView('schedule')}>← Quay lại lịch làm việc</button>
         <div>
           <span>Mã lịch hẹn: </span>
-          <strong>#{code}</strong>
+          <strong>#{b.id}</strong>
           <Badge status={b.status} />
         </div>
-        {showInvoice && (
-          <button className="button" onClick={() => window.print()}>🖨 &nbsp; In phiếu tổng kết</button>
-        )}
       </div>
 
-      {showInvoice && <Invoice b={b} code={code} profile={profile} />}
-
-      <div className="booking-grid no-print">
+      <div className="booking-grid">
         {/* Cột 1: khách hàng, dịch vụ, ghi chú */}
         <div className="booking-column">
           <section className="booking-card">
@@ -339,120 +332,3 @@ export function BookingPage() {
   );
 }
 
-/* ===== Phiếu tổng kết dịch vụ (nhân viên in cho khách kiểm tra) =====
-   Đây KHÔNG phải biên nhận thanh toán: nhân viên không được xác nhận đã
-   thu tiền. Khi chưa thu đủ, phiếu ghi rõ không phải xác nhận thanh toán. */
-function Invoice({ b, code, profile }: { b: Booking; code: string; profile: StaffProfile }) {
-  const collected = b.paidAmount ?? 0;
-  const remaining = Math.max(0, (b.total ?? b.price) - collected);
-  return (
-    <section className="booking-card invoice" id="invoice" aria-label="Phiếu tổng kết dịch vụ">
-      <div className="invoice-head">
-        <div className="invoice-brand">
-          <span className="invoice-logo">✳</span>
-          <div>
-            <strong>NailHouse</strong>
-            <small>BEAUTY NAILS · BETTER YOU</small>
-          </div>
-        </div>
-        <div className="invoice-title">
-          <h2>PHIẾU TỔNG KẾT DỊCH VỤ</h2>
-          <p>Mã lịch: <strong>{code}</strong></p>
-          <p>Ngày lập: {b.createdAt || longDate(b.startsAt.slice(0, 10))}</p>
-          <Badge status={b.status} />
-        </div>
-      </div>
-
-      {b.paymentStatus !== 'PAID' && (
-        <p className="booking-action-note">
-          Phiếu này chỉ để khách kiểm tra dịch vụ và số tiền —
-          <strong> không phải xác nhận đã thanh toán</strong>. Thu tiền do thu ngân thực hiện.
-        </p>
-      )}
-
-      <div className="invoice-customer">
-        <span>Khách hàng: <strong>{b.customerName}</strong></span>
-        <span>Điện thoại: <strong>{b.phone}</strong></span>
-        <span>Email: <strong>{b.email || '—'}</strong></span>
-        <span>Nhân viên phục vụ: <strong>{profile.name}</strong></span>
-        <span>Thời gian hẹn: <strong>{b.startsAt.slice(11)} – {b.endsAt.slice(11)}</strong></span>
-      </div>
-
-      <div className="table-scroll">
-        <table className="admin-table invoice-table">
-          <thead>
-            <tr>
-              <th className="col-stt">STT</th>
-              <th className="txt">Dịch vụ</th>
-              <th className="num">SL</th>
-              <th className="num">Thời lượng</th>
-              <th className="num">Đơn giá</th>
-              <th className="num">Thành tiền</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="col-stt num">1</td>
-              <td className="txt">{b.serviceName}</td>
-              <td className="num">1</td>
-              <td className="num">{b.duration} phút</td>
-              <td className="num">{fmtNum(b.price)}đ</td>
-              <td className="num">{fmtNum(b.price)}đ</td>
-            </tr>
-            {/* Dịch vụ phát sinh: trước đây hoá đơn chỉ in món chính nên
-                tổng sai khi có phát sinh — nay in từng món. */}
-            {(b.addons ?? []).map((addon, index) => (
-              <tr key={`${addon.name}-${index}`}>
-                <td className="col-stt num">{index + 2}</td>
-                <td className="txt">{addon.name} <small>(phát sinh)</small></td>
-                <td className="num">{addon.quantity}</td>
-                <td className="num">—</td>
-                <td className="num">{fmtNum(addon.price)}đ</td>
-                <td className="num">{fmtNum(addon.total)}đ</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td className="txt" colSpan={5}>Tổng thành tiền</td>
-              <td className="num">{money(b.total ?? b.price)}</td>
-            </tr>
-            <tr>
-              <td className="txt" colSpan={5}>Tiền cọc đã nhận</td>
-              <td className="num">{money(collected)}</td>
-            </tr>
-            <tr>
-              <td className="txt" colSpan={5}>
-                Thanh toán: {b.paymentStatus === 'PAID' ? 'Đã thu đủ'
-                  : b.paymentStatus === 'DEPOSITED'
-                    ? `Đã cọc ${money(collected)}`
-                    : b.paymentStatus === 'REFUNDED'
-                      ? 'Đã hoàn cọc'
-                      : 'Chưa thu'}
-              </td>
-              <td className="num">
-                {b.paymentStatus === 'PAID' ? money(b.total ?? b.price)
-                  : b.paymentStatus === 'REFUNDED' ? money(0)
-                  : money(collected)}
-              </td>
-            </tr>
-            {(b.paymentStatus !== 'PAID' && b.paymentStatus !== 'REFUNDED') && (
-              <tr>
-                <td className="txt" colSpan={5}>Còn phải thanh toán</td>
-                <td className="num">{money(remaining)}</td>
-              </tr>
-            )}
-          </tfoot>
-        </table>
-      </div>
-
-      <div className="invoice-foot">
-        <p>Cảm ơn quý khách đã tin tưởng NailHouse!</p>
-        <div>
-          <span>Khách hàng<br /><small>(Ký, ghi rõ họ tên)</small></span>
-          <span>Nhân viên lập<br /><small>{profile.name}</small></span>
-        </div>
-      </div>
-    </section>
-  );
-}
