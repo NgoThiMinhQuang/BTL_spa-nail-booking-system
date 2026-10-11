@@ -345,6 +345,7 @@ function EditPaymentModal({ item, onClose, onDone }: {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -363,16 +364,28 @@ function EditPaymentModal({ item, onClose, onDone }: {
   }
 
   return (
-    <div className="adm-modal-backdrop" role="dialog" aria-modal="true"
-      onClick={onClose}>
-      <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Sửa thanh toán lịch #{item.bookingId}</h3>
-        <p>{item.customerName} · {item.serviceName} · {formatVND(item.amount)}</p>
-        <p className="adm-field-note">Hiện tại: <strong>{item.statusText}</strong></p>
-        {locked && (
-          <p className="adm-error">Khoản này đã hoàn cọc nên khóa sổ, không sửa được nữa.</p>
-        )}
-        <form className="adm-form" onSubmit={submit}>
+    <Drawer
+      title={`Sửa thanh toán lịch #${item.bookingId}`}
+      subtitle={`${item.customerName} · ${item.serviceName} · ${formatVND(item.amount)}`}
+      onClose={onClose}
+      width={560}
+      footer={(
+        <div className="adm-drawer-actions">
+          <button type="button" className="button secondary" disabled={busy} onClick={onClose}>
+            Hủy bỏ
+          </button>
+          <button type="button" className="button" disabled={busy || locked}
+            onClick={() => formRef.current?.requestSubmit()}>
+            {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
+          </button>
+        </div>
+      )}
+    >
+      <p className="adm-field-note">Hiện tại: <strong>{item.statusText}</strong></p>
+      {locked && (
+        <p className="adm-error">Khoản này đã hoàn cọc nên khóa sổ, không sửa được nữa.</p>
+      )}
+      <form ref={formRef} className="adm-form" onSubmit={submit}>
           <div className="adm-form-row">
             <label className="adm-field">
               <span>Trạng thái</span>
@@ -408,16 +421,7 @@ function EditPaymentModal({ item, onClose, onDone }: {
               placeholder="Ví dụ: khách chuyển khoản thiếu..." disabled={busy} />
           </label>
           {error && <p className="adm-error">{error}</p>}
-          <div className="adm-modal-foot">
-            <button type="button" className="button secondary" disabled={busy} onClick={onClose}>
-              Hủy bỏ
-            </button>
-            <button type="submit" className="button" disabled={busy || locked}>
-              {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Drawer>
   );
 }
