@@ -2364,3 +2364,131 @@ describe('Siet luat trang thai', () => {
     }
   });
 });
+
+/* Khach tu doi lich + slot nghi nhieu ngay. */
+describe('Doi lich cua khach va slot nghi dai', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const customerUser = { customerId: 9001, name: 'Khach Test' };
+
+  async function wipeBooking(connection, bookingId) {
+    await connection.query('DELETE FROM booking_addon WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+  }
+
+  test('doi sang gio trong thi 200, tien coc giu nguyen', async () => {
+    const { rescheduleBooking } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const fromDay = dayPlus(15);
+    const toDay = dayPlus(16);
+    let bookingId = null;
+    try {
+      for (const d of [fromDay, toDay]) {
+        await connection.query(
+          "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, ?, '08:00:00', '18:00:00', 'AVAILABLE') ON DUPLICATE KEY UPDATE status = 'AVAILABLE'",
+          [d]);
+      }
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')",
+        [fromDay + ' 09:00:00', fromDay + ' 10:15:00']);
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())",
+        [bookingId]);
+
+      const res = mockRes();
+      await rescheduleBooking(
+        { params: { id: String(bookingId) }, body: { date: toDay, time: '09:00' }, user: customerUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const [[row]] = await connection.query(
+        'SELECT DATE_FORMAT(start_time, "%Y-%m-%d") AS day FROM booking WHERE booking_id = ?', [bookingId]);
+      assert.equal(row.day, toDay);
+      const [[pay]] = await connection.query(
+        'SELECT payment_status AS status, amount FROM payment WHERE booking_id = ?', [bookingId]);
+      assert.equal(pay.status, 'DEPOSITED');
+      assert.equal(Number(pay.amount), 60000);
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date IN (?, ?)', [fromDay, toDay]);
+      await connection.end();
+    }
+  });
+
+  test('doi vao gio ban thi 409, doi lich PROCESSING thi 409', async () => {
+    const { rescheduleBooking } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const day = dayPlus(17);
+    let firstId = null;
+    let secondId = null;
+    try {
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, ?, '08:00:00', '18:00:00', 'AVAILABLE') ON DUPLICATE KEY UPDATE status = 'AVAILABLE'",
+        [day]);
+      const [a] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [day + ' 09:00:00', day + ' 10:15:00']);
+      firstId = a.insertId;
+      const [c] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [day + ' 14:00:00', day + ' 15:15:00']);
+      secondId = c.insertId;
+
+      const clash = mockRes();
+      await rescheduleBooking(
+        { params: { id: String(secondId) }, body: { date: day, time: '09:30' }, user: customerUser },
+        clash, strictNext);
+      assert.equal(clash.statusCode, 409);
+
+      await connection.query("UPDATE booking SET status = 'PROCESSING' WHERE booking_id = ?", [secondId]);
+      const running = mockRes();
+      await rescheduleBooking(
+        { params: { id: String(secondId) }, body: { date: day, time: '16:00' }, user: customerUser },
+        running, strictNext);
+      assert.equal(running.statusCode, 409);
+    } finally {
+      if (firstId) await wipeBooking(connection, firstId);
+      if (secondId) await wipeBooking(connection, secondId);
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = ?', [day]);
+      await connection.end();
+    }
+  });
+
+  test('nghi dai 3 ngay thi ngay giua khong con gio trong', async () => {
+    const { freeSlotsForStaff } = await import('../src/lib/staff-availability.js');
+    const connection = await connect();
+    const d1 = dayPlus(20);
+    const d2 = dayPlus(21);
+    const d3 = dayPlus(22);
+    try {
+      for (const d of [d1, d2, d3]) {
+        await connection.query(
+          "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, ?, '09:00:00', '18:00:00', 'AVAILABLE') ON DUPLICATE KEY UPDATE status = 'AVAILABLE'",
+          [d]);
+      }
+      await connection.query(
+        "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, status) VALUES (9001, ?, ?, 'Nghi dai', 'NORMAL', 'APPROVED')",
+        [d1 + ' 18:00:00', d3 + ' 09:00:00']);
+
+      const mid = await freeSlotsForStaff({
+        staffId: 9001, serviceId: 1, day: d2, duration: 60, bufferTime: 15,
+      });
+      assert.deepEqual(mid, []);
+
+      const first = await freeSlotsForStaff({
+        staffId: 9001, serviceId: 1, day: d1, duration: 60, bufferTime: 15,
+      });
+      assert.ok(first.length > 0, 'sang ngay dau van con gio');
+      assert.ok(first.every((t) => t < '18:00'), 'chieu ngay dau bi chan');
+    } finally {
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.end();
+    }
+  });
+});

@@ -132,6 +132,20 @@ export async function cancelBooking(id: string, reason?: string): Promise<void> 
   });
 }
 
+/**
+ * Khách tự đổi ngày/giờ lịch PENDING/CONFIRMED của mình. Giữ nguyên nhân
+ * viên và tiền cọc — backend kiểm tra lại ca, nghỉ và trùng lịch.
+ */
+export async function rescheduleBooking(
+  id: string, draft: { date: string; time: string },
+): Promise<{ id: string; startsAt: string; endsAt: string }> {
+  const response = await api<ApiResponse<{ id: string; startsAt: string; endsAt: string }>>(
+    `/api/bookings/${id}/reschedule`,
+    { method: 'PATCH', body: JSON.stringify(draft) },
+  );
+  return response.data;
+}
+
 export type ReviewDraft = {
   rating: number;
   comment?: string;

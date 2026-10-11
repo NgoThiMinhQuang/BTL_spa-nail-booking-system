@@ -22,6 +22,9 @@ import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf,
 } from '../lib/booking-service.js';
 import { freeSlotsForAnyStaff, freeSlotsForStaff } from '../lib/staff-availability.js';
+import {
+  checkStaffAvailable, lockStaffBookings,
+} from '../lib/staff-availability.js';
 import { settleCancelPayment } from '../lib/payment-transactions.js';
 import fs from 'node:fs';
 import multer from 'multer';
@@ -373,6 +376,119 @@ export async function cancelBooking(req, res, next) {
           : null,
       },
     });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+/* ================================================================
+   Khách tự đổi ngày/giờ lịch hẹn
+   ---------------------------------------------------------------
+   Không cho tự ý đổi sang giờ bất kỳ mà không kiểm tra: giữ nguyên
+   nhân viên và dịch vụ, chạy lại đúng bộ luật khả dụng (ca, nghỉ,
+   trùng lịch) rồi mới lưu. Tiền cọc/thanh toán giữ nguyên theo lịch.
+   Chỉ PENDING/CONFIRMED được đổi; CONFIRMED phải còn trên 2 giờ như
+   luật hủy (cùng CANCEL_WINDOW_HOURS).
+   ================================================================ */
+export async function rescheduleBooking(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const id = Number(req.params.id);
+    const date = String(req.body?.date ?? '').trim();
+    const time = String(req.body?.time ?? '').trim();
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+    if (!isDate(date) || !/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({ message: 'Ngày (YYYY-MM-DD) hoặc giờ (HH:mm) không hợp lệ.' });
+    }
+
+    await connection.beginTransaction();
+    const [[booking]] = await connection.query(
+      `SELECT b.booking_id, b.customer_id AS customerId, b.status,
+              b.start_time AS startsAt, b.staff_id AS staffId, b.service_id AS serviceId,
+              COALESCE(b.service_duration, s.duration) AS duration,
+              COALESCE(b.buffer_time, s.buffer_time, 0) AS bufferTime
+          FROM booking b JOIN services s ON s.service_id = b.service_id
+         WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [id],
+    );
+    if (!booking) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+    if (booking.customerId !== req.user.customerId) {
+      await connection.rollback();
+      return res.status(403).json({ message: 'Bạn không có quyền đổi lịch hẹn này.' });
+    }
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Lịch đang ở trạng thái "${booking.status}" nên không đổi giờ được.`,
+      });
+    }
+    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
+          + 'nên không tự đổi được. Vui lòng liên hệ cửa hàng.',
+      });
+    }
+
+    const startsAt = momentOf(date, time);
+    if (!startsAt || startsAt.getTime() <= Date.now()) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Giờ mới phải trong tương lai.' });
+    }
+    const endsAt = new Date(
+      startsAt.getTime() + (Number(booking.duration) + Number(booking.bufferTime ?? 0)) * 60000);
+
+    /* Đổi về đúng giờ cũ thì không cần làm gì thêm. */
+    if (new Date(booking.startsAt).getTime() === startsAt.getTime()) {
+      await connection.rollback();
+      return res.json({
+        data: {
+          id: String(id), startsAt, endsAt, unchanged: true,
+          message: 'Giờ mới trùng giờ cũ nên giữ nguyên.',
+        },
+      });
+    }
+
+    /* Khoá rồi kiểm tra lại trong giao dịch để hai khách không cùng
+       chen vào một khung giờ (giống đường tạo lịch). */
+    if (booking.staffId) {
+      await lockStaffBookings({ connection, staffId: booking.staffId, startsAt, endsAt });
+      const check = await checkStaffAvailable({
+        bookingId: id, staffId: booking.staffId, serviceId: booking.serviceId,
+        startsAt, endsAt, runner: connection, forUpdate: true,
+      });
+      if (!check.ok) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: `Không đổi được: ${check.reason}`,
+          reason: check.reason,
+          conflict: check.conflict ?? null,
+        });
+      }
+    }
+
+    await connection.query(
+      'UPDATE booking SET start_time = ?, end_time = ? WHERE booking_id = ?',
+      [startsAt, endsAt, id],
+    );
+    await logEvent({
+      bookingId: id,
+      type: 'RESCHEDULED',
+      detail: `Khách tự đổi giờ sang ${date} lúc ${time}. Tiền cọc/thanh toán giữ nguyên.`,
+      actorRole: 'CUSTOMER',
+      actorName: req.user.name,
+      connection,
+    });
+
+    await connection.commit();
+    res.json({ data: { id: String(id), startsAt, endsAt } });
   } catch (error) {
     await connection.rollback();
     next(error);

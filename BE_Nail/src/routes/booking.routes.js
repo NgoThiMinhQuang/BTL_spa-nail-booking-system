@@ -8,6 +8,7 @@ import {
   getAvailableSlots,
   getBookingDetail,
   getBookings,
+  rescheduleBooking,
   updateBookingStatus,
 } from '../controllers/booking.controller.js';
 /* addAddon nằm ở controller quản trị nhưng đã chia nhánh actorRole STAFF /
@@ -37,6 +38,10 @@ router.post('/', authenticate, requireCustomer, createBooking);
 /* Khách tự hủy lịch của mình: PENDING hủy ngay, CONFIRMED hủy khi còn
    trên 2 giờ. */
 router.patch('/:id/cancel', authenticate, requireCustomer, cancelBooking);
+
+/* Khách tự đổi ngày/giờ lịch PENDING/CONFIRMED của mình: giữ nguyên nhân
+   viên và tiền cọc, kiểm tra lại khả dụng như lúc đặt lịch. */
+router.patch('/:id/reschedule', authenticate, requireCustomer, rescheduleBooking);
 
 /* Xin URL thanh toán đặt cọc 30% cho lịch PENDING của chính mình. */
 router.post('/:id/deposit-intent', authenticate, requireCustomer, createDepositIntent);

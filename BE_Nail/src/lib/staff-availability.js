@@ -275,17 +275,30 @@ export async function freeSlotsForStaff({
     to: minutesOfClock(row.endTime),
   }));
 
-  /* Lịch đã được duyệt nghỉ trong ngày cũng chiếm chỗ, dù ca làm vẫn mở. */
+  /* Lịch đã được duyệt nghỉ trong ngày cũng chiếm chỗ, dù ca làm vẫn mở.
+     Yêu cầu nghỉ có thể KÉO DÀI NHIỀU NGÀY (VD tối 10/10 đến sáng 12/10):
+     phải kẹp khoảng nghỉ vào đúng ngày đang xét rồi mới đổi ra phút.
+     Trước đây lấy thẳng giờ bắt đầu/kết thúc (18:00 → 09:00) nên ngày giữa
+     (11/10, nghỉ cả ngày) tính ra khoảng rỗng và hiện giờ trống dù backend
+     từ chối đặt lịch — Mobile và server lệch nhau. */
   const [leaves] = await runner.query(
     `SELECT start_datetime AS startDatetime, end_datetime AS endDatetime
        FROM staff_leave_request
       WHERE staff_id = ? AND status = 'APPROVED'
         AND DATE(start_datetime) <= ? AND DATE(end_datetime) >= ?`,
     [staffId, day, day]);
-  const away = leaves.map((row) => ({
-    from: minutesOfClock(row.startDatetime),
-    to: minutesOfClock(row.endDatetime),
-  }));
+  const dayStart = new Date(`${day}T00:00:00`).getTime();
+  const dayEnd = dayStart + 86400000;
+  const away = [];
+  for (const row of leaves) {
+    const from = Math.max(new Date(row.startDatetime).getTime(), dayStart);
+    const to = Math.min(new Date(row.endDatetime).getTime(), dayEnd);
+    if (Number.isNaN(from) || Number.isNaN(to) || from >= to) continue;
+    away.push({
+      from: Math.round((from - dayStart) / 60000),
+      to: Math.round((to - dayStart) / 60000),
+    });
+  }
 
   const shiftStart = minutesOfClock(shift.startTime);
   const shiftEnd = minutesOfClock(shift.endTime);

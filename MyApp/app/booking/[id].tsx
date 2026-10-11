@@ -1,4 +1,4 @@
-import { cancelBooking, fetchBookingDetail, submitReview } from '@/features/booking/booking.service';
+import { cancelBooking, fetchAvailability, fetchBookingDetail, rescheduleBooking, submitReview } from '@/features/booking/booking.service';
 import type { BookingDetail } from '@/features/booking/booking.types';
 import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,6 +44,11 @@ export default function BookingDetailScreen() {
   const [showReview, setShowReview] = useState(false);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
+  const [slots, setSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -78,6 +83,55 @@ export default function BookingDetailScreen() {
         },
       },
     ]);
+  }
+
+  const reschedulable = booking
+    && ['pending', 'confirmed'].includes(booking.status);
+
+  async function loadSlots(date: string) {
+    if (!booking) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setSlots([]);
+      return;
+    }
+    setSlotsLoading(true);
+    try {
+      const result = await fetchAvailability(
+        booking.serviceId, booking.staffId ?? '', date);
+      setSlots(result.slots);
+    } catch {
+      setSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  }
+
+  function openReschedule() {
+    if (!booking) return;
+    setMessage('');
+    setNewDate(String(booking.startsAt ?? '').slice(0, 10));
+    setNewTime('');
+    setSlots([]);
+    setShowReschedule(true);
+  }
+
+  async function submitReschedule() {
+    if (!booking) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate) || !/^\d{2}:\d{2}$/.test(newTime)) {
+      setMessage('Nhập ngày (YYYY-MM-DD) và chọn giờ trống.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      await rescheduleBooking(booking.id, { date: newDate, time: newTime });
+      setShowReschedule(false);
+      await load();
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : 'Không đổi được lịch. Hãy thử lại.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendReview() {
@@ -253,6 +307,48 @@ export default function BookingDetailScreen() {
             <Text style={styles.buttonText}>Hủy lịch hẹn</Text>
           </Pressable>
         )}
+        {reschedulable && (
+          <Pressable disabled={busy} onPress={openReschedule} style={[styles.button, styles.pinkButton]}>
+            <Text style={styles.buttonText}>Đổi ngày / giờ</Text>
+          </Pressable>
+        )}
+        {showReschedule && booking && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Đổi sang giờ khác</Text>
+            <Text style={styles.hint}>Giữ nguyên nhân viên và tiền cọc. Lịch đã xác nhận chỉ đổi được khi còn trên 2 giờ.</Text>
+            <Text style={styles.fieldLabel}>Ngày mới (YYYY-MM-DD)</Text>
+            <TextInput
+              value={newDate}
+              onChangeText={(text) => { setNewDate(text.trim()); loadSlots(text.trim()); }}
+              placeholder="2026-10-15"
+              placeholderTextColor="#A89A9E"
+              style={styles.reviewInput}
+            />
+            <Text style={styles.fieldLabel}>Giờ trống</Text>
+            {slotsLoading ? (
+              <Text style={styles.hint}>Đang tìm giờ trống…</Text>
+            ) : slots.length === 0 ? (
+              <Text style={styles.hint}>Nhập ngày để xem các giờ còn trống.</Text>
+            ) : (
+              <View style={styles.slotWrap}>
+                {slots.map((slot) => (
+                  <Pressable key={slot} onPress={() => setNewTime(slot)}
+                    style={[styles.slot, newTime === slot && styles.slotSelected]}>
+                    <Text style={[styles.slotText, newTime === slot && styles.slotTextSelected]}>{slot}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            <View style={styles.rescheduleActions}>
+              <Pressable disabled={busy} onPress={() => setShowReschedule(false)} style={[styles.button, styles.greenButton, styles.rescheduleActionsButton]}>
+                <Text style={styles.buttonText}>Để sau</Text>
+              </Pressable>
+              <Pressable disabled={busy} onPress={submitReschedule} style={[styles.button, styles.pinkButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
+                <Text style={styles.buttonText}>Xác nhận đổi lịch</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
         {booking.status === 'cancelled' && (
           <Pressable
             onPress={() => router.push({ pathname: '/booking/select-staff', params: { serviceId: booking.serviceId } })}
@@ -303,4 +399,12 @@ const styles = StyleSheet.create({
   redButton: { backgroundColor: '#CE4A62' },
   disabledButton: { opacity: 0.45 },
   buttonText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  fieldLabel: { color: '#5A4A52', fontSize: 13, fontWeight: '700', marginTop: 10 },
+  slotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  slot: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: '#E5D5DC', backgroundColor: '#FFF' },
+  slotSelected: { backgroundColor: '#D56B81', borderColor: '#D56B81' },
+  slotText: { color: '#5A4A52', fontSize: 13, fontWeight: '600' },
+  slotTextSelected: { color: '#FFF' },
+  rescheduleActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  rescheduleActionsButton: { flex: 1 },
 });
