@@ -951,7 +951,7 @@ describe('Báº£n vÃ¡ báº£o vá»‡ dá»¯ liá»‡u', () => {
 
   test('savePayment PAID vá»›i amount = 1 váº«n ghi Ä‘á»§ tá»•ng', async () => {
     const { sid, day } = await makeStaff(11, 3);
-    const bookingId = await makeBooking({ staffId: sid, day });
+    const bookingId = await makeBooking({ staffId: sid, day, status: 'COMPLETED' });
     const res = mockRes();
     await savePayment(
       { params: { id: String(bookingId) }, body: { status: 'PAID', amount: 1, method: 'CASH' }, user: { name: 'Admin Test' } },
@@ -2605,6 +2605,76 @@ describe('Giu cho cho coc', () => {
       assert.equal(row.paymentStatus ?? null, null);
     } finally {
       if (bookingId) await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      await connection.end();
+    }
+  });
+});
+
+
+/* Tra du chi cho lich hoan thanh (tru khach vang lai lam ngay). */
+describe('PAID dung luc', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  async function wipeBooking(connection, bookingId) {
+    await connection.query('DELETE FROM booking_addon WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+  }
+
+  test('PAID lich PENDING thi 409, COMPLETED thi 200', async () => {
+    const { savePayment } = await import('../src/controllers/payment.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')",
+        [dayPlus(26) + ' 09:00:00', dayPlus(26) + ' 10:15:00']);
+      bookingId = b.insertId;
+
+      const blocked = mockRes();
+      await savePayment(
+        { params: { id: String(bookingId) }, body: { status: 'PAID', method: 'CASH' }, user: { name: 'Admin Test' } },
+        blocked, strictNext);
+      assert.equal(blocked.statusCode, 409);
+
+      await connection.query("UPDATE booking SET status = 'COMPLETED' WHERE booking_id = ?", [bookingId]);
+      const ok = mockRes();
+      await savePayment(
+        { params: { id: String(bookingId) }, body: { status: 'PAID', method: 'CASH' }, user: { name: 'Admin Test' } },
+        ok, strictNext);
+      assert.equal(ok.statusCode, 200);
+      assert.equal(ok.body.data.amount, 200000);
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+
+  test('khach vang lai lam trong ngay thi thu PAID duoc', async () => {
+    const { savePayment } = await import('../src/controllers/payment.controller.js');
+    const connection = await connect();
+    const today = new Date();
+    const day = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0')
+      + '-' + String(today.getDate()).padStart(2, '0');
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (guest_name, guest_phone, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES ('Khach Le', '0909999888', 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'WALK_IN')",
+        [day + ' 09:00:00', day + ' 10:15:00']);
+      bookingId = b.insertId;
+
+      const res = mockRes();
+      await savePayment(
+        { params: { id: String(bookingId) }, body: { status: 'PAID', method: 'CASH' }, user: { name: 'Admin Test' } },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
       await connection.end();
     }
   });

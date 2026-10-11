@@ -142,6 +142,9 @@ export function AdminPaymentsPage() {
                 <option value="DEPOSITED">Đặt cọc một phần</option>
                 <option value="UNPAID">Chưa thanh toán</option>
               </select>
+              <small className="adm-field-note">
+                Trả đủ chỉ ghi cho lịch đã hoàn thành (khách vãng lai làm ngay trong ngày thì thu được).
+              </small>
             </label>
           </div>
           <div className="adm-form-row">

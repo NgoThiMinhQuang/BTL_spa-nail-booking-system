@@ -77,7 +77,8 @@ export async function savePayment(req, res, next) {
     await connection.beginTransaction();
 
     const [[booking]] = await connection.query(
-      `SELECT b.booking_id, b.status, b.staff_id AS staffId,
+      `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.source,
+              b.start_time AS startsAt,
               COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName,
               pay.payment_status AS currentStatus, pay.amount AS currentAmount
          FROM booking b
@@ -98,6 +99,29 @@ export async function savePayment(req, res, next) {
       return res.status(409).json({
         message: `Lịch đang ở trạng thái "${booking.status}" nên không thu được tiền.`,
       });
+    }
+
+    /* Ghi trả đủ (PAID) chỉ khi khách đã làm xong: tiền cọc giữ chỗ lúc
+       đặt, tiền còn lại thu sau buổi làm. Ngoại lệ duy nhất là khách vãng
+       lai làm ngay trong ngày tại quầy (thu trước làm ngay). Nếu không,
+       hoá đơn PAID sẽ tồn tại trên lịch chưa phục vụ và báo cáo doanh thu
+       (COMPLETED + PAID) không bao giờ khớp sổ tiền. */
+    if (status === 'PAID' && booking.status !== 'COMPLETED') {
+      const today = new Date();
+      const dayText =
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      /* startsAt từ driver MySQL có thể là object Date hoặc chuỗi. */
+      const started = booking.startsAt instanceof Date ? booking.startsAt : new Date(booking.startsAt);
+      const startDay = Number.isNaN(started.getTime()) ? '' :
+        `${started.getFullYear()}-${String(started.getMonth() + 1).padStart(2, '0')}-${String(started.getDate()).padStart(2, '0')}`;
+      const walkInToday = booking.source === 'WALK_IN' && startDay !== '' && startDay <= dayText;
+      if (!walkInToday) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Chỉ ghi nhận trả đủ cho lịch đã hoàn thành. '
+            + 'Lịch chưa làm xong thì ghi đặt cọc, phần còn lại thu sau buổi làm.',
+        });
+      }
     }
 
     const transition = canPaymentTransition(booking.currentStatus ?? 'UNPAID', status);
