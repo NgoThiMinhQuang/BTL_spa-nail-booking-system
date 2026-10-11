@@ -402,6 +402,16 @@ export async function patchBooking(req, res, next) {
         return res.status(409).json({ message: transition.reason });
       }
 
+      /* NO_SHOW chỉ khi giờ hẹn đã qua: đánh dấu "không đến" khi chưa tới
+         giờ sẽ oan cho khách (mất cọc theo chính sách) dù họ vẫn có thể
+         tới đúng giờ. */
+      if (status === 'NO_SHOW' && new Date() < new Date(current.startsAt)) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Chưa tới giờ hẹn nên chưa thể đánh dấu khách không đến.',
+        });
+      }
+
       set.push('b.status = ?'); params.push(status);
       if (status === 'CANCELLED') {
         const reason = String(body.cancelReason ?? '').trim().slice(0, 255);
@@ -957,6 +967,16 @@ export async function addAddon(req, res, next) {
         return res.status(409).json({
           message: 'Chỉ thêm được dịch vụ phát sinh khi khách đang được phục vụ '
             + `(trạng thái "${STATUS_TEXT[booking.status]}").`,
+        });
+      }
+      /* Cùng luật với Admin: đã PAID thì khoá — nếu không tổng hoá đơn
+         tăng thêm mà tiền khách đã trả giữ nguyên, hoá đơn lệch. Muốn thêm
+         thì Admin hoàn tác thanh toán về trạng thái thu tiếp trước. */
+      if (booking.paymentStatus === 'PAID') {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Lịch đã thanh toán nên không thêm được dịch vụ phát sinh. '
+            + 'Thêm rồi thì số tiền khách đã trả sẽ không còn khớp.',
         });
       }
     } else {

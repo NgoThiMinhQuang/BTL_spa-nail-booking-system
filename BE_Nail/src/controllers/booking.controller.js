@@ -615,6 +615,7 @@ export async function updateBookingStatus(req, res, next) {
     const [[booking]] = await connection.query(
       `SELECT b.booking_id, b.status, b.staff_id AS staffId, su.full_name AS staffName,
               b.service_id AS serviceId, b.service_duration AS serviceDuration,
+              b.start_time AS startsAt,
               s.service_name AS serviceName,
               pay.payment_status AS paymentStatus
          FROM booking b
@@ -642,6 +643,20 @@ export async function updateBookingStatus(req, res, next) {
     if (!transition.ok) {
       await connection.rollback();
       return res.status(409).json({ message: transition.reason });
+    }
+
+    /* Bắt đầu quá sớm: cho phép vào ca trước giờ hẹn tối đa 15 phút
+       (chuẩn bị dụng cụ, đón khách tới sớm). Sớm hơn thì chặn — nếu không
+       "thời gian phục vụ thật" tính từ lúc bấm sẽ đội lên vô lý và lịch
+       tiếp theo của nhân viên bị dồn. */
+    if (nextStatus === 'PROCESSING') {
+      const earlyMs = new Date(booking.startsAt).getTime() - Date.now();
+      if (earlyMs > 15 * 60 * 1000) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Chưa tới giờ làm lịch này (được bắt đầu sớm tối đa 15 phút).',
+        });
+      }
     }
 
     const set = ['status = ?'];

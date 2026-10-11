@@ -2241,3 +2241,126 @@ describe('Cong no va truc ngay bieu do', () => {
     assert.equal(days[days.length - 1], today);
   });
 });
+
+/* Siet trang thai: NO_SHOW dung gio, khong bat dau som, addon sau PAID. */
+describe('Siet luat trang thai', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  const adminUser = { userId: 9004, name: 'Quan tri Test' };
+  const staffUser = { staffId: 9001, userId: 9002, name: 'Nhan vien Test', role: 'STAFF' };
+
+  async function wipeBooking(connection, bookingId) {
+    await connection.query('DELETE FROM booking_addon WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM payment WHERE booking_id = ?', [bookingId]);
+    await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+  }
+
+  test('NO_SHOW truoc gio hen thi 409, qua gio thi duoc', async () => {
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const futureDay = dayPlus(13);
+    const pastDay = '2020-04-10';
+    let futureId = null;
+    let pastId = null;
+    try {
+      const [f] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [futureDay + ' 09:00:00', futureDay + ' 10:15:00']);
+      futureId = f.insertId;
+      const [p] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-04-10 09:00:00', '2020-04-10 10:15:00', 'CONFIRMED', 'MOBILE')");
+      pastId = p.insertId;
+
+      const early = mockRes();
+      await patchBooking(
+        { params: { id: String(futureId) }, body: { status: 'NO_SHOW' }, user: adminUser },
+        early, strictNext);
+      assert.equal(early.statusCode, 409);
+
+      const late = mockRes();
+      await patchBooking(
+        { params: { id: String(pastId) }, body: { status: 'NO_SHOW' }, user: adminUser },
+        late, strictNext);
+      assert.equal(late.statusCode, 200);
+    } finally {
+      if (futureId) await wipeBooking(connection, futureId);
+      if (pastId) await wipeBooking(connection, pastId);
+      await connection.end();
+    }
+  });
+
+  test('bat dau som qua 15 phut thi 409, sat gio thi duoc', async () => {
+    const { updateBookingStatus } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const futureDay = dayPlus(14);
+    let futureId = null;
+    let nearId = null;
+    try {
+      const [f] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [futureDay + ' 09:00:00', futureDay + ' 10:15:00']);
+      futureId = f.insertId;
+
+      const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+        + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0')
+        + ':' + String(d.getMinutes()).padStart(2, '0') + ':00';
+      const start = new Date(Date.now() + 5 * 60000);
+      const end = new Date(start.getTime() + 75 * 60000);
+      const [n] = await connection.query(
+        'INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, \'CONFIRMED\', \'MOBILE\')',
+        [fmt(start), fmt(end)]);
+      nearId = n.insertId;
+
+      const early = mockRes();
+      await updateBookingStatus(
+        { params: { id: String(futureId) }, body: { status: 'PROCESSING' }, user: staffUser },
+        early, strictNext);
+      assert.equal(early.statusCode, 409);
+
+      const ok = mockRes();
+      await updateBookingStatus(
+        { params: { id: String(nearId) }, body: { status: 'PROCESSING' }, user: staffUser },
+        ok, strictNext);
+      assert.equal(ok.statusCode, 200);
+    } finally {
+      if (futureId) await wipeBooking(connection, futureId);
+      if (nearId) await wipeBooking(connection, nearId);
+      await connection.end();
+    }
+  });
+
+  test('nhan vien khong them addon khi lich da PAID', async () => {
+    const { addAddon } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-04-11 09:00:00', '2020-04-11 10:15:00', 'PROCESSING', 'MOBILE')");
+      bookingId = b.insertId;
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', '2020-04-11 10:00:00')",
+        [bookingId]);
+
+      const blocked = mockRes();
+      await addAddon(
+        { params: { id: String(bookingId) }, body: { serviceId: 2, quantity: 1 }, user: staffUser },
+        blocked, strictNext);
+      assert.equal(blocked.statusCode, 409);
+
+      await connection.query("UPDATE payment SET payment_status = 'UNPAID' WHERE booking_id = ?", [bookingId]);
+      const ok = mockRes();
+      await addAddon(
+        { params: { id: String(bookingId) }, body: { serviceId: 2, quantity: 1 }, user: staffUser },
+        ok, strictNext);
+      assert.equal(ok.statusCode, 201);
+    } finally {
+      if (bookingId) await wipeBooking(connection, bookingId);
+      await connection.end();
+    }
+  });
+});
