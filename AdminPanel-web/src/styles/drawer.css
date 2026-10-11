@@ -254,6 +254,14 @@
 
 .adm-ds{display:grid;gap:12px}
 
+/* ---- Lưới nút thao tác trong ngăn (2 nút mỗi hàng, co 1 cột khi hẹp) ---- */
+.adm-dactions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.adm-dactions .button{justify-content:center}
+.adm-dactions .button svg{width:15px;height:15px}
+@media(max-width:620px){
+  .adm-dactions{grid-template-columns:minmax(0,1fr)}
+}
+
 /* ---- Khung chật trên màn hình nhỏ ---- */
 @media(max-width:620px){
   .adm-drawer-head{padding:14px 16px 12px}

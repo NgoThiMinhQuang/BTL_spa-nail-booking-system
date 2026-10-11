@@ -263,10 +263,16 @@
   body.printing-invoice #nailhouse .topbar,
   body.printing-invoice #nailhouse .page-heading,
   body.printing-invoice #nailhouse #feedback,
-  body.printing-invoice #nailhouse footer{display:none !important}
-  body.printing-invoice #nailhouse .workspace{margin:0 !important}
-  body.printing-invoice #nailhouse main{padding:0 !important}
-  body.printing-invoice #nailhouse #content>:not(.invoice-print){display:none !important}
+  body.printing-invoice #nailhouse footer,
+  /* Chi tiết lịch hẹn giờ là ngăn trượt nằm ngoài #content nên ẩn cả nền
+     danh sách lẫn khung ngăn, chỉ giữ lại tờ hóa đơn. */
+  body.printing-invoice #nailhouse #content{display:none !important}
+  body.printing-invoice #nailhouse .adm-drawer-mask,
+  body.printing-invoice #nailhouse .adm-drawer-head,
+  body.printing-invoice #nailhouse .adm-drawer-foot,
+  body.printing-invoice #nailhouse .adm-drawer-body>:not(.invoice-print){display:none !important}
+  body.printing-invoice #nailhouse .adm-drawer{position:static;box-shadow:none;animation:none}
+  body.printing-invoice #nailhouse .adm-drawer-body{overflow:visible;padding:0}
   body.printing-invoice .invoice-overlay{position:static;padding:0}
   body.printing-invoice .invoice-actions{display:none !important}
   .invoice-sheet{max-width:100%}

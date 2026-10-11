@@ -40,11 +40,10 @@ function Routes() {
   if (!state.user) return <LoginPage />;
 
   let page: React.ReactNode;
-  /* Trang chi tiết lịch hẹn đè lên trang danh sách. Khách hàng thì khác:
-     bấm vào dòng mở khung trượt bên phải ngay trong trang danh sách nên
-     danh sách vẫn còn nguyên phía sau. */
-  if (bookingDetailId) page = <AdminBookingDetailPage />;
-  else if (view === 'admin-bookings') page = <AdminBookingsPage />;
+  /* Chi tiết lịch hẹn là ngăn trượt từ phải (giống ngăn khách hàng, ngăn
+     thanh toán): danh sách vẫn nằm nguyên phía sau, ngăn phủ lên trên.
+     Nền giữ nguyên trang đang xem để đóng ngăn là về đúng chỗ cũ. */
+  if (view === 'admin-bookings') page = <AdminBookingsPage />;
   else if (view === 'admin-customers') page = <AdminCustomersPage />;
   else if (view === 'admin-services') page = <AdminServicesPage />;
   else if (view === 'admin-categories') page = <AdminCategoriesPage />;
@@ -59,25 +58,17 @@ function Routes() {
   else if (view === 'admin-settings') page = <AdminSettingsPage />;
   else page = <AdminDashboardPage />;
 
-  /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị.
-     Mở trang chi tiết thì breadcrumb kéo dài thêm mã lịch để người dùng
-     biết đang xem lịch nào. */
+  /* Đường dẫn bên trong thẻ vì Dashboard là trang chủ của khu quản trị. */
   const breadcrumb = view === 'admin-dashboard'
     ? ['Trang chủ', 'Tổng quan']
-    : bookingDetailId
-      ? ['Trang chủ', 'Lịch hẹn', `BK${String(bookingDetailId).padStart(5, '0')}`]
-      : undefined;
-
-  const onDetail = Boolean(bookingDetailId);
+    : undefined;
 
   return (
     <div id="nailhouse">
-      <AdminLayout
-        breadcrumb={breadcrumb}
-        hideHeading={onDetail}
-      >
+      <AdminLayout breadcrumb={breadcrumb}>
         {page}
       </AdminLayout>
+      {bookingDetailId && <AdminBookingDetailPage />}
     </div>
   );
 }

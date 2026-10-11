@@ -449,13 +449,14 @@ export function reducer(state: AdminState, action: Action): AdminState {
       return { ...state, view: action.view, bookingDetailId: null, customerDetailId: null };
 
     case 'bookingDetail':
+      /* Chi tiết lịch hẹn mở dạng ngăn trượt phủ lên trên nên KHÔNG đổi
+         nền: đang xem danh sách nào thì danh sách đó vẫn nằm nguyên phía
+         sau, đóng ngăn là về đúng chỗ cũ. Mở từ URL (#/bookings/12) thì
+         trạng thái khởi tạo đã đặt view đúng rồi. */
       return {
         ...state,
         bookingDetailId: action.id,
         customerDetailId: null,
-        /* Mở chi tiết thì chuyển sang trang lịch hẹn để sidebar và breadcrumb
-           khớp với nơi đang xem. */
-        view: action.id ? 'admin-bookings' : state.view,
       };
 
     case 'customerDetail':
