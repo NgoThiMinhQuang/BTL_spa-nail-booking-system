@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
 import { sendAdmin } from '../lib/admin-api';
+import { PaymentDrawer } from '../components/PaymentDrawer';
 import { fmtDate, fmtNum, formatVND, moneyShort } from '../lib/utils';
 import type { PaymentItem } from '../store';
 
@@ -23,7 +24,7 @@ function monthLabel(month: string): string {
 }
 
 export function AdminPaymentsPage() {
-  const { state, reload } = useApp();
+  const { state, reload, openBookingDetail } = useApp();
   const { payments, paymentMonths, paymentTotals } = state;
 
   const [status, setStatus] = useState('');
@@ -47,6 +48,7 @@ export function AdminPaymentsPage() {
     bookingId: '', payStatus: 'PAID', amount: '', method: 'CASH', note: '',
   });
   const [editItem, setEditItem] = useState<PaymentItem | null>(null);
+  const [drawerItem, setDrawerItem] = useState<PaymentItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
 
@@ -240,7 +242,8 @@ export function AdminPaymentsPage() {
               </thead>
               <tbody>
                 {rows.map((payment, index) => (
-                  <tr key={payment.bookingId}>
+                  <tr key={payment.bookingId} className="adm-row-click"
+                    onClick={() => setDrawerItem(payment)}>
                     <td className="adm-stt">{index + 1}</td>
                     <td>
                       <strong>{payment.paymentDate ? fmtDate(payment.paymentDate) : fmtDate(payment.startsAt)}</strong>
@@ -258,7 +261,7 @@ export function AdminPaymentsPage() {
                       </span>
                     </td>
                     <td>
-                      <button className="button secondary" onClick={() => startEdit(payment)}>
+                      <button className="button secondary" onClick={(e) => { e.stopPropagation(); startEdit(payment); }}>
                         Sửa
                       </button>
                     </td>
@@ -273,6 +276,15 @@ export function AdminPaymentsPage() {
       <p className="app-note">
         Tổng cộng {fmtNum(payments.length)} giao dịch — doanh thu tính theo lịch hẹn đã hoàn thành.
       </p>
+
+      {drawerItem && (
+        <PaymentDrawer
+          item={drawerItem}
+          onClose={() => setDrawerItem(null)}
+          onEdit={() => { setDrawerItem(null); startEdit(drawerItem); }}
+          onOpenBooking={() => { setDrawerItem(null); openBookingDetail(drawerItem.bookingId); }}
+        />
+      )}
 
       {editItem && (
         <EditPaymentModal
