@@ -13,10 +13,8 @@ try {
     console.log(`NailHouse API: http://${host}:${port}`);
   });
 
-  /* Lịch PENDING quá hạn cọc thì tự hủy để trả slot cho khách khác.
-     Chạy mỗi phút; mỗi lần quét rẻ (một SELECT theo created_at) nên
-     không ảnh hưởng giờ cao điểm. Lỗi quét chỉ ghi log, không sập
-     server — lần sau quét lại. */
+  /* Lịch PENDING quá hạn cọc thì tự hủy để trả slot cho khách khác. */
+  console.log(`Sweeper giữ chỗ: tự hủy lịch PENDING quá ${DEPOSIT_WINDOW_MINUTES} phút chưa cọc, mỗi 60 giây.`);
   setInterval(async () => {
     try {
       const { cancelled } = await sweepExpiredDeposits();

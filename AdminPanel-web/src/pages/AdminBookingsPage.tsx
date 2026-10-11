@@ -83,6 +83,15 @@ const MENU_BY_STATUS: Record<string, { key: string; label: string; icon: IconNam
 
 const PAGE_SIZE = 20;
 
+/* Nhãn giữ chỗ cho lịch chờ cọc: còn bao nhiêu phút trước khi sweeper
+   tự hủy (15 phút tính từ giờ tạo). */
+function holdLabel(createdAt: string | null | undefined): string {
+  if (!createdAt) return 'Chờ cọc';
+  const left = 15 - Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
+  if (left <= 0) return 'Hết hạn giữ chỗ';
+  return `Chờ cọc · còn ${left} phút`;
+}
+
 /* Thẻ số liệu bấm được — cùng ngôn ngữ với Dashboard để Admin nhìn quen:
    bấm để lọc nhanh theo trạng thái, thẻ tiền thì sang trang Thanh toán. */
 function KpiTile({ tone, icon, label, value, note, active, onClick }: {
@@ -461,6 +470,12 @@ export function AdminBookingsPage() {
                             <td><strong>{formatVND(booking.total)}</strong></td>
                             <td>
                               <StatusBadge status={booking.status} />
+                              {booking.status === 'PENDING'
+                                && (!booking.paymentStatus || booking.paymentStatus === 'UNPAID') && (
+                                <small className="adm-warn-inline" title="Lịch giữ chỗ tối đa 15 phút chờ cọc, quá hạn tự hủy">
+                                  <Icon name="clock" /> {holdLabel(booking.createdAt)}
+                                </small>
+                              )}
                               {booking.status === 'COMPLETED' && booking.paymentStatus !== 'PAID' && (
                                 <small className="adm-warn-inline">
                                   <Icon name="ban" /> Chưa thanh toán

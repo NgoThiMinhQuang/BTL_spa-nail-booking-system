@@ -133,6 +133,8 @@ export interface Booking {
   /** Mã hiển thị dựng từ id, ví dụ #BK00125. */
   code: string;
   startsAt: string; endsAt: string;
+  /** Giờ tạo lịch — dùng tính thời gian giữ chỗ còn lại khi chờ cọc. */
+  createdAt?: string | null;
   status: string; statusText: string;
   note: string | null;
   source: string; sourceText: string;

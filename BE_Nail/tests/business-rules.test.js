@@ -17,6 +17,10 @@
    thuá»™c thá»© tá»±. */
 
 import 'dotenv/config';
+
+/* Ep che do coc gia lap khi test: may dev co the da dien key VNPay that
+   trong .env (lam tat mock), nhung test phai chay giong nhau o moi may. */
+process.env.VNPAY_MOCK = 'true';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -2573,5 +2577,35 @@ describe('Thong bao nghi dot xuat', () => {
     await listAll({ query: { status: 'FAILED' } }, res, strictNext);
     assert.equal(res.statusCode, 200);
     assert.ok(Array.isArray(res.body.data));
+  });
+});
+
+/* Lich cho coc hien createdAt de tinh gio giu cho con lai. */
+describe('Giu cho cho coc', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  test('danh sach lich kem gio tao de hien dem nguoc giu cho', async () => {
+    const { listBookings } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    let bookingId = null;
+    try {
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')",
+        [dayPlus(25) + ' 09:00:00', dayPlus(25) + ' 10:15:00']);
+      bookingId = b.insertId;
+      const res = mockRes();
+      await listBookings({ query: { scope: 'all' } }, res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const row = res.body.data.find((r) => String(r.id) === String(bookingId));
+      assert.ok(row, 'thay lich moi tao');
+      assert.ok(row.createdAt, 'phai co gio tao de tinh 15 phut giu cho');
+      assert.equal(row.paymentStatus ?? null, null);
+    } finally {
+      if (bookingId) await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      await connection.end();
+    }
   });
 });

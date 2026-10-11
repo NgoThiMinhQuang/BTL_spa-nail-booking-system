@@ -44,7 +44,7 @@ function mapBooking(row) {
 
 /** Cột chọn chung cho mọi truy vấn lịch hẹn. */
 const BOOKING_COLUMNS = `b.booking_id AS id, b.start_time AS startsAt, b.end_time AS endsAt,
-        b.status, b.note, b.source,
+        b.status, b.note, b.source, b.created_at AS createdAt,
         b.cancel_reason AS cancelReason, b.cancelled_at AS cancelledAt,
         b.guest_name, b.guest_phone,
         s.service_id AS serviceId, s.service_name AS serviceName, s.duration, s.price,
