@@ -55,18 +55,24 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
 
   return (
     <div className="invoice-sheet">
+      <div className="invoice-band" aria-hidden="true" />
       <div className="invoice-head">
-        <div>
-          <strong className="invoice-brand">NailHouse Studio</strong>
-          <small>BEAUTY NAILS · BETTER YOU</small>
-          {SHOP_INFO.address && <small>{SHOP_INFO.address}</small>}
-          {SHOP_INFO.hotline && <small>Hotline: {SHOP_INFO.hotline}</small>}
+        <div className="invoice-brand">
+          <span className="invoice-logo" aria-hidden="true">❀</span>
+          <span>
+            <strong>NailHouse Studio</strong>
+            <small>BEAUTY NAILS · BETTER YOU</small>
+            {SHOP_INFO.address && <small>{SHOP_INFO.address}</small>}
+            {SHOP_INFO.hotline && <small>Hotline: {SHOP_INFO.hotline}</small>}
+          </span>
         </div>
         <div className="invoice-title">
           <h2>HÓA ĐƠN THANH TOÁN</h2>
-          <span>{data.receiptNo ?? data.code}</span>
+          <span className="invoice-no">{data.receiptNo ?? data.code}</span>
         </div>
       </div>
+
+      <div className="invoice-div" aria-hidden="true"><i />❀<i /></div>
 
       <dl className="invoice-meta">
         <div><dt>Khách hàng</dt><dd>{data.customerName} · {data.customerPhone}</dd></div>
@@ -101,21 +107,24 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
         </tbody>
       </table>
 
-      <dl className="invoice-total">
-        <div><dt>Tổng cộng</dt><dd>{formatVND(data.total)}</dd></div>
-        {data.transactions.map((t) => (
-          <div key={t.id}>
-            <dt>{typeText[t.type] ?? t.type}{t.method ? ` (${methodText[t.method] ?? t.method})` : ''}</dt>
-            <dd>{formatVND(t.amount)}</dd>
-          </div>
-        ))}
-        <div><dt>Đã thu</dt><dd>{formatVND(collected + refunded)}</dd></div>
-        <div><dt>Còn phải thu</dt><dd>{formatVND(remaining)}</dd></div>
-      </dl>
+      <div className="invoice-sum">
+        {remaining === 0 && <span className="invoice-stamp">Đã thu đủ</span>}
+        <dl className="invoice-total">
+          <div><dt>Tổng cộng</dt><dd>{formatVND(data.total)}</dd></div>
+          {data.transactions.map((t) => (
+            <div key={t.id} className="invoice-txn">
+              <dt>{typeText[t.type] ?? t.type}{t.method ? ` (${methodText[t.method] ?? t.method})` : ''}</dt>
+              <dd>{formatVND(t.amount)}</dd>
+            </div>
+          ))}
+          <div><dt>Đã thu</dt><dd>{formatVND(collected + refunded)}</dd></div>
+          <div className="invoice-grand"><dt>Còn phải thu</dt><dd>{formatVND(remaining)}</dd></div>
+        </dl>
+      </div>
 
       <p className="invoice-foot">
-        Cảm ơn quý khách đã tin tưởng NailHouse! Đây là biên nhận nghiệp vụ,
-        không thay thế hóa đơn điện tử.
+        <span className="invoice-thanks">Cảm ơn quý khách đã tin tưởng NailHouse!</span>
+        Đây là biên nhận nghiệp vụ, không thay thế hóa đơn điện tử.
         <small> In lúc {printedAt}</small>
       </p>
     </div>
