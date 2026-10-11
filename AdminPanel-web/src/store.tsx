@@ -358,7 +358,7 @@ export interface AdminState {
   reviewStats: { total: number; average: number | null; five: number; four: number; low: number };
   payments: PaymentItem[];
   payrolls: PayrollItem[];
-  paymentMonths: { month: string; paidCount: number; paidAmount: number; totalAmount: number }[];
+  paymentMonths: { month: string; paidCount: number; paidAmount: number; depositAmount: number; refundAmount: number; totalAmount: number }[];
   paymentTotals: { all: number; paid: number; deposit: number; unpaid: number };
   reports: Reports | null;
   reloadToken: number;

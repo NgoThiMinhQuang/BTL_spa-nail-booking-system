@@ -42,6 +42,15 @@
 
 /* ---- Biểu đồ cột doanh thu ---- */
 .adm-chart{display:flex;align-items:flex-end;gap:12px;height:180px;padding:14px 4px 0}
+.adm-chart-legend{display:flex;gap:16px;padding:0 4px 2px;font-size:11.5px;color:var(--nh-muted)}
+.adm-chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.adm-chart-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.adm-chart-legend .sw-paid{background:#D56B81}
+.adm-chart-legend .sw-deposit{background:#E8C86A}
+.adm-chart-stack{width:100%;max-width:30px;border-radius:8px 8px 4px 4px;background:#F5EFF2;
+  overflow:hidden;display:flex;flex-direction:column}
+.adm-chart-stack .seg-deposit{background:#E8C86A;flex:0 0 auto}
+.adm-chart-stack .seg-paid{background:linear-gradient(180deg,#E58AA3,#D56B81);flex:0 0 auto}
 .adm-chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end}
 .adm-chart-bar{width:100%;max-width:30px;border-radius:8px 8px 4px 4px;background:#F9C0D0}
 .adm-chart-col.is-active .adm-chart-bar{background:var(--nh-primary)}

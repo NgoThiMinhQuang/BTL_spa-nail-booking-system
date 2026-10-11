@@ -41,7 +41,11 @@ export function AdminPaymentsPage() {
         || (payment.staffName ?? '').toLowerCase().includes(key);
     });
 
-  const peak = Math.max(...paymentMonths.map((item) => item.paidAmount), 1);
+  const inflow = (item: { paidAmount: number; depositAmount: number }) =>
+    item.paidAmount + item.depositAmount;
+  const peak = Math.max(...paymentMonths.map(inflow), 1);
+  const inflowTotal = paymentMonths.reduce((sum, item) => sum + inflow(item), 0);
+  const refundTotal = paymentMonths.reduce((sum, item) => sum + item.refundAmount, 0);
 
   const [editItem, setEditItem] = useState<PaymentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<PaymentItem | null>(null);
@@ -75,27 +79,43 @@ export function AdminPaymentsPage() {
       <Panel style={{ marginBottom: 18 }}>
         <SectionHeading
           icon={<Icon name="dollar" />}
-          title="Doanh thu theo tháng"
-          subtitle="Chỉ tính các giao dịch đã thu đủ"
+          title="Dòng tiền theo tháng"
+          subtitle="Cọc + thu đủ theo ngày tiền vào két (không phải doanh thu dịch vụ)"
         >
           <strong style={{ fontSize: 15, fontWeight: 600 }}>
-            {formatVND(paymentMonths.reduce((sum, item) => sum + item.paidAmount, 0))}
+            {formatVND(inflowTotal)}
           </strong>
         </SectionHeading>
         <div style={{ padding: '0 16px 16px' }}>
           {paymentMonths.length === 0 ? (
-            <EmptyState title="Chưa có giao dịch" detail="Doanh thu sẽ hiện khi có lịch hoàn thành." />
+            <EmptyState title="Chưa có giao dịch" detail="Dòng tiền hiện khi có khoản thu đầu tiên." />
           ) : (
-            <div className="adm-chart">
-              {paymentMonths.map((item) => (
-                <div key={item.month} className="adm-chart-col"
-                  title={`${monthLabel(item.month)}: ${formatVND(item.paidAmount)}`}>
-                  <div className="adm-chart-bar"
-                    style={{ height: `${Math.max(6, (item.paidAmount / peak) * 150)}px` }} />
-                  <small>{monthLabel(item.month)}</small>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="adm-chart-legend">
+                <span><i className="sw-paid" />Thu đủ</span>
+                <span><i className="sw-deposit" />Đặt cọc</span>
+              </div>
+              <div className="adm-chart">
+                {paymentMonths.map((item) => (
+                  <div key={item.month} className="adm-chart-col"
+                    title={`${monthLabel(item.month)}: thu đủ ${formatVND(item.paidAmount)} · `
+                      + `cọc ${formatVND(item.depositAmount)}`
+                      + (item.refundAmount > 0 ? ` · hoàn ${formatVND(item.refundAmount)}` : '')}>
+                    <div className="adm-chart-stack"
+                      style={{ height: `${Math.max(6, (inflow(item) / peak) * 150)}px` }}>
+                      <span className="seg-deposit"
+                        style={{ height: `${inflow(item) > 0 ? (item.depositAmount / inflow(item)) * 100 : 0}%` }} />
+                      <span className="seg-paid"
+                        style={{ height: `${inflow(item) > 0 ? (item.paidAmount / inflow(item)) * 100 : 0}%` }} />
+                    </div>
+                    <small>{monthLabel(item.month)}</small>
+                  </div>
+                ))}
+              </div>
+              {refundTotal > 0 && (
+                <p className="adm-field-note">Đã hoàn {formatVND(refundTotal)} cho khách trong 6 tháng qua.</p>
+              )}
+            </>
           )}
         </div>
       </Panel>

@@ -834,6 +834,8 @@ export async function listPayments(req, res, next) {
         DATE_FORMAT(t.paid_at, '%Y-%m') AS month,
         COUNT(CASE WHEN t.type = 'FINAL' THEN 1 END) AS paidCount,
         COALESCE(SUM(CASE WHEN t.type = 'FINAL' THEN t.amount END), 0) AS paidAmount,
+        COALESCE(SUM(CASE WHEN t.type = 'DEPOSIT' THEN t.amount END), 0) AS depositAmount,
+        COALESCE(SUM(CASE WHEN t.type = 'REFUND' THEN -t.amount END), 0) AS refundAmount,
         COALESCE(SUM(t.amount), 0) AS totalAmount
       FROM payment_transaction t
       GROUP BY DATE_FORMAT(t.paid_at, '%Y-%m')
@@ -880,6 +882,8 @@ export async function listPayments(req, res, next) {
           month: row.month,
           paidCount: Number(row.paidCount),
           paidAmount: Number(row.paidAmount),
+          depositAmount: Number(row.depositAmount ?? 0),
+          refundAmount: Number(row.refundAmount ?? 0),
           totalAmount: Number(row.totalAmount),
         })),
         totals: {
