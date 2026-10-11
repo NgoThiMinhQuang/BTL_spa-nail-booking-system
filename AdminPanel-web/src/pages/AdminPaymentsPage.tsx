@@ -32,16 +32,22 @@ export function AdminPaymentsPage() {
   const [term, setTerm] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [span, setSpan] = useState(12);
-  const [months, setMonths] = useState<typeof state.paymentMonths>([]);
+  const [months, setMonths] = useState(state.paymentMonths);
 
   useEffect(() => {
+    setMonths(state.paymentMonths);
+  }, [state.paymentMonths]);
+
+  useEffect(() => {
+    /* sendAdmin chỉ trả payload.data nên làm rơi meta.months — dùng fetch
+       trực tiếp (token đã gắn tự động) để lấy đủ khung tháng vẽ biểu đồ. */
     let cancelled = false;
-    sendAdmin<{
-      data: PaymentItem[];
-      meta: { months: typeof state.paymentMonths };
-    }>(`/payments?span=${span}`, 'GET').then((result) => {
-      if (!cancelled && result.ok) setMonths(result.data.meta.months);
-    });
+    fetch(`/api/admin/payments?span=${span}`)
+      .then((response) => response.json().catch(() => null))
+      .then((payload: { meta?: { months?: typeof state.paymentMonths } } | null) => {
+        if (!cancelled && payload?.meta?.months) setMonths(payload.meta.months);
+      })
+      .catch(() => { /* giữ dữ liệu cũ, store đã có bản 6 tháng */ });
     return () => { cancelled = true; };
   }, [span, state.reloadToken]);
 
