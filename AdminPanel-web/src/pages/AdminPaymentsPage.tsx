@@ -314,11 +314,31 @@ function PaymentFormDrawer({ bookingId, onClose, onDone }: {
 }
 
 /* Hộp thoại sửa thanh toán — cùng kiểu modal với các trang khác. */
+/* Các đường đi cho phép tính từ trạng thái hiện tại — không cho lùi
+   (đã cọc thì không về Chưa thanh toán, đã trả đủ thì chỉ sửa hình thức,
+   đã hoàn cọc thì khóa hẳn). Backend cũng chặn, đây là để Admin khỏi
+   bấm nhầm từ đầu. */
+const PAY_FLOW: Record<string, { value: string; label: string }[]> = {
+  UNPAID: [
+    { value: 'UNPAID', label: 'Chưa thanh toán' },
+    { value: 'DEPOSITED', label: 'Đặt cọc một phần' },
+    { value: 'PAID', label: 'Đã thanh toán đủ' },
+  ],
+  DEPOSITED: [
+    { value: 'DEPOSITED', label: 'Đặt cọc một phần' },
+    { value: 'PAID', label: 'Đã thanh toán đủ' },
+  ],
+  PAID: [{ value: 'PAID', label: 'Đã thanh toán đủ' }],
+  REFUNDED: [{ value: 'REFUNDED', label: 'Đã hoàn cọc' }],
+};
+
 function EditPaymentModal({ item, onClose, onDone }: {
   item: PaymentItem;
   onClose: () => void;
   onDone: () => void;
 }) {
+  const options = PAY_FLOW[item.paymentStatus] ?? PAY_FLOW.UNPAID;
+  const locked = item.paymentStatus === 'REFUNDED';
   const [payStatus, setPayStatus] = useState(item.paymentStatus);
   const [amount, setAmount] = useState(String(item.amount));
   const [method, setMethod] = useState(item.paymentMethod ?? 'CASH');
@@ -348,14 +368,19 @@ function EditPaymentModal({ item, onClose, onDone }: {
       <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
         <h3>Sửa thanh toán lịch #{item.bookingId}</h3>
         <p>{item.customerName} · {item.serviceName} · {formatVND(item.amount)}</p>
+        <p className="adm-field-note">Hiện tại: <strong>{item.statusText}</strong></p>
+        {locked && (
+          <p className="adm-error">Khoản này đã hoàn cọc nên khóa sổ, không sửa được nữa.</p>
+        )}
         <form className="adm-form" onSubmit={submit}>
           <div className="adm-form-row">
             <label className="adm-field">
               <span>Trạng thái</span>
-              <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)} disabled={busy}>
-                <option value="PAID">Đã thanh toán đủ</option>
-                <option value="DEPOSITED">Đặt cọc một phần</option>
-                <option value="UNPAID">Chưa thanh toán</option>
+              <select value={payStatus} onChange={(e) => setPayStatus(e.target.value)}
+                disabled={busy || locked}>
+                {options.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
               <small className="adm-field-note">
                 Trả đủ chỉ ghi cho lịch đã hoàn thành (khách vãng lai làm ngay trong ngày thì thu được).
@@ -364,13 +389,13 @@ function EditPaymentModal({ item, onClose, onDone }: {
             <label className="adm-field">
               <span>Số tiền (đ) — PAID để trống = thu đủ tổng</span>
               <input value={amount} onChange={(e) => setAmount(e.target.value)}
-                placeholder="Ví dụ: 100000" disabled={busy} inputMode="numeric" />
+                placeholder="Ví dụ: 100000" disabled={busy || locked} inputMode="numeric" />
             </label>
           </div>
           <div className="adm-form-row">
             <label className="adm-field">
               <span>Hình thức</span>
-              <select value={method} onChange={(e) => setMethod(e.target.value)} disabled={busy}>
+              <select value={method} onChange={(e) => setMethod(e.target.value)} disabled={busy || locked}>
                 <option value="CASH">Tiền mặt</option>
                 <option value="BANK_TRANSFER">Chuyển khoản</option>
                 <option value="ONLINE">Online</option>
@@ -387,7 +412,7 @@ function EditPaymentModal({ item, onClose, onDone }: {
             <button type="button" className="button secondary" disabled={busy} onClick={onClose}>
               Hủy bỏ
             </button>
-            <button type="submit" className="button" disabled={busy}>
+            <button type="submit" className="button" disabled={busy || locked}>
               {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
             </button>
           </div>
