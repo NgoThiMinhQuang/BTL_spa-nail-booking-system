@@ -2129,22 +2129,26 @@ describe('Huy lich va tien hoan', () => {
     const connection = await connect();
     let bookingId = null;
     try {
+      const now = new Date();
+      const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      const day = thisMonth + '-10';
       const [b] = await connection.query(
-        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, '2020-08-10 09:00:00', '2020-08-10 10:15:00', 'COMPLETED', 'MOBILE')");
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'COMPLETED', 'MOBILE')",
+        [day + ' 09:00:00', day + ' 10:15:00']);
       bookingId = b.insertId;
       await connection.query(
-        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', '2020-08-10 11:00:00')",
-        [bookingId]);
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 200000, 'CASH', 'PAID', ?)",
+        [bookingId, day + ' 11:00:00']);
       await connection.query(
-        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'FINAL', 200000, 'CASH', '2020-08-10 11:00:00', NULL)",
-        [bookingId]);
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'FINAL', 200000, 'CASH', ?, NULL)",
+        [bookingId, day + ' 11:00:00']);
 
       const res = mockRes();
       await listPayments({ query: {} }, res, strictNext);
       assert.equal(res.statusCode, 200);
-      const row = res.body.meta.months.find((m) => m.month === '2020-08');
-      assert.ok(row, 'thang co giao dich phai xuat hien');
-      assert.equal(Number(row.paidAmount), 200000);
+      const row = res.body.meta.months.find((m) => m.month === thisMonth);
+      assert.ok(row, 'thang hien tai phai xuat hien trong khung 6 thang');
+      assert.ok(Number(row.paidAmount) >= 200000);
     } finally {
       if (bookingId) {
         await connection.query('DELETE FROM payment_transaction WHERE booking_id = ?', [bookingId]);

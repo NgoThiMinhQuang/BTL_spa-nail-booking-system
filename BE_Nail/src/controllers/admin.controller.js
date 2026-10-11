@@ -832,17 +832,24 @@ export async function listPayments(req, res, next) {
 
     /* Tổng hợp theo tháng để vẽ biểu đồ cột ở trang Doanh thu. Đọc từ sổ
        giao dịch theo paid_at (ngày tiền thật vào két): cọc tháng 9 + trả
-       nốt tháng 10 tách hai cột đúng tháng, thay vì dồn theo ngày booking. */
+       nốt tháng 10 tách hai cột đúng tháng, thay vì dồn theo ngày booking.
+       Sinh đủ khung N tháng gần nhất (kể cả tháng trống) để xem được các
+       tháng cũ và bấm vào cột lọc danh sách. */
+    const span = Math.min(Math.max(Number(req.query.span ?? 6) || 6, 1), 24);
     const [months] = await pool.query(`SELECT
-        DATE_FORMAT(t.paid_at, '%Y-%m') AS month,
+        m.month,
         COUNT(CASE WHEN t.type = 'FINAL' THEN 1 END) AS paidCount,
         COALESCE(SUM(CASE WHEN t.type = 'FINAL' THEN t.amount END), 0) AS paidAmount,
         COALESCE(SUM(CASE WHEN t.type = 'DEPOSIT' THEN t.amount END), 0) AS depositAmount,
         COALESCE(SUM(CASE WHEN t.type = 'REFUND' THEN -t.amount END), 0) AS refundAmount,
         COALESCE(SUM(t.amount), 0) AS totalAmount
-      FROM payment_transaction t
-      GROUP BY DATE_FORMAT(t.paid_at, '%Y-%m')
-      ORDER BY month DESC LIMIT 6`);
+      FROM (
+        SELECT DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL n MONTH),'%Y-%m') AS month FROM (SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10 UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15 UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20 UNION ALL SELECT 21 UNION ALL SELECT 22 UNION ALL SELECT 23) t
+        WHERE n < ?
+      ) m
+      LEFT JOIN payment_transaction t ON DATE_FORMAT(t.paid_at, '%Y-%m') = m.month
+      GROUP BY m.month
+      ORDER BY m.month ASC`, [span]);
 
     /* Tổng từ góc nhìn "phải thu": đã thu (FINAL) + cọc (DEPOSIT) + còn nợ.
        Còn nợ tính theo PHẦN CÒN LẠI từng lịch = tổng phải thu − tiền đã
@@ -881,7 +888,7 @@ export async function listPayments(req, res, next) {
         statusText: PAYMENT_TEXT[row.paymentStatus] ?? row.paymentStatus,
       })),
       meta: {
-        months: months.reverse().map((row) => ({
+        months: months.map((row) => ({
           month: row.month,
           paidCount: Number(row.paidCount),
           paidAmount: Number(row.paidAmount),

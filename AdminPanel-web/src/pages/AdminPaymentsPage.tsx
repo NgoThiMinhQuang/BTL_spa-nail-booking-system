@@ -2,7 +2,7 @@
    Số liệu từ GET /api/admin/payments: tổng đã thu, đã đặt cọc, chưa thanh toán,
    biểu đồ theo tháng và danh sách từng giao dịch kèm lịch hẹn tương ứng. */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
 import { useApp } from '../store';
@@ -26,13 +26,29 @@ function monthLabel(month: string): string {
 
 export function AdminPaymentsPage() {
   const { state, reload, openBookingDetail } = useApp();
-  const { payments, paymentMonths, paymentTotals } = state;
+  const { payments, paymentTotals } = state;
 
   const [status, setStatus] = useState('');
   const [term, setTerm] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [span, setSpan] = useState(12);
+  const [months, setMonths] = useState<typeof state.paymentMonths>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    sendAdmin<{
+      data: PaymentItem[];
+      meta: { months: typeof state.paymentMonths };
+    }>(`/payments?span=${span}`, 'GET').then((result) => {
+      if (!cancelled && result.ok) setMonths(result.data.meta.months);
+    });
+    return () => { cancelled = true; };
+  }, [span, state.reloadToken]);
 
   const rows = payments
     .filter((payment) => !status || payment.paymentStatus === status)
+    .filter((payment) => !monthFilter
+      || (payment.paymentDate ?? payment.startsAt).slice(0, 7) === monthFilter)
     .filter((payment) => {
       if (!term) return true;
       const key = term.toLowerCase();
@@ -43,9 +59,9 @@ export function AdminPaymentsPage() {
 
   const inflow = (item: { paidAmount: number; depositAmount: number }) =>
     item.paidAmount + item.depositAmount;
-  const peak = Math.max(...paymentMonths.map(inflow), 1);
-  const inflowTotal = paymentMonths.reduce((sum, item) => sum + inflow(item), 0);
-  const refundTotal = paymentMonths.reduce((sum, item) => sum + item.refundAmount, 0);
+  const peak = Math.max(...months.map(inflow), 1);
+  const inflowTotal = months.reduce((sum, item) => sum + inflow(item), 0);
+  const refundTotal = months.reduce((sum, item) => sum + item.refundAmount, 0);
 
   const [editItem, setEditItem] = useState<PaymentItem | null>(null);
   const [drawerItem, setDrawerItem] = useState<PaymentItem | null>(null);
@@ -82,38 +98,52 @@ export function AdminPaymentsPage() {
           title="Dòng tiền theo tháng"
           subtitle="Cọc + thu đủ theo ngày tiền vào két (không phải doanh thu dịch vụ)"
         >
+          <div className="mode-tabs">
+            {[6, 12].map((n) => (
+              <button key={n} className={span === n ? 'active' : ''}
+                onClick={() => setSpan(n)}>{n} tháng</button>
+            ))}
+          </div>
           <strong style={{ fontSize: 15, fontWeight: 600 }}>
             {formatVND(inflowTotal)}
           </strong>
         </SectionHeading>
         <div style={{ padding: '0 16px 16px' }}>
-          {paymentMonths.length === 0 ? (
+          {months.length === 0 ? (
             <EmptyState title="Chưa có giao dịch" detail="Dòng tiền hiện khi có khoản thu đầu tiên." />
           ) : (
             <>
               <div className="adm-chart-legend">
                 <span><i className="sw-paid" />Thu đủ</span>
                 <span><i className="sw-deposit" />Đặt cọc</span>
+                <span className="adm-chart-hint">Bấm vào cột để lọc danh sách theo tháng</span>
               </div>
-              <div className="adm-chart">
-                {paymentMonths.map((item) => (
-                  <div key={item.month} className="adm-chart-col"
-                    title={`${monthLabel(item.month)}: thu đủ ${formatVND(item.paidAmount)} · `
-                      + `cọc ${formatVND(item.depositAmount)}`
-                      + (item.refundAmount > 0 ? ` · hoàn ${formatVND(item.refundAmount)}` : '')}>
-                    <div className="adm-chart-stack"
-                      style={{ height: `${Math.max(6, (inflow(item) / peak) * 150)}px` }}>
-                      <span className="seg-deposit"
-                        style={{ height: `${inflow(item) > 0 ? (item.depositAmount / inflow(item)) * 100 : 0}%` }} />
-                      <span className="seg-paid"
-                        style={{ height: `${inflow(item) > 0 ? (item.paidAmount / inflow(item)) * 100 : 0}%` }} />
-                    </div>
-                    <small>{monthLabel(item.month)}</small>
-                  </div>
-                ))}
+              <div className="adm-chart adm-chart-scroll">
+                {months.map((item) => {
+                  const total = inflow(item);
+                  const active = monthFilter === item.month;
+                  return (
+                    <button key={item.month} className={`adm-chart-col${active ? ' is-active' : ''}`}
+                      onClick={() => setMonthFilter(active ? '' : item.month)}
+                      title={`${monthLabel(item.month)}: thu đủ ${formatVND(item.paidAmount)} · `
+                        + `cọc ${formatVND(item.depositAmount)}`
+                        + (item.refundAmount > 0 ? ` · hoàn ${formatVND(item.refundAmount)}` : '')
+                        + ` — bấm để ${active ? 'bỏ lọc' : 'lọc danh sách'}`}>
+                      {total > 0 && <span className="adm-chart-value">{moneyShort(total)}</span>}
+                      <span className="adm-chart-stack"
+                        style={{ height: `${Math.max(6, (total / peak) * 150)}px` }}>
+                        <span className="seg-deposit"
+                          style={{ height: `${total > 0 ? (item.depositAmount / total) * 100 : 0}%` }} />
+                        <span className="seg-paid"
+                          style={{ height: `${total > 0 ? (item.paidAmount / total) * 100 : 0}%` }} />
+                      </span>
+                      <small>{monthLabel(item.month)}</small>
+                    </button>
+                  );
+                })}
               </div>
               {refundTotal > 0 && (
-                <p className="adm-field-note">Đã hoàn {formatVND(refundTotal)} cho khách trong 6 tháng qua.</p>
+                <p className="adm-field-note">Đã hoàn {formatVND(refundTotal)} cho khách trong kỳ hiển thị.</p>
               )}
             </>
           )}
@@ -124,8 +154,14 @@ export function AdminPaymentsPage() {
         <SectionHeading
           icon={<Icon name="card" />}
           title="Danh sách giao dịch"
-          subtitle={`${rows.length} trong ${payments.length} giao dịch`}
+          subtitle={`${rows.length} trong ${payments.length} giao dịch`
+            + (monthFilter ? ` · tháng ${monthLabel(monthFilter)}` : '')}
         >
+          {monthFilter && (
+            <button className="button secondary" onClick={() => setMonthFilter('')}>
+              Bỏ lọc tháng
+            </button>
+          )}
           <button className="button" onClick={() => { setCreateBookingId(''); setCreateOpen(true); }}>
             ＋ Ghi nhận
           </button>

@@ -42,6 +42,13 @@
 
 /* ---- Biểu đồ cột doanh thu ---- */
 .adm-chart{display:flex;align-items:flex-end;gap:12px;height:180px;padding:14px 4px 0}
+.adm-chart-scroll{overflow-x:auto;padding-bottom:4px}
+.adm-chart-scroll .adm-chart-col{min-width:64px}
+button.adm-chart-col{background:transparent;border:0;padding:0;cursor:pointer;font:inherit}
+button.adm-chart-col .adm-chart-stack{transition:filter .15s}
+button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
+.adm-chart-value{font-size:10.5px;font-weight:700;color:var(--nh-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.adm-chart-hint{margin-left:auto;font-size:11px;color:var(--nh-muted)}
 .adm-chart-legend{display:flex;gap:16px;padding:0 4px 2px;font-size:11.5px;color:var(--nh-muted)}
 .adm-chart-legend span{display:inline-flex;align-items:center;gap:6px}
 .adm-chart-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
