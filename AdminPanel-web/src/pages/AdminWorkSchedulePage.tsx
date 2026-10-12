@@ -1,6 +1,11 @@
 /* ===== Trang Lịch làm việc của quản trị =====
-   Ma trận tuần dựng từ bảng staff_schedule: mỗi dòng một nhân viên, mỗi cột một
-   ngày. Ô trống là ngày không có ca; ô có ca ghi rõ giờ và số lịch hẹn đã nhận. */
+   Ba khối theo đúng thứ tự ra quyết định: yêu cầu đổi ca của nhân viên
+   (thẻ chờ duyệt) → ma trận tuần dựng từ bảng staff_schedule → danh sách
+   từng ca trong tuần đang xem để xếp/sửa/xoá trực tiếp.
+
+   Danh sách ca cuối trang chính là các dòng staff_schedule của tuần đang
+   xem (kèm số lịch hẹn PENDING/CONFIRMED/PROCESSING của nhân viên hôm đó
+   do backend đếm) — không phải số bịa, và khớp từng ô với ma trận tuần. */
 
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
@@ -9,22 +14,23 @@ import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primi
 import { useApp, today, weekAround } from '../store';
 import { sendAdmin } from '../lib/admin-api';
 import { fmtDayShort, timeToMinutes, weekdayShort } from '../lib/utils';
-import type { ScheduleRequestItem } from '../store';
+import type { ScheduleRequestItem, ShiftItem, StaffItem } from '../store';
 
-const ACTION_TEXT: Record<ScheduleRequestItem['action'], string> = {
-  ADD: 'Thêm ca',
-  UPDATE: 'Đổi ca',
-  REMOVE: 'Xoá ca',
+const ACTION_META: Record<ScheduleRequestItem['action'], { label: string; cls: string }> = {
+  ADD: { label: 'Xin thêm ca', cls: 'completed' },
+  UPDATE: { label: 'Xin đổi ca', cls: 'pending' },
+  REMOVE: { label: 'Xin bớt ca', cls: 'cancelled' },
 };
 
-function ScheduleRequestRow({ item, index, onDone }: { item: ScheduleRequestItem; index: number; onDone: () => void }) {
+/* Một yêu cầu đổi ca = một thẻ: ai xin, xin gì, ngày nào, vướng mấy lịch,
+   ghi chú ngay trên thẻ rồi Duyệt/Từ chối — khỏi hộp thoại chen ngang. */
+function ScheduleRequestCard({ item, onDone }: { item: ScheduleRequestItem; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
+  const meta = ACTION_META[item.action];
 
   async function review(approve: boolean) {
-    const note = approve
-      ? (window.prompt('Ghi chú duyệt (không bắt buộc):', '') ?? '')
-      : (window.prompt('Lý do từ chối:', '') ?? '');
     if (!approve && !note.trim()) {
       setMessage('Từ chối cần ghi rõ lý do.');
       return;
@@ -45,31 +51,129 @@ function ScheduleRequestRow({ item, index, onDone }: { item: ScheduleRequestItem
   }
 
   return (
-    <tr key={item.id}>
-      <td className="adm-stt">{index + 1}</td>
-      <td><strong>{item.workDate}</strong><small>{weekdayShort(item.workDate)}</small></td>
-      <td><strong>{item.staffName}</strong><small>{item.specialty ?? '—'}</small></td>
-      <td>{ACTION_TEXT[item.action]}</td>
-      <td>
-        {item.action === 'REMOVE' ? (
-          <span className="adm-none">Xoá ca ngày này</span>
-        ) : (
-          <strong>{item.startTime.slice(0, 5)} – {item.endTime.slice(0, 5)}</strong>
-        )}
-      </td>
-      <td>
+    <li className="adm-req-card">
+      <Avatar name={item.staffName} url={null} size={40} />
+      <div className="adm-req-copy">
+        <div className="adm-req-head">
+          <strong>{item.staffName}</strong>
+          <span className={`badge ${meta.cls}`}><i />{meta.label}</span>
+        </div>
+        <p>
+          {weekdayShort(item.workDate)} · {fmtDayShort(item.workDate)}
+          {item.action === 'REMOVE'
+            ? ' · Xoá ca ngày này'
+            : ` · Ca mới ${item.startTime.slice(0, 5)} – ${item.endTime.slice(0, 5)}`}
+        </p>
         {item.affectedBookings > 0
           ? <span className="badge cancelled"><i />{item.affectedBookings} lịch vướng</span>
-          : <span className="badge completed"><i />Không vướng</span>}
-      </td>
-      <td>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="button" disabled={busy} onClick={() => review(true)}>Duyệt</button>
-          <button className="button secondary" disabled={busy} onClick={() => review(false)}>Từ chối</button>
-        </div>
+          : <span className="badge completed"><i />Không vướng lịch</span>}
+        <input value={note} onChange={(e) => setNote(e.target.value)} disabled={busy}
+          placeholder={item.action === 'REMOVE'
+            ? 'Ghi chú duyệt / lý do từ chối…'
+            : 'Ghi chú duyệt (không bắt buộc), từ chối thì phải ghi lý do…'} />
         {message && <p className="adm-error">{message}</p>}
-      </td>
-    </tr>
+      </div>
+      <div className="adm-req-actions">
+        <button className="button" disabled={busy} onClick={() => review(true)}>Duyệt</button>
+        <button className="button secondary" disabled={busy} onClick={() => review(false)}>Từ chối</button>
+      </div>
+    </li>
+  );
+}
+
+/* Một hộp cho cả xếp ca mới và sửa giờ ca: tạo thì chọn người + ngày +
+   giờ, sửa thì chỉ đổi giờ (không đổi người/ngày — đúng luật backend). */
+function ShiftModal({ shift, staff, defaultDate, onClose, onDone }: {
+  /** null = xếp ca mới. */
+  shift: ShiftItem | null;
+  staff: StaffItem[];
+  defaultDate: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [staffId, setStaffId] = useState(shift?.staffId ?? '');
+  const [date, setDate] = useState(shift?.workDate ?? defaultDate);
+  const [start, setStart] = useState(shift ? shift.startTime.slice(0, 5) : '09:00');
+  const [end, setEnd] = useState(shift ? shift.endTime.slice(0, 5) : '18:00');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shift && !staffId) {
+      setMessage('Hãy chọn nhân viên.');
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end) || start >= end) {
+      setMessage('Giờ bắt đầu phải trước giờ kết thúc (HH:mm).');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    const result = shift
+      ? await sendAdmin(`/schedule/${shift.id}`, 'PUT', { startTime: start, endTime: end })
+      : await sendAdmin('/schedule', 'POST', {
+        staffId: Number(staffId), workDate: date, startTime: start, endTime: end,
+      });
+    setBusy(false);
+    if (!result.ok) {
+      /* Luật chặn lịch vướng của backend hiện nguyên văn để biết ca nào kẹt. */
+      setMessage(result.message);
+      return;
+    }
+    onDone();
+  }
+
+  return (
+    <div className="adm-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{shift ? `Sửa giờ ca ${shift.staffName}` : 'Xếp ca mới'}</h3>
+        {shift && (
+          <p className="adm-field-note">
+            {weekdayShort(shift.workDate)} · {fmtDayShort(shift.workDate)} — chỉ đổi giờ,
+            không đổi người và ngày.
+          </p>
+        )}
+        <form className="adm-form" onSubmit={submit}>
+          {!shift && (
+            <>
+              <label className="adm-field">
+                <span>Nhân viên</span>
+                <select value={staffId} onChange={(e) => setStaffId(e.target.value)} disabled={busy}>
+                  <option value="">— Chọn nhân viên —</option>
+                  {staff.map((person) => (
+                    <option key={person.id} value={person.id}>{person.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="adm-field">
+                <span>Ngày</span>
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={busy} />
+              </label>
+            </>
+          )}
+          <div className="adm-form-row">
+            <label className="adm-field">
+              <span>Giờ bắt đầu</span>
+              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} disabled={busy} />
+            </label>
+            <label className="adm-field">
+              <span>Giờ kết thúc</span>
+              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} disabled={busy} />
+            </label>
+          </div>
+          {message && <p className="adm-error">{message}</p>}
+          <div className="adm-modal-foot">
+            <button className="button secondary" type="button" disabled={busy} onClick={onClose}>
+              Hủy
+            </button>
+            <button className="button" type="submit" disabled={busy}>
+              {busy ? 'Đang lưu…' : shift ? 'Lưu giờ ca' : 'Xếp ca'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -93,6 +197,7 @@ export function AdminWorkSchedulePage() {
   for (const record of attendance) {
     attByStaffDay.set(`${record.staffId}|${record.workDate}`, record);
   }
+  const staffById = new Map(staff.map((person) => [person.id, person]));
 
   const totalShifts = shifts.length;
   const totalBookings = shifts.reduce((sum, shift) => sum + shift.bookingCount, 0);
@@ -115,66 +220,35 @@ export function AdminWorkSchedulePage() {
     .filter((item) => item.status === 'PENDING')
     .sort((a, b) => a.workDate.localeCompare(b.workDate));
 
-  /* Xếp ca trực tiếp (không qua yêu cầu của nhân viên). Cùng luật chặn
-     lịch vướng như duyệt yêu cầu nên thông điệp lỗi hiện nguyên văn. */
-  const [shiftForm, setShiftForm] = useState({ staffId: '', date: today(), start: '09:00', end: '18:00' });
-  const [shiftMsg, setShiftMsg] = useState('');
-  const [shiftBusy, setShiftBusy] = useState(false);
+  /* Modal xếp/sửa ca + gom ca theo ngày cho danh sách cuối trang. */
+  const [shiftModal, setShiftModal] = useState<{ shift: ShiftItem | null } | null>(null);
+  const [listError, setListError] = useState('');
 
-  const setShift = (key: keyof typeof shiftForm) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) => setShiftForm((prev) => ({ ...prev, [key]: e.target.value }));
-
-  async function createShift(e: React.FormEvent) {
-    e.preventDefault();
-    if (!shiftForm.staffId) {
-      setShiftMsg('Hãy chọn nhân viên.');
-      return;
-    }
-    setShiftBusy(true);
-    setShiftMsg('');
-    const result = await sendAdmin('/schedule', 'POST', {
-      staffId: Number(shiftForm.staffId),
-      workDate: shiftForm.date,
-      startTime: shiftForm.start,
-      endTime: shiftForm.end,
-    });
-    setShiftBusy(false);
+  async function removeShift(shift: ShiftItem) {
+    const ok = window.confirm(
+      `Xoá ca của ${shift.staffName} ngày ${fmtDayShort(shift.workDate)} `
+      + `(${shift.startTime.slice(0, 5)} – ${shift.endTime.slice(0, 5)})?`
+      + (shift.bookingCount > 0
+        ? ` Ca còn ${shift.bookingCount} lịch của khách nên sẽ không xoá được.`
+        : ''));
+    if (!ok) return;
+    const result = await sendAdmin(`/schedule/${shift.id}`, 'DELETE');
     if (!result.ok) {
-      setShiftMsg(result.message);
+      setListError(result.message);
       return;
     }
-    setShiftMsg('Đã xếp ca.');
+    setListError('');
     reload();
   }
 
-  async function editShift(id: string, currentStart: string, currentEnd: string) {
-    const start = window.prompt('Giờ bắt đầu mới (HH:mm):', currentStart.slice(0, 5)) ?? '';
-    if (!/^\d{2}:\d{2}$/.test(start.trim())) return;
-    const end = window.prompt('Giờ kết thúc mới (HH:mm):', currentEnd.slice(0, 5)) ?? '';
-    if (!/^\d{2}:\d{2}$/.test(end.trim())) return;
-    const result = await sendAdmin(`/schedule/${id}`, 'PUT', {
-      startTime: start.trim(), endTime: end.trim(),
-    });
-    if (!result.ok) {
-      setShiftMsg(result.message);
-      return;
-    }
-    reload();
+  /* Danh sách ca gom theo ngày để khỏi lặp lại ngày trên từng dòng. */
+  const shiftsByDate = new Map<string, ShiftItem[]>();
+  for (const shift of [...shifts].sort((a, b) =>
+    a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime))) {
+    const list = shiftsByDate.get(shift.workDate);
+    if (list) list.push(shift);
+    else shiftsByDate.set(shift.workDate, [shift]);
   }
-
-  async function removeShift(id: string) {
-    if (!window.confirm('Xoá ca này? Ca còn lịch của khách thì không xoá được.')) return;
-    const result = await sendAdmin(`/schedule/${id}`, 'DELETE');
-    if (!result.ok) {
-      setShiftMsg(result.message);
-      return;
-    }
-    reload();
-  }
-
-  const weekShifts = [...shifts].sort((a, b) =>
-    a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
 
   return (
     <>
@@ -193,21 +267,11 @@ export function AdminWorkSchedulePage() {
             detail="Nhân viên xin thêm, đổi hoặc bớt ca sẽ hiện ở đây để duyệt."
           />
         ) : (
-          <div className="table-scroll">
-            <table className="adm-table adm-table-wide">
-              <thead>
-                <tr>
-                  <th className="adm-stt">STT</th><th>Ngày</th><th>Nhân viên</th><th>Loại</th>
-                  <th>Ca mới</th><th>Lịch vướng</th><th>Duyệt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRequests.map((item, index) => (
-                  <ScheduleRequestRow key={item.id} item={item} index={index} onDone={reload} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="adm-req-list">
+            {pendingRequests.map((item) => (
+              <ScheduleRequestCard key={item.id} item={item} onDone={reload} />
+            ))}
+          </ul>
         )}
       </Panel>
 
@@ -315,73 +379,81 @@ export function AdminWorkSchedulePage() {
       <Panel>
         <SectionHeading
           icon={<Icon name="plus" />}
-          title="Xếp ca trực tiếp"
-          subtitle="Admin chủ động xếp ca, không qua yêu cầu của nhân viên"
-        />
-        <form className="adm-form" onSubmit={createShift} style={{ padding: '0 16px 16px' }}>
-          <div className="adm-form-row">
-            <label className="adm-field">
-              <span>Nhân viên</span>
-              <select value={shiftForm.staffId} onChange={setShift('staffId')} disabled={shiftBusy}>
-                <option value="">— Chọn nhân viên —</option>
-                {staff.map((person) => (
-                  <option key={person.id} value={person.id}>{person.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="adm-field">
-              <span>Ngày</span>
-              <input type="date" value={shiftForm.date} onChange={setShift('date')} disabled={shiftBusy} />
-            </label>
-          </div>
-          <div className="adm-form-row">
-            <label className="adm-field">
-              <span>Giờ bắt đầu</span>
-              <input type="time" value={shiftForm.start} onChange={setShift('start')} disabled={shiftBusy} />
-            </label>
-            <label className="adm-field">
-              <span>Giờ kết thúc</span>
-              <input type="time" value={shiftForm.end} onChange={setShift('end')} disabled={shiftBusy} />
-            </label>
-          </div>
-          <div>
-            <button className="button" type="submit" disabled={shiftBusy}>Xếp ca</button>
-          </div>
-          {shiftMsg && <p className="adm-error">{shiftMsg}</p>}
-        </form>
+          title={`Ca trong tuần ${fmtDayShort(week[0])} – ${fmtDayShort(week[6])}`}
+          subtitle={`${totalShifts} ca trong bảng phân ca, mỗi ca kèm số lịch hẹn của khách`}
+        >
+          <button className="button" onClick={() => setShiftModal({ shift: null })}>
+            ＋ Xếp ca
+          </button>
+        </SectionHeading>
+        {listError && <p className="adm-error" style={{ padding: '0 16px' }}>{listError}</p>}
 
-        {weekShifts.length > 0 && (
-          <div className="table-scroll">
-            <table className="adm-table">
-              <thead>
-                <tr><th className="adm-stt">STT</th><th>Ngày</th><th>Nhân viên</th><th>Giờ</th><th>Lịch</th><th>Thao tác</th></tr>
-              </thead>
-              <tbody>
-                {weekShifts.map((shift, index) => (
-                  <tr key={shift.id}>
-                    <td className="adm-stt">{index + 1}</td>
-                    <td><strong>{shift.workDate}</strong></td>
-                    <td>{shift.staffName}</td>
-                    <td>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</td>
-                    <td>{shift.bookingCount} lịch</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button className="button secondary"
-                          onClick={() => editShift(shift.id, shift.startTime, shift.endTime)}>
-                          Sửa giờ
-                        </button>
-                        <button className="button secondary" onClick={() => removeShift(shift.id)}>
-                          Xoá
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {shifts.length === 0 ? (
+          <EmptyState
+            title="Tuần này chưa có ca nào"
+            detail="Bấm Xếp ca để tạo ca đầu tiên cho nhân viên."
+          />
+        ) : (
+          <div style={{ padding: '4px 16px 16px' }}>
+            {[...shiftsByDate.entries()].map(([date, list]) => (
+              <section key={date} className="adm-day-group">
+                <h4>
+                  {weekdayShort(date)} · {fmtDayShort(date)}
+                  {date === today() && <span className="badge pending"><i />Hôm nay</span>}
+                  <em>{list.length} ca</em>
+                </h4>
+                <ul>
+                  {list.map((shift) => {
+                    const hours = Math.round(
+                      (timeToMinutes(shift.endTime) - timeToMinutes(shift.startTime)) / 60 * 10) / 10;
+                    return (
+                      <li key={shift.id} className="adm-shift-row">
+                        <Avatar name={shift.staffName}
+                          url={staffById.get(shift.staffId)?.avatarUrl ?? shift.avatarUrl} size={32} />
+                        <span className="adm-shift-who">
+                          <strong>{shift.staffName}</strong>
+                          <small>{staffById.get(shift.staffId)?.specialty ?? '—'}</small>
+                        </span>
+                        <span className="adm-shift-when">
+                          <strong>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</strong>
+                          <small>{hours}h</small>
+                        </span>
+                        {shift.status === 'OFF'
+                          ? <span className="badge cancelled"><i />Nghỉ</span>
+                          : shift.bookingCount > 0
+                            ? <span className="badge pending"><i />{shift.bookingCount} lịch</span>
+                            : <span className="adm-none">Chưa có lịch</span>}
+                        <span className="adm-shift-actions">
+                          <button className="adm-icon-btn" title="Sửa giờ ca"
+                            aria-label={`Sửa giờ ca của ${shift.staffName}`}
+                            onClick={() => setShiftModal({ shift })}>
+                            <Icon name="edit" />
+                          </button>
+                          <button className="adm-icon-btn" title="Xoá ca"
+                            aria-label={`Xoá ca của ${shift.staffName}`}
+                            onClick={() => removeShift(shift)}>
+                            <Icon name="trash" />
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </div>
         )}
       </Panel>
+
+      {shiftModal && (
+        <ShiftModal
+          shift={shiftModal.shift}
+          staff={staff}
+          defaultDate={today() < week[0] || today() > week[6] ? week[0] : today()}
+          onClose={() => setShiftModal(null)}
+          onDone={() => { setShiftModal(null); reload(); }}
+        />
+      )}
     </>
   );
 }
