@@ -3022,3 +3022,65 @@ describe('Nghiep vu danh muc', () => {
     }
   });
 });
+
+/* Nghi dot xuat phai bao cho admin ngay (tu duyet nen khong nam hang cho). */
+describe('Nghi dot xuat bao admin', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const moment = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  test('bao nghi dot xuat thi admin co INAPP', async () => {
+    const { createLeaveRequest } = await import('../src/controllers/request.controller.js');
+    const connection = await connect();
+    let leaveId = null;
+    try {
+      const [admins] = await connection.query(
+        "SELECT user_id AS userId FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE'");
+      assert.ok(admins.length > 0, 'DB test phai co admin');
+      const before = new Map();
+      for (const admin of admins) {
+        const [[row]] = await connection.query(
+          "SELECT COUNT(*) AS n FROM notification WHERE user_id = ? AND ref_type = 'leave_request' AND channel = 'INAPP'",
+          [admin.userId]);
+        before.set(String(admin.userId), Number(row.n));
+      }
+
+      const start = new Date(Date.now() + 60 * 60000);
+      const end = new Date(Date.now() + 2 * 60 * 60000);
+      const res = mockRes();
+      await createLeaveRequest({
+        body: {
+          startDatetime: moment(start), endDatetime: moment(end),
+          reason: 'Om dot xuat', leaveType: 'EMERGENCY',
+        },
+        user: { staffId: 9001, name: 'NV Test Dot Xuat' },
+      }, res, strictNext);
+      assert.equal(res.statusCode, 201);
+      assert.equal(res.body.data.status, 'APPROVED');
+      leaveId = res.body.data.id;
+
+      for (const admin of admins) {
+        const [[row]] = await connection.query(
+          "SELECT COUNT(*) AS n FROM notification WHERE user_id = ? AND ref_type = 'leave_request' AND ref_id = ? AND channel = 'INAPP'",
+          [admin.userId, leaveId]);
+        assert.equal(Number(row.n), 1, `admin ${admin.userId} phai co 1 INAPP`);
+        void before;
+      }
+      assert.ok(Number(res.body.data.notifiedAdmins) >= admins.length);
+    } finally {
+      if (leaveId) {
+        await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id = ?", [leaveId]);
+        await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id = ?', [leaveId]);
+      }
+      await connection.end();
+    }
+  });
+});

@@ -210,6 +210,37 @@ export async function createLeaveRequest(req, res, next) {
         /* Bỏ qua — yêu cầu nghỉ đã có hiệu lực, gửi lỗi xem ở trang Admin. */
       }
 
+      /* Báo cho Admin NGAY (INAPP + đẩy push tới mọi quản trị viên đang
+         làm việc): nghỉ đột xuất tự duyệt nên không nằm trong hàng chờ —
+         không báo là Admin không biết để xoay khách kịp. Lỗi gửi không
+         được làm hỏng yêu cầu nghỉ. */
+      let adminNotified = 0;
+      try {
+        const [admins] = await pool.query(
+          "SELECT user_id AS userId FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE'");
+        const affected = Number(remaining[0]?.n ?? 0);
+        const title = 'Nhân viên báo nghỉ đột xuất';
+        const body = `${req.user.name} vừa báo nghỉ đột xuất từ ${fmtSlot(startsAt)} `
+          + `đến ${fmtSlot(endsAt)}${reason ? ` (lý do: ${reason})` : ''}. `
+          + `Có ${affected} lịch cần xử lý`
+          + (notified > 0 ? `, đã báo qua app cho ${notified} khách` : '')
+          + (walkinCount > 0 ? `, ${walkinCount} khách vãng lai cần gọi tay` : '')
+          + '. Đơn đã tự duyệt — mở trang nghỉ phép để bàn giao lịch.';
+        for (const admin of admins) {
+          await createNotification(pool, {
+            userId: admin.userId, title, body,
+            type: 'LEAVE_DISRUPTION', refType: 'leave_request', refId: result.insertId,
+          });
+          await pushToUser(pool, {
+            userId: admin.userId, title, body,
+            type: 'LEAVE_DISRUPTION', refType: 'leave_request', refId: result.insertId,
+          });
+          adminNotified += 1;
+        }
+      } catch {
+        /* Bỏ qua — như kênh khách, lỗi gửi xem ở trang thông báo. */
+      }
+
       return res.status(201).json({
         data: {
           id: String(result.insertId),
@@ -223,6 +254,7 @@ export async function createLeaveRequest(req, res, next) {
           affectedBookings: Number(remaining[0]?.n ?? 0),
           notifiedCustomers: notified,
           walkinCustomers: walkinCount,
+          notifiedAdmins: adminNotified,
         },
       });
     }

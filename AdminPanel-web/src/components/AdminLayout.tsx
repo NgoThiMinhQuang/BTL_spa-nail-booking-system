@@ -227,7 +227,8 @@ export function AdminLayout({
               )}
             </div>
 
-            <button className="adm-bell" aria-label="Thông báo">
+            <button className="adm-bell" aria-label="Thông báo — mở trang theo dõi tin"
+              title="Mở trang thông báo" onClick={() => goView('admin-notifications')}>
               <Icon name="bell" />
               {state.reviewStats.total > 0 && <i />}
             </button>
