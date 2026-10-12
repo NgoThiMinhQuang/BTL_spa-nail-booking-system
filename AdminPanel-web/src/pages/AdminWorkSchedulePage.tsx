@@ -305,6 +305,11 @@ export function AdminWorkSchedulePage() {
             />
           ) : (
             <div className="table-scroll">
+              <div className="adm-chart-legend" style={{ padding: '0 4px 10px' }}>
+                <span><i className="sw-busy" />Có lịch hẹn</span>
+                <span><i className="sw-free" />Ca trống</span>
+                <span><i className="sw-off" />Nghỉ</span>
+              </div>
               <table className="adm-week">
                 <thead>
                   <tr>
@@ -339,10 +344,13 @@ export function AdminWorkSchedulePage() {
                         const end = Math.max(...dayShifts.map((s) => timeToMinutes(s.endTime)));
                         const booked = dayShifts.reduce((sum, s) => sum + s.bookingCount, 0);
                         const off = dayShifts.every((s) => s.status === 'OFF');
+                        /* Ô có lịch hẹn xanh lá, ca trống xám tím, nghỉ viền đứt —
+                           nhìn một cái là biết ca nào đang có khách. */
+                        const tone = off ? 'is-off' : booked > 0 ? 'is-busy' : 'is-free';
 
                         return (
                           <td key={day}>
-                            <div className={`adm-cell ${off ? 'is-off' : 'is-shift'}`}>
+                            <div className={`adm-cell ${tone}`}>
                               {off ? 'Nghỉ' : (
                                 <>
                                   <strong>{`${dayShifts[0].startTime.slice(0, 5)} – ${dayShifts[0].endTime.slice(0, 5)}`}</strong>

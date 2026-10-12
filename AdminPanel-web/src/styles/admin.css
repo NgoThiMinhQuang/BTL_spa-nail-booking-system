@@ -54,6 +54,9 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
 .adm-chart-legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .adm-chart-legend .sw-paid{background:#D56B81}
 .adm-chart-legend .sw-deposit{background:#E8C86A}
+.adm-chart-legend .sw-busy{background:var(--nh-sage)}
+.adm-chart-legend .sw-free{background:#C9BED6}
+.adm-chart-legend .sw-off{background:transparent;border:1.5px dashed #D9CFD6}
 .adm-chart-stack{width:100%;max-width:30px;border-radius:8px 8px 4px 4px;background:#F5EFF2;
   overflow:hidden;display:flex;flex-direction:column}
 .adm-chart-stack .seg-deposit{background:#E8C86A;flex:0 0 auto}
@@ -181,9 +184,13 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
   display:flex;flex-direction:column;gap:4px;justify-content:center}
 .adm-cell strong{font-size:11.5px;font-weight:600}
 .adm-cell small{font-size:10.5px}
-.adm-cell.is-shift{background:var(--nh-sage-soft);border-left:3px solid var(--nh-sage)}
-.adm-cell.is-shift strong{color:var(--nh-sage)}
-.adm-cell.is-shift small{color:#6F8580}
+.adm-cell.is-busy{background:var(--nh-sage-soft);border-left:3px solid var(--nh-sage)}
+.adm-cell.is-busy strong{color:var(--nh-sage)}
+.adm-cell.is-busy small{color:#6F8580}
+/* Ca trống: xám tím để phân biệt ngay với ô có lịch */
+.adm-cell.is-free{background:#F3F1F6;border-left:3px solid #C9BED6}
+.adm-cell.is-free strong{color:#6E6478}
+.adm-cell.is-free small{color:#978CA3}
 .adm-cell.is-lunch{background:#FAF7FA;border-left:3px solid #D9CFD6}
 .adm-cell.is-lunch strong{color:var(--nh-muted)}
 .adm-cell.is-lunch small{color:#8A7B80}
