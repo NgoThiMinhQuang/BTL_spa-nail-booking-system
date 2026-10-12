@@ -200,15 +200,6 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
 .adm-cell.is-off{align-items:center;justify-content:center;background:#FAF7FA;border:1px dashed #E4DBE0;
   color:#A8999F;font-size:11px;text-align:center}
 
-/* ---- Lưới lịch làm việc của nhân viên ---- */
-.adm-shift-grid{display:grid;gap:10px;padding:0 16px 16px}
-.adm-shift{display:flex;align-items:center;gap:11px;padding:11px 13px;border:1px solid #DDECE7;
-  border-radius:12px;background:#F6FBF9}
-.adm-shift-when{flex:0 0 116px;font-size:12px;font-weight:600;color:var(--nh-sage);font-variant-numeric:tabular-nums}
-.adm-shift-who{min-width:0;flex:1;display:flex;align-items:center;gap:9px}
-.adm-shift-who strong{font-size:12.5px;font-weight:600;color:var(--nh-ink)}
-.adm-shift-who small{font-size:11px;color:#6F8580}
-
 /* ---- Hàng thẻ nhỏ (chuyên môn) ---- */
 .adm-cell-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
 
@@ -256,30 +247,35 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
 .adm-day-group.is-today .adm-day-chip{background:var(--nh-blush);color:var(--nh-primary-dark)}
 .adm-day-group>h4 em{margin-left:auto;font-style:normal;font-size:11.5px;color:var(--nh-muted)}
 .adm-day-group>ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-/* Thẻ ca: nền tint + viền trái theo trạng thái, ăn màu với ma trận tuần */
-.adm-shift-row{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 14px;
+/* Thẻ ca: lưới 5 cột cố định để giờ, nhãn lịch và nút thẳng hàng nhau
+   trên mọi dòng — tên dài ngắn cỡ nào cũng không đẩy lệch cột khác */
+.adm-shift-row{display:grid;grid-template-columns:32px minmax(0,1fr) 122px 100px 66px;
+  align-items:center;gap:12px;padding:10px 12px 10px 14px;
   border:1px solid var(--nh-line);border-left-width:4px;border-radius:13px;background:#fff;
   box-shadow:0 1px 3px rgba(45,36,48,.05);transition:box-shadow .15s,transform .15s}
 .adm-shift-row:hover{box-shadow:0 5px 16px -8px rgba(45,36,48,.25)}
 .adm-shift-row.is-busy{background:#F1F8F4;border-color:#E2EFE8;border-left-color:var(--nh-sage)}
 .adm-shift-row.is-free{background:#FAF9FC;border-color:#ECE9F1;border-left-color:#C9BED6}
 .adm-shift-row.is-off{background:#FDF6F8;border-color:#F6E2E9;border-left-color:#E5B7C4}
-.adm-shift-who{flex:1;min-width:0}
+.adm-shift-who{min-width:0;display:grid;gap:1px}
 .adm-shift-who strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.adm-shift-who small{display:block;font-size:11px;color:var(--nh-muted);margin-top:1px}
+.adm-shift-who small{display:block;font-size:11px;color:var(--nh-muted);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-shift-when{text-align:right;background:#fff;border:1px solid var(--nh-line);
   border-radius:10px;padding:6px 11px;box-shadow:0 1px 2px rgba(45,36,48,.05)}
 .adm-shift-when strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .adm-shift-when small{font-size:11px;color:var(--nh-muted)}
-.adm-shift-actions{display:flex;gap:6px}
+.adm-shift-row .badge,.adm-shift-row .adm-none{justify-self:center;white-space:nowrap}
+.adm-shift-actions{display:flex;gap:6px;justify-self:end}
 .adm-shift-actions .adm-icon-btn{border:1px solid var(--nh-line);background:#fff;width:30px;height:30px}
 .adm-shift-actions .adm-icon-btn:hover{border-color:#F1C9D4}
 @media(max-width:620px){
   .adm-req-card{flex-wrap:wrap}
   .adm-req-actions{width:100%}
   .adm-req-actions .button{flex:1;justify-content:center}
+  .adm-shift-row{grid-template-columns:32px minmax(0,1fr) 100px 66px}
   .adm-shift-when{display:none}
 }
 
