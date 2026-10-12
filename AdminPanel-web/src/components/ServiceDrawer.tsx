@@ -62,6 +62,143 @@ function toForm(service: ServiceItem | null): FormState {
   };
 }
 
+interface GalleryImage { id: string; imageUrl: string; sortOrder: number }
+
+/* Bỏ host khỏi URL tuyệt đối để so sánh và lưu đường dẫn gọn trong DB. */
+function toStoredPath(url: string): string {
+  return url.replace(/^https?:\/\/[^/]+/i, '');
+}
+
+/* Thư viện nhiều ảnh của dịch vụ: ảnh chính nằm ở services.image (ô phía
+   trên), các ảnh còn lại nằm ở service_images và hiện trong bộ sưu tập
+   ở trang chi tiết dịch vụ trên app khách. */
+function ServiceGallery({ serviceId, mainImage, onPickMain }: {
+  serviceId: string;
+  mainImage: string;
+  /** Đặt một ảnh gallery làm ảnh chính (điền vào ô ảnh dịch vụ). */
+  onPickMain: (path: string) => void;
+}) {
+  const [images, setImages] = useState<GalleryImage[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setError('');
+    sendAdmin<GalleryImage[]>(`/catalog/services/${serviceId}/images`, 'GET')
+      .then((result) => {
+        if (cancelled) return;
+        setLoaded(true);
+        if (result.ok) setImages(result.data);
+        else setError(result.message);
+      });
+    return () => { cancelled = true; };
+  }, [serviceId]);
+
+  async function addImage() {
+    const text = draft.trim();
+    if (!text) { setError('Dán đường dẫn ảnh trước khi thêm.'); return; }
+    if (!/^https?:\/\//i.test(text) && !/^\/uploads\//.test(text)) {
+      setError('Ảnh phải là đường dẫn http(s) hoặc bắt đầu bằng /uploads/.');
+      return;
+    }
+    setWorking(true);
+    setError('');
+    const result = await sendAdmin<GalleryImage>(
+      `/catalog/services/${serviceId}/images`, 'POST', { imageUrl: text });
+    setWorking(false);
+    if (!result.ok) { setError(result.message); return; }
+    setImages((prev) => [...prev, result.data]);
+    setDraft('');
+  }
+
+  async function deleteImage(image: GalleryImage) {
+    if (!window.confirm('Xoá ảnh này khỏi thư viện dịch vụ?')) return;
+    setWorking(true);
+    const result = await sendAdmin(
+      `/catalog/services/${serviceId}/images/${image.id}`, 'DELETE');
+    setWorking(false);
+    if (!result.ok) { setError(result.message); return; }
+    setImages((prev) => prev.filter((item) => item.id !== image.id));
+  }
+
+  const mainPath = toStoredPath(mainImage.trim());
+
+  return (
+    <>
+      {!loaded ? (
+        <div className="adm-skel adm-skel-panel" />
+      ) : images.length > 0 ? (
+        <ul className="adm-gallery">
+          {images.map((image) => {
+            const isMain = mainPath !== '' && toStoredPath(image.imageUrl) === mainPath;
+            return (
+              <li key={image.id} className={isMain ? 'is-main' : ''}>
+                <img src={safeImage(image.imageUrl)} alt="" loading="lazy" />
+                {isMain && <em>Ảnh chính</em>}
+                <div className="adm-gallery-actions">
+                  {!isMain && (
+                    <button type="button" disabled={working} title="Đặt làm ảnh chính"
+                      onClick={() => onPickMain(toStoredPath(image.imageUrl))}>
+                      <Icon name="star" />
+                    </button>
+                  )}
+                  <button type="button" disabled={working} title="Xoá ảnh" aria-label="Xoá ảnh"
+                    onClick={() => deleteImage(image)}>
+                    <Icon name="trash" />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="adm-field-note">
+          Chưa có ảnh nào trong thư viện. Ảnh ở đây hiện trong bộ sưu tập
+          ở trang chi tiết dịch vụ trên app khách.
+        </p>
+      )}
+      <div className="adm-gallery-add">
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} disabled={working}
+          placeholder="Dán link http(s) hoặc /uploads/… rồi bấm Thêm" />
+        <button type="button" className="button secondary" disabled={working} onClick={addImage}>
+          Thêm ảnh
+        </button>
+      </div>
+      {error && <p className="adm-error">{error}</p>}
+    </>
+  );
+}
+
+/* Dải ảnh xem nhanh ở chế độ chi tiết. */
+function ServiceGalleryStrip({ serviceId }: { serviceId: string }) {
+  const [images, setImages] = useState<GalleryImage[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    sendAdmin<GalleryImage[]>(`/catalog/services/${serviceId}/images`, 'GET')
+      .then((result) => {
+        if (!cancelled && result.ok) setImages(result.data);
+      });
+    return () => { cancelled = true; };
+  }, [serviceId]);
+
+  if (!images || images.length === 0) return null;
+  return (
+    <section className="adm-dblock">
+      <h4>Thư viện ảnh <em>{images.length} ảnh</em></h4>
+      <div className="adm-gallery-strip">
+        {images.map((image) => (
+          <img key={image.id} src={safeImage(image.imageUrl)} alt="" loading="lazy" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ServiceDrawer({ service, initialMode, categories, onClose, onChanged }: {
   /** null = thêm dịch vụ mới. */
   service: ServiceItem | null;
@@ -203,6 +340,21 @@ export function ServiceDrawer({ service, initialMode, categories, onClose, onCha
             </div>
             <small className="adm-field-note">Để trống giữ nguyên ảnh cũ. Chấp nhận link http(s) hoặc đường dẫn /uploads/.</small>
           </label>
+          {service ? (
+            <div className="adm-field">
+              <span>Thư viện ảnh</span>
+              <ServiceGallery serviceId={service.id} mainImage={form.image}
+                onPickMain={(path) => setForm((prev) => ({ ...prev, image: path }))} />
+              <small className="adm-field-note">
+                Ô phía trên là ảnh chính (hiện ở danh sách). Bấm ngôi sao trên
+                một ảnh để đặt nó làm ảnh chính, bấm thùng rác để xoá khỏi thư viện.
+              </small>
+            </div>
+          ) : (
+            <small className="adm-field-note">
+              Lưu dịch vụ trước, rồi mở Sửa để thêm nhiều ảnh vào thư viện.
+            </small>
+          )}
           <div className="adm-form-row">
             <label className="adm-field">
               <span>Danh mục</span>
@@ -308,6 +460,8 @@ export function ServiceDrawer({ service, initialMode, categories, onClose, onCha
           <p className="adm-walkin-note">{service.description}</p>
         </section>
       )}
+
+      <ServiceGalleryStrip serviceId={service.id} />
 
       {service.staffNames.length > 0 && (
         <section className="adm-dblock">

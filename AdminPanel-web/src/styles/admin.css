@@ -428,6 +428,25 @@ tr.adm-row-click:hover td{background:#FFFAFB}
 .adm-image-preview{width:52px;height:52px;flex:0 0 52px;border-radius:10px;object-fit:cover;
   background:var(--nh-blush)}
 .adm-image-preview.adm-thumb-blank{display:grid;place-items:center}
+/* Thư viện nhiều ảnh: lưới thumbnail, ảnh chính viền hồng + nhãn,
+   nút sao (đặt ảnh chính) và thùng rác (xoá) góc phải mỗi ảnh */
+.adm-gallery{list-style:none;margin:0;padding:0;display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.adm-gallery li{position:relative;border-radius:10px;overflow:hidden;
+  border:1px solid var(--nh-line);aspect-ratio:1;background:var(--nh-blush)}
+.adm-gallery img{width:100%;height:100%;object-fit:cover;display:block}
+.adm-gallery li.is-main{border-color:var(--nh-primary);box-shadow:0 0 0 1px var(--nh-primary)}
+.adm-gallery em{position:absolute;left:4px;bottom:4px;font-style:normal;font-size:10px;
+  font-weight:700;color:#fff;background:var(--nh-primary);border-radius:6px;padding:2px 7px}
+.adm-gallery-actions{position:absolute;top:4px;right:4px;display:flex;gap:4px}
+.adm-gallery-actions button{width:26px;height:26px;display:grid;place-items:center;
+  border-radius:7px;background:rgba(255,255,255,.94);color:var(--nh-primary-dark)}
+.adm-gallery-actions svg{width:14px;height:14px}
+.adm-gallery-add{display:flex;gap:8px;margin-top:8px}
+.adm-gallery-add input{flex:1;min-width:0}
+.adm-gallery-strip{display:flex;gap:8px;flex-wrap:wrap}
+.adm-gallery-strip img{width:64px;height:64px;border-radius:10px;object-fit:cover;
+  border:1px solid var(--nh-line)}
 
 /* Màn hình nhỏ: KPI xuống 3 rồi 2 cột, hộp Dashboard xuống 1 cột.
    Ngưỡng chọn theo việc năm thẻ còn đủ chỗ cho nhãn không bị cắt:

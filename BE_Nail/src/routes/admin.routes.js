@@ -54,6 +54,7 @@ import {
   upsertDraft,
 } from '../controllers/payroll.controller.js';
 import {
+  addServiceImage,
   assignServices,
   createCategory,
   createService,
@@ -62,7 +63,9 @@ import {
   deleteService,
   deleteStaff,
   listCategories,
+  listServiceImages,
   removeServiceFromStaff,
+  removeServiceImage,
   setCategoryStatus,
   setServiceStatus,
   setStaffStatus,
@@ -107,6 +110,12 @@ router.post('/catalog/services', createService);
 router.put('/catalog/services/:id', updateService);
 router.patch('/catalog/services/:id/status', setServiceStatus);
 router.delete('/catalog/services/:id', deleteService);
+
+/* Thư viện ảnh dịch vụ: ảnh chính nằm ở services.image, các ảnh còn lại
+   nằm ở service_images và được app khách đọc ở chi tiết dịch vụ. */
+router.get('/catalog/services/:id/images', listServiceImages);
+router.post('/catalog/services/:id/images', addServiceImage);
+router.delete('/catalog/services/:id/images/:imageId', removeServiceImage);
 
 router.get('/catalog/categories', listCategories);
 router.post('/catalog/categories', createCategory);

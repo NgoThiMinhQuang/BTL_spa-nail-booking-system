@@ -911,3 +911,88 @@ export async function removeServiceFromStaff(req, res, next) {
     connection.release();
   }
 }
+/* ================================================================
+   THƯ VIỆN ẢNH DỊCH VỤ (service_images)
+   ----------------------------------------------------------------
+   Ảnh chính nằm ở services.image (form sửa dịch vụ sửa đúng ô đó);
+   các ảnh còn lại nằm ở đây và được app khách đọc ở màn hình chi
+   tiết dịch vụ. Trước đây admin không có đường nào thêm/xoá nên
+   mỗi dịch vụ chỉ quản lý được đúng 1 ảnh.
+   ================================================================ */
+
+/** GET /api/admin/catalog/services/:id/images — toàn bộ ảnh gallery. */
+export async function listServiceImages(req, res, next) {
+  try {
+    const id = validId(req.params.id);
+    if (!id) return res.status(400).json({ message: 'Mã dịch vụ không hợp lệ.' });
+    if (!(await exists('services', 'service_id', id))) {
+      return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT image_id AS id, image_url AS path, sort_order AS sortOrder
+         FROM service_images WHERE service_id = ? ORDER BY sort_order, image_id`,
+      [id],
+    );
+    res.json({
+      data: rows.map((row) => ({
+        id: String(row.id),
+        sortOrder: Number(row.sortOrder),
+        imageUrl: imageUrl(req, row.path),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** POST /api/admin/catalog/services/:id/images { imageUrl } — thêm ảnh. */
+export async function addServiceImage(req, res, next) {
+  try {
+    const id = validId(req.params.id);
+    if (!id) return res.status(400).json({ message: 'Mã dịch vụ không hợp lệ.' });
+    if (!(await exists('services', 'service_id', id))) {
+      return res.status(404).json({ message: 'Không tìm thấy dịch vụ.' });
+    }
+
+    const path = cleanImage(req.body?.imageUrl ?? req.body?.image);
+    if (path === undefined) {
+      return res.status(400).json({ message: 'Ảnh phải là đường dẫn trong /uploads hoặc đường dẫn http(s).' });
+    }
+    if (!path) return res.status(400).json({ message: 'Thiếu đường dẫn ảnh.' });
+
+    /* Ảnh mới xếp cuối gallery. */
+    const [[maxRow]] = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), -1) AS m FROM service_images WHERE service_id = ?', [id]);
+    const [result] = await pool.query(
+      'INSERT INTO service_images (service_id, image_url, sort_order) VALUES (?,?,?)',
+      [id, path, Number(maxRow.m) + 1],
+    );
+    res.status(201).json({
+      data: { id: String(result.insertId), imageUrl: imageUrl(req, path), sortOrder: Number(maxRow.m) + 1 },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** DELETE /api/admin/catalog/services/:id/images/:imageId — xoá 1 ảnh. */
+export async function removeServiceImage(req, res, next) {
+  try {
+    const id = validId(req.params.id);
+    const imageId = validId(req.params.imageId);
+    if (!id || !imageId) {
+      return res.status(400).json({ message: 'Mã dịch vụ hoặc mã ảnh không hợp lệ.' });
+    }
+
+    /* Phải đúng ảnh của đúng dịch vụ — không xoá nhầm ảnh dịch vụ khác. */
+    const [result] = await pool.query(
+      'DELETE FROM service_images WHERE image_id = ? AND service_id = ?', [imageId, id]);
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'Không tìm thấy ảnh này của dịch vụ.' });
+    }
+    res.json({ data: { id: String(imageId), removed: true } });
+  } catch (error) {
+    next(error);
+  }
+}

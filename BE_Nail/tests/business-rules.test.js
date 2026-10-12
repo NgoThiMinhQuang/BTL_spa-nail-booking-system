@@ -2838,3 +2838,95 @@ describe('Thanh toan dung nghiep vu', () => {
     }
   });
 });
+
+/* Thu vien anh dich vu: truoc day admin khong co duong nao them/xoa nen
+   form sua dich vu chi sua duoc dung 1 anh chinh (services.image). */
+describe('Thu vien anh dich vu', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const mockGet = () => 'localhost:3000';
+  const baseReq = (params = {}, body = {}) => ({
+    params, body, protocol: 'http', get: mockGet,
+  });
+
+  test('them anh gallery roi doc lai thay duoc', async () => {
+    const { addServiceImage, listServiceImages, removeServiceImage } =
+      await import('../src/controllers/catalog.controller.js');
+    const connection = await connect();
+    let imageId = null;
+    try {
+      const created = mockRes();
+      await addServiceImage(
+        baseReq({ id: '1' }, { imageUrl: '/uploads/nails/gallery-test-1.png' }),
+        created, strictNext);
+      assert.equal(created.statusCode, 201);
+      imageId = created.body.data.id;
+      assert.ok(created.body.data.imageUrl.includes('/uploads/nails/gallery-test-1.png'));
+
+      const listed = mockRes();
+      await listServiceImages(baseReq({ id: '1' }), listed, strictNext);
+      assert.equal(listed.statusCode, 200);
+      assert.ok(listed.body.data.some((img) => String(img.id) === String(imageId)));
+
+      const removed = mockRes();
+      await removeServiceImage(
+        baseReq({ id: '1', imageId: String(imageId) }), removed, strictNext);
+      assert.equal(removed.statusCode, 200);
+      imageId = null;
+
+      const again = mockRes();
+      await listServiceImages(baseReq({ id: '1' }), again, strictNext);
+      assert.ok(!again.body.data.some((img) => String(img.id) === String(created.body.data.id)));
+    } finally {
+      if (imageId) {
+        await connection.query('DELETE FROM service_images WHERE image_id = ?', [imageId]);
+      }
+      await connection.end();
+    }
+  });
+
+  test('anh la bi chan, dich vu khong ton tai bao 404', async () => {
+    const { addServiceImage, listServiceImages, removeServiceImage } =
+      await import('../src/controllers/catalog.controller.js');
+
+    const bad = mockRes();
+    await addServiceImage(
+      baseReq({ id: '1' }, { imageUrl: 'javascript:alert(1)' }), bad, strictNext);
+    assert.equal(bad.statusCode, 400);
+
+    const missing = mockRes();
+    await addServiceImage(
+      baseReq({ id: '999999' }, { imageUrl: '/uploads/nails/x.png' }), missing, strictNext);
+    assert.equal(missing.statusCode, 404);
+
+    const missingList = mockRes();
+    await listServiceImages(baseReq({ id: '999999' }), missingList, strictNext);
+    assert.equal(missingList.statusCode, 404);
+
+    /* Xoa nham anh cua dich vu khac phai 404, khong mat anh. */
+    const connection = await connect();
+    let imageId = null;
+    try {
+      const [r] = await connection.query(
+        "INSERT INTO service_images (service_id, image_url, sort_order) VALUES (1, '/uploads/nails/gallery-guard.png', 99)");
+      imageId = r.insertId;
+      const wrong = mockRes();
+      await removeServiceImage(
+        baseReq({ id: '2', imageId: String(imageId) }), wrong, strictNext);
+      assert.equal(wrong.statusCode, 404);
+      const [[kept]] = await connection.query(
+        'SELECT COUNT(*) AS n FROM service_images WHERE image_id = ?', [imageId]);
+      assert.equal(Number(kept.n), 1);
+    } finally {
+      if (imageId) await connection.query('DELETE FROM service_images WHERE image_id = ?', [imageId]);
+      await connection.end();
+    }
+  });
+});
