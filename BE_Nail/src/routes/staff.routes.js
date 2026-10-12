@@ -5,6 +5,7 @@ import {
   createScheduleRequest,
   listMyLeaveRequests,
   listMyScheduleRequests,
+  reportEmergencyLeave,
 } from '../controllers/request.controller.js';
 import {
   checkIn,
@@ -32,6 +33,9 @@ router.get('/dashboard', authenticate, requireStaff, staffDashboard);
 /* Yêu cầu nghỉ — chỉ tạo cho chính mình, không tự duyệt được. */
 router.post('/leave-requests', authenticate, requireStaff, createLeaveRequest);
 router.get('/leave-requests', authenticate, requireStaff, listMyLeaveRequests);
+/* Báo nghỉ đột xuất: biểu mẫu riêng, server tự tính khoảng nghỉ từ ca
+   hôm nay — không nhận giờ do frontend gửi lên. */
+router.post('/leave-requests/emergency', authenticate, requireStaff, reportEmergencyLeave);
 
 /* Yêu cầu lịch làm việc — chỉ gửi đề nghị, chưa có hiệu lực. */
 router.post('/schedule-requests', authenticate, requireStaff, createScheduleRequest);

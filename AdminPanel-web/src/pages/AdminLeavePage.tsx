@@ -5,10 +5,10 @@
 
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
-import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
+import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
 import { useApp } from '../store';
 import { sendAdmin } from '../lib/admin-api';
-import { fmtDay } from '../lib/utils';
+import { fmtDay, fmtTime } from '../lib/utils';
 import type { LeaveItem } from '../store';
 
 type Filter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
@@ -25,6 +25,83 @@ const STATUS_TEXT: Record<LeaveItem['status'], string> = {
   APPROVED: 'Đã duyệt',
   REJECTED: 'Đã từ chối',
 };
+
+const REASON_TEXT: Record<string, string> = {
+  HEALTH: 'Sức khỏe',
+  FAMILY: 'Gia đình khẩn cấp',
+  PERSONAL: 'Sự cố cá nhân',
+  OTHER: 'Lý do khác',
+};
+
+/* Một sự cố nghỉ đột xuất: ai nghỉ, khoảng nào, vì nhóm lý do gì, từng
+   lịch bị ảnh hưởng đang ở đâu (chờ xử lý hay đã đổi sang người khác).
+   Không có nút Duyệt/Từ chối ở đây — đơn đã có hiệu lực từ lúc báo. */
+function IncidentCard({ item }: { item: LeaveItem }) {
+  const { openBookingDetail } = useApp();
+  const [expanded, setExpanded] = useState(item.affectedList.length > 0);
+  const waiting = item.affectedList.filter(
+    (b) => (b.currentStaffId ?? item.staffId) === item.staffId);
+  const handed = item.affectedList.length - waiting.length;
+
+  return (
+    <li className="adm-req-card">
+      <div className="adm-req-copy">
+        <div className="adm-req-head">
+          <strong>{item.staffName}</strong>
+          <span className="badge cancelled"><i />Nghỉ đột xuất</span>
+          {item.affectedList.length === 0
+            ? <span className="badge completed"><i />Hoàn tất xử lý</span>
+            : <span className="badge pending"><i />Còn {waiting.length} lịch chờ</span>}
+        </div>
+        <p>
+          {fmtDay(item.startDatetime.slice(0, 10))} · {fmtTime(item.startDatetime)} – {fmtTime(item.endDatetime)}
+          {item.reasonCategory ? ` · ${REASON_TEXT[item.reasonCategory] ?? item.reasonCategory}` : ''}
+          {item.reason ? ` · ${item.reason}` : ''}
+        </p>
+        {handed > 0 && (
+          <p className="adm-field-note">Đã đổi {handed} lịch sang nhân viên khác.</p>
+        )}
+        {item.affectedList.length > 0 && (
+          <button className="adm-link" onClick={() => setExpanded((open) => !open)}>
+            {expanded ? 'Ẩn danh sách lịch ▴' : `Xem ${item.affectedList.length} lịch ảnh hưởng ▾`}
+          </button>
+        )}
+        {expanded && item.affectedList.length > 0 && (
+          <div className="table-scroll">
+            <table className="adm-table">
+              <thead>
+                <tr><th>Giờ</th><th>Dịch vụ</th><th>Khách</th><th>Trạng thái</th><th>Người giữ</th><th /></tr>
+              </thead>
+              <tbody>
+                {item.affectedList.map((b) => {
+                  const moved = (b.currentStaffId ?? item.staffId) !== item.staffId;
+                  return (
+                    <tr key={b.id}>
+                      <td><strong>{fmtTime(b.startsAt)}</strong></td>
+                      <td>{b.serviceName}</td>
+                      <td>{b.customerName}</td>
+                      <td><StatusBadge status={b.status} /></td>
+                      <td>
+                        {moved
+                          ? <span className="badge completed"><i />→ {b.currentStaffName ?? 'người khác'}</span>
+                          : <span className="adm-none">{item.staffName}</span>}
+                      </td>
+                      <td>
+                        <button className="adm-link" onClick={() => openBookingDetail(b.id)}>
+                          Mở lịch →
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
 
 function LeaveRow({ item, index, onDone }: { item: LeaveItem; index: number; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -68,7 +145,12 @@ function LeaveRow({ item, index, onDone }: { item: LeaveItem; index: number; onD
         <strong>{item.staffName}</strong>
         <small>{item.specialty ?? '—'}</small>
       </td>
-      <td>{item.reason ?? <span className="adm-none">—</span>}</td>
+      <td>
+        {item.leaveType === 'EMERGENCY' && item.reasonCategory && (
+          <><strong>{REASON_TEXT[item.reasonCategory] ?? item.reasonCategory}</strong><br /></>
+        )}
+        {item.reason ?? <span className="adm-none">—</span>}
+      </td>
       <td>
         {item.affectedBookings > 0
           ? (
@@ -117,6 +199,9 @@ export function AdminLeavePage() {
   );
   const blocked = pending.reduce((sum, item) => sum + item.affectedBookings, 0)
     + emergencyOpen.reduce((sum, item) => sum + item.affectedBookings, 0);
+  const incidents = leave
+    .filter((item) => item.leaveType === 'EMERGENCY')
+    .sort((a, b) => b.startDatetime.localeCompare(a.startDatetime));
 
   return (
     <>
@@ -130,6 +215,23 @@ export function AdminLeavePage() {
         <StatTile tone="lavender" icon="ban" label="Đã từ chối" value={leave.filter((i) => i.status === 'REJECTED').length}
           note="yêu cầu không duyệt" />
       </div>
+
+      <Panel>
+        <SectionHeading
+          icon={<Icon name="pause" />}
+          title="Sự cố nghỉ đột xuất"
+          subtitle={emergencyOpen.length > 0
+            ? `${emergencyOpen.reduce((sum, item) => sum + item.affectedList.length, 0)} lịch chờ bàn giao`
+            : 'Không có sự cố cần xử lý'}
+        />
+        {incidents.length === 0 ? (
+          <EmptyState title="Chưa có sự cố nghỉ đột xuất" detail="Nhân viên báo nghỉ đột xuất sẽ hiện ở đây kèm từng lịch cần bàn giao." />
+        ) : (
+          <ul className="adm-req-list">
+            {incidents.map((item) => <IncidentCard key={item.id} item={item} />)}
+          </ul>
+        )}
+      </Panel>
 
       <Panel>
         <SectionHeading

@@ -171,7 +171,7 @@ export function SchedulePage() {
         <div className="schedule-aside">
           <WorkdayCard />
           <MiniCalendar />
-          <LeaveRequestPanel />
+          <LeaveSection />
           {upcoming.length > 0 && (
             <section className="panel upcoming-panel">
               <div className="section-heading"><h2>Lịch sắp tới</h2></div>
@@ -201,6 +201,7 @@ interface LeaveRequest {
   endDatetime: string;
   reason: string | null;
   leaveType?: 'NORMAL' | 'EMERGENCY';
+  reasonCategory?: 'HEALTH' | 'FAMILY' | 'PERSONAL' | 'OTHER' | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewNote: string | null;
   reviewerName: string | null;
@@ -213,64 +214,60 @@ const LEAVE_STATUS: Record<LeaveRequest['status'], string> = {
   REJECTED: 'Đã từ chối',
 };
 
-/* Xin nghỉ phép: nhân viên gửi khoảng nghỉ, quản trị duyệt mới có hiệu
-   lực. Trước đây không có màn hình nào gọi API này nên nhân viên không
-   xin nghỉ được từ giao diện. */
-function LeaveRequestPanel() {
-  const [items, setItems] = useState<LeaveRequest[]>([]);
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [reason, setReason] = useState('');
-  const [emergency, setEmergency] = useState(false);
+const REASON_GROUPS: { key: NonNullable<LeaveRequest['reasonCategory']>; label: string; hint: string }[] = [
+  { key: 'HEALTH', label: 'Sức khỏe', hint: 'Ốm, mệt, chấn thương' },
+  { key: 'FAMILY', label: 'Gia đình khẩn cấp', hint: 'Việc nhà gấp' },
+  { key: 'PERSONAL', label: 'Sự cố cá nhân', hint: 'Xe hỏng, giấy tờ…' },
+  { key: 'OTHER', label: 'Lý do khác', hint: 'Ghi thêm ở dưới' },
+];
+
+const REASON_LABEL: Record<string, string> = {
+  HEALTH: 'Sức khỏe',
+  FAMILY: 'Gia đình khẩn cấp',
+  PERSONAL: 'Sự cố cá nhân',
+  OTHER: 'Lý do khác',
+};
+
+/* Báo nghỉ đột xuất: biểu mẫu riêng cho sự cố trong ngày, KHÔNG nhập
+   ngày giờ — server tự tính khoảng nghỉ từ ca hôm nay (chưa tới ca thì
+   nghỉ cả ca, đang trong ca thì nghỉ từ lúc báo). */
+function EmergencyLeavePanel({ onDone }: { onDone: () => void }) {
+  const { state } = useApp();
+  const [category, setCategory] = useState<NonNullable<LeaveRequest['reasonCategory']>>('HEALTH');
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [open, setOpen] = useState(false);
 
-  async function load() {
-    try {
-      /* apiRequest đã bóc sẵn .data nên kiểu là mảng, không phải { data }. */
-      const rows = await apiRequest<LeaveRequest[]>('/api/staff/leave-requests');
-      setItems(Array.isArray(rows) ? rows : []);
-    } catch {
-      /* Lỗi tải danh sách không chặn form gửi mới. */
-    }
-  }
-
-  useEffect(() => { load(); }, []);
+  const today = localDate();
+  const shift = state.data!.shifts.find((s) => s.date === today && s.status === 'AVAILABLE');
+  const now = new Date();
+  const nowHM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  /* Xem trước khoảng nghỉ để nhân viên biết; server mới quyết định cuối. */
+  const previewText = !shift ? null
+    : nowHM < shift.start ? shift.start + '–' + shift.end + ' (cả ca)'
+    : nowHM < shift.end ? nowHM + '–' + shift.end + ' (từ lúc này)'
+    : null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!start || !end) {
-      setMessage('Hãy chọn thời gian bắt đầu và kết thúc.');
-      return;
-    }
-    if (emergency && !reason.trim()) {
-      setMessage('Nghỉ đột xuất cần ghi rõ lý do (VD: sốt, việc gia đình gấp).');
-      return;
-    }
     setBusy(true);
     setMessage('');
     try {
-      /* datetime-local ra 'YYYY-MM-DDTHH:mm' — backend nhận 'YYYY-MM-DD HH:mm'. */
-      const saved = await apiRequest<LeaveRequest>('/api/staff/leave-requests', {
+      const saved = await apiRequest<LeaveRequest>('/api/staff/leave-requests/emergency', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startDatetime: start.replace('T', ' '),
-          endDatetime: end.replace('T', ' '),
-          reason: reason.trim() || undefined,
-          leave_type: emergency ? 'EMERGENCY' : 'NORMAL',
-        }),
+        body: JSON.stringify({ reasonCategory: category, note: note.trim() || undefined }),
       });
-      setStart('');
-      setEnd('');
-      setReason('');
-      setEmergency(false);
+      setNote('');
+      setCategory('HEALTH');
       setOpen(false);
-      setMessage(emergency
-        ? `Đã ghi nhận nghỉ đột xuất. Hệ thống đã chặn nhận khách mới${(saved as LeaveRequest)?.affectedBookings ? `, còn ${(saved as LeaveRequest).affectedBookings} lịch cần quản trị xử lý` : ''}.`
-        : 'Đã gửi yêu cầu. Quản trị duyệt thì kỳ nghỉ mới có hiệu lực.');
-      await load();
+      setMessage('Đã ghi nhận báo nghỉ đột xuất thành công. Hệ thống đã tạm ngừng nhận lịch hẹn mới'
+        + ' trong thời gian nghỉ. Quản trị viên đã được thông báo để sắp xếp'
+        + ((saved as LeaveRequest)?.affectedBookings
+          ? ' ' + (saved as LeaveRequest).affectedBookings + ' lịch hẹn bị ảnh hưởng.'
+          : ' các lịch hẹn bị ảnh hưởng.'));
+      onDone();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
     } finally {
@@ -278,13 +275,106 @@ function LeaveRequestPanel() {
     }
   }
 
-  const pending = items.filter((item) => item.status === 'PENDING').length;
+  return (
+    <section className="panel leave-panel emergency-panel">
+      <div className="section-heading">
+        <h2>Báo nghỉ đột xuất</h2>
+        <span className="emergency-flag">Nghỉ ngay</span>
+      </div>
+      {!shift ? (
+        <p className="booking-action-note">Bạn không có ca làm việc hôm nay nên không cần báo nghỉ đột xuất.</p>
+      ) : !previewText ? (
+        <p className="booking-action-note">Ca làm việc hôm nay đã kết thúc. Vui lòng liên hệ quản trị viên nếu cần điều chỉnh chấm công.</p>
+      ) : !open ? (
+        <button className="leave-open emergency-open" onClick={() => { setOpen(true); setMessage(''); }}>
+          <span aria-hidden="true">🚨</span> Báo nghỉ đột xuất ({previewText})
+        </button>
+      ) : (
+        <form className="leave-form" onSubmit={submit}>
+          <div className="emergency-shift">
+            Ca hôm nay: <strong>{shift.start}–{shift.end}</strong>
+            {' · '}Nghỉ dự kiến: <strong>{previewText}</strong>
+          </div>
+          <div className="reason-grid" role="radiogroup" aria-label="Nhóm lý do nghỉ">
+            {REASON_GROUPS.map((g) => (
+              <label key={g.key} className={'reason-card' + (category === g.key ? ' is-on' : '')}>
+                <input type="radio" name="leave-reason" checked={category === g.key}
+                  onChange={() => setCategory(g.key)} disabled={busy} />
+                <strong>{g.label}</strong>
+                <small>{g.hint}</small>
+              </label>
+            ))}
+          </div>
+          <label>
+            <span>Ghi chú thêm (không bắt buộc)</span>
+            <input value={note} maxLength={500}
+              onChange={(e) => setNote(e.target.value)} disabled={busy}
+              placeholder="Không cần ghi chi tiết riêng tư…" />
+          </label>
+          <p className="emergency-confirm">
+            Khi xác nhận, hệ thống sẽ ngừng nhận lịch hẹn mới trong thời gian nghỉ
+            và thông báo cho quản trị viên để xử lý những lịch hẹn bị ảnh hưởng.
+          </p>
+          <div className="leave-actions">
+            <button type="button" className="leave-cancel" disabled={busy}
+              onClick={() => setOpen(false)}>Hủy bỏ</button>
+            <button type="submit" className="leave-submit" disabled={busy}>
+              {busy ? 'Đang gửi…' : 'Báo nghỉ ngay'}
+            </button>
+          </div>
+        </form>
+      )}
+      {message && <p className="booking-action-note">{message}</p>}
+    </section>
+  );
+}
+
+/* Xin nghỉ phép (có kế hoạch): nhân viên gửi khoảng nghỉ, quản trị duyệt
+   mới có hiệu lực. Tách riêng khỏi báo nghỉ đột xuất. */
+function NormalLeavePanel({ onDone }: { onDone: () => void }) {
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [open, setOpen] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!start || !end) {
+      setMessage('Hãy chọn thời gian bắt đầu và kết thúc.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      /* datetime-local ra 'YYYY-MM-DDTHH:mm' — backend nhận 'YYYY-MM-DD HH:mm'. */
+      await apiRequest<LeaveRequest>('/api/staff/leave-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDatetime: start.replace('T', ' '),
+          endDatetime: end.replace('T', ' '),
+          reason: reason.trim() || undefined,
+        }),
+      });
+      setStart('');
+      setEnd('');
+      setReason('');
+      setOpen(false);
+      setMessage('Đã gửi yêu cầu. Quản trị duyệt thì kỳ nghỉ mới có hiệu lực.');
+      onDone();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Không gửi được yêu cầu.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <section className="panel leave-panel">
       <div className="section-heading">
         <h2>Xin nghỉ phép</h2>
-        {pending > 0 && <span className="period-caption">{pending} chờ duyệt</span>}
       </div>
       {!open ? (
         <button className="leave-open" onClick={() => { setOpen(true); setMessage(''); }}>
@@ -308,49 +398,82 @@ function LeaveRequestPanel() {
               onChange={(e) => setReason(e.target.value)} disabled={busy}
               placeholder="Ví dụ: việc gia đình…" />
           </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 600 }}>
-            <input type="checkbox" checked={emergency}
-              onChange={(e) => setEmergency(e.target.checked)} disabled={busy} />
-            <span>🚨 Báo nghỉ đột xuất (nghỉ ngay, chặn nhận khách mới)</span>
-          </label>
           <div className="leave-actions">
             <button type="button" className="leave-cancel" disabled={busy}
               onClick={() => setOpen(false)}>Hủy bỏ</button>
             <button type="submit" className="leave-submit" disabled={busy}>
-              {busy ? 'Đang gửi…' : emergency ? 'Báo nghỉ ngay' : 'Gửi yêu cầu'}
+              {busy ? 'Đang gửi…' : 'Gửi yêu cầu'}
             </button>
           </div>
         </form>
       )}
       {message && <p className="booking-action-note">{message}</p>}
-      {items.length > 0 && (
-        <ul className="leave-list">
-          {items.slice(0, 5).map((item) => (
-            <li key={item.id}>
-              <div>
-                <strong>
-                  {String(item.startDatetime).slice(0, 16).replace('T', ' ')}
-                  {' → '}
-                  {String(item.endDatetime).slice(0, 16).replace('T', ' ')}
-                </strong>
-                <small>
-                  {item.leaveType === 'EMERGENCY' ? '🚨 Đột xuất · ' : ''}{LEAVE_STATUS[item.status]}
-                  {item.reviewerName ? ` bởi ${item.reviewerName}` : ''}
-                  {item.reviewNote ? ` — ${item.reviewNote}` : ''}
-                </small>
-              </div>
-              <span className={`badge ${item.status === 'PENDING' ? 'pending'
-                : item.status === 'APPROVED' ? 'completed' : 'cancelled'}`}>
-                <i />{LEAVE_STATUS[item.status]}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
 
+/* Lịch sử nghỉ chung của cả hai loại. */
+function LeaveHistory({ items }: { items: LeaveRequest[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section className="panel leave-panel">
+      <div className="section-heading"><h2>Lịch sử nghỉ</h2></div>
+      <ul className="leave-list">
+        {items.slice(0, 5).map((item) => (
+          <li key={item.id}>
+            <div>
+              <strong>
+                {String(item.startDatetime).slice(0, 16).replace('T', ' ')}
+                {' → '}
+                {String(item.endDatetime).slice(0, 16).replace('T', ' ')}
+              </strong>
+              <small>
+                {item.leaveType === 'EMERGENCY'
+                  ? '🚨 Đột xuất' + (item.reasonCategory ? ' · ' + (REASON_LABEL[item.reasonCategory] ?? '') : '') + ' · '
+                  : ''}{LEAVE_STATUS[item.status]}
+                {item.reviewerName ? ' bởi ' + item.reviewerName : ''}
+                {item.reviewNote ? ' — ' + item.reviewNote : ''}
+              </small>
+            </div>
+            <span className={'badge ' + (item.status === 'PENDING' ? 'pending'
+              : item.status === 'APPROVED' ? 'completed' : 'cancelled')}>
+              <i />{LEAVE_STATUS[item.status]}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function LeaveSection() {
+  const [items, setItems] = useState<LeaveRequest[]>([]);
+
+  async function load() {
+    try {
+      /* apiRequest đã bóc sẵn .data nên kiểu là mảng, không phải { data }. */
+      const rows = await apiRequest<LeaveRequest[]>('/api/staff/leave-requests');
+      setItems(Array.isArray(rows) ? rows : []);
+    } catch {
+      /* Lỗi tải danh sách không chặn form gửi mới. */
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const pending = items.filter((item) => item.status === 'PENDING').length;
+
+  return (
+    <>
+      <EmergencyLeavePanel onDone={load} />
+      <NormalLeavePanel onDone={load} />
+      {pending > 0 && (
+        <p className="booking-action-note">Có {pending} yêu cầu nghỉ phép chờ duyệt.</p>
+      )}
+      <LeaveHistory items={items} />
+    </>
+  );
+}
 function usePeriodCaption() {  const { state } = useApp();
   const dates = useMemo(() => {
     const anchor = new Date(`${state.date}T12:00:00`);

@@ -330,6 +330,9 @@ export async function createBooking(req, res, next) {
      CONFIRMED → hủy được nếu còn trên 2 giờ
      PROCESSING / COMPLETED / CANCELLED / NO_SHOW → không hủy được
 
+   Ngoại lệ: lịch đang bị biến động do nhân viên nghỉ đột xuất thì hủy
+   sát giờ vẫn được và hoàn đủ (lỗi từ phía cửa hàng, không mất cọc).
+
    Chỉ chính chủ lịch hủy được: so sánh booking.customer_id với
    req.user.customerId. Không dựa vào việc frontend ẩn nút.
    ================================================================ */
@@ -339,7 +342,7 @@ export async function cancelBooking(req, res, next) {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
 
-    const reason = String(req.body?.reason ?? '').trim().slice(0, 255) || 'Khách hủy lịch';
+    const customReason = String(req.body?.reason ?? '').trim().slice(0, 255);
 
     await connection.beginTransaction();
     const [[booking]] = await connection.query(
@@ -368,14 +371,23 @@ export async function cancelBooking(req, res, next) {
 
     /* Đã xác nhận rồi thì phải còn trên 2 giờ mới hủy được — cửa hàng cần
        thời gian sắp xếp lại nhân viên. Đúng 2:00:00 cũng không (xem
-       isCancelWindowOpen). */
-    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+       isCancelWindowOpen). Lịch bị biến động do nhân viên nghỉ đột xuất
+       thì hủy sát giờ vẫn được (lỗi từ phía cửa hàng). */
+    const disruption = await activeDisruption(connection, id);
+    if (booking.status === 'CONFIRMED' && !disruption && !isCancelWindowOpen(booking.startsAt)) {
       await connection.rollback();
       return res.status(409).json({
         message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
           + `nên không thể tự hủy. Vui lòng liên hệ cửa hàng.`,
       });
     }
+
+    /* Hủy do cửa hàng không phục vụ được thì ghi rõ lý do phía cửa hàng
+       (khách không nhập thì dùng câu mặc định), để lịch sử phân biệt với
+       khách tự hủy. */
+    const reason = disruption
+      ? (customReason || 'Cửa hàng không phục vụ được (nhân viên nghỉ đột xuất)')
+      : (customReason || 'Khách hủy lịch');
 
     await connection.query(
       `UPDATE booking
@@ -385,11 +397,10 @@ export async function cancelBooking(req, res, next) {
       [reason, id],
     );
 
-    /* Khách hủy: chỉ mất CỌC, phần đã trả thừa được hoàn lại.
-       VD đã trả đủ 500.000 (cọc 150.000) rồi hủy đúng luật thì giữ 150.000,
-       hoàn 350.000. Không có cọc nào được ghi thì hoàn toàn bộ. */
+    /* Lỗi từ phía cửa hàng thì hoàn đủ, không mất cọc. Khách tự hủy thì
+       chỉ mất CỌC, phần đã trả thừa được hoàn lại. */
     const settled = await settleCancelPayment(connection, id, {
-      mode: 'DEPOSIT_ONLY', createdBy: req.user.customerId ?? null,
+      mode: disruption ? 'FULL' : 'DEPOSIT_ONLY', createdBy: req.user.customerId ?? null,
     });
     const forfeited = settled.forfeited;
 
@@ -410,9 +421,12 @@ export async function cancelBooking(req, res, next) {
         id: String(id), status: 'CANCELLED', cancelReason: reason,
         forfeited,
         refunded: settled.refunded,
-        forfeitMessage: forfeited > 0
-          ? `Tiền cọc (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.`
-          : null,
+        shopFault: Boolean(disruption),
+        forfeitMessage: disruption && settled.refunded > 0
+          ? `Cửa hàng không phục vụ được nên bạn được hoàn đủ ${settled.refunded.toLocaleString('vi-VN')} đ.`
+          : forfeited > 0
+            ? `Tiền cọc (${forfeited.toLocaleString('vi-VN')} đ) không được hoàn lại.`
+            : null,
       },
     });
   } catch (error) {
@@ -430,8 +444,24 @@ export async function cancelBooking(req, res, next) {
    nhân viên và dịch vụ, chạy lại đúng bộ luật khả dụng (ca, nghỉ,
    trùng lịch) rồi mới lưu. Tiền cọc/thanh toán giữ nguyên theo lịch.
    Chỉ PENDING/CONFIRMED được đổi; CONFIRMED phải còn trên 2 giờ như
-   luật hủy (cùng CANCEL_WINDOW_HOURS).
+   luật hủy (cùng CANCEL_WINDOW_HOURS) — trừ khi lịch đang bị biến động
+   do nhân viên nghỉ đột xuất thì được đổi sát giờ.
    ================================================================ */
+/* Sự cố nghỉ đột xuất đang tác động lịch này: nhân viên hiện tại có đơn
+   EMERGENCY APPROVED trùng giờ lịch và chưa kết thúc. Khách được đổi
+   giờ/đổi người bỏ qua giới hạn 2 giờ, hủy thì hoàn đủ (lỗi cửa hàng). */
+async function activeDisruption(runner, bookingId) {
+  const [[row]] = await runner.query(
+    `SELECT lr.leave_request_id AS id
+       FROM booking b
+       JOIN staff_leave_request lr ON lr.staff_id = b.staff_id
+      WHERE b.booking_id = ?
+        AND lr.leave_type = 'EMERGENCY' AND lr.status = 'APPROVED'
+        AND lr.start_datetime < b.end_time AND lr.end_datetime > b.start_time
+        AND lr.end_datetime > NOW() LIMIT 1`, [bookingId]);
+  return row ?? null;
+}
+
 export async function rescheduleBooking(req, res, next) {
   const connection = await pool.getConnection();
   try {
@@ -468,7 +498,10 @@ export async function rescheduleBooking(req, res, next) {
         message: `Lịch đang ở trạng thái "${booking.status}" nên không đổi giờ được.`,
       });
     }
-    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+    /* Lịch bị biến động do nhân viên nghỉ đột xuất thì được đổi sát giờ —
+       lỗi từ phía cửa hàng, không bắt khách chịu giới hạn 2 giờ. */
+    const disruption = await activeDisruption(connection, id);
+    if (booking.status === 'CONFIRMED' && !disruption && !isCancelWindowOpen(booking.startsAt)) {
       await connection.rollback();
       return res.status(409).json({
         message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
@@ -544,8 +577,9 @@ export async function rescheduleBooking(req, res, next) {
    tại khung giờ cũ. Tiền cọc/thanh toán giữ nguyên theo lịch.
 
    Chỉ PENDING/CONFIRMED được đổi; CONFIRMED còn dưới 2 giờ thì liên hệ
-   cửa hàng (cùng luật với tự đổi giờ). Người mới phải làm được dịch vụ
-   và rảnh đúng khung giờ — chạy lại đúng bộ luật khả dụng rồi mới lưu.
+   cửa hàng — trừ khi lịch đang bị biến động thì được đổi sát giờ.
+   Người mới phải làm được dịch vụ và rảnh đúng khung giờ — chạy lại
+   đúng bộ luật khả dụng rồi mới lưu.
    ================================================================ */
 export async function getStaffOptions(req, res, next) {
   try {
@@ -616,7 +650,9 @@ export async function changeBookingStaff(req, res, next) {
         message: `Lịch đang ở trạng thái "${booking.status}" nên không đổi nhân viên được.`,
       });
     }
-    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+    /* Lịch bị biến động do nhân viên nghỉ đột xuất thì được đổi sát giờ. */
+    const disruption = await activeDisruption(connection, id);
+    if (booking.status === 'CONFIRMED' && !disruption && !isCancelWindowOpen(booking.startsAt)) {
       await connection.rollback();
       return res.status(409).json({
         message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `

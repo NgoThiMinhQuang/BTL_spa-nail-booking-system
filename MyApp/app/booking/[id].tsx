@@ -81,24 +81,31 @@ export default function BookingDetailScreen() {
 
   async function askCancel() {
     if (!booking) return;
-    Alert.alert('Hủy lịch hẹn', 'Bạn có chắc muốn hủy lịch này?', [
-      { text: 'Giữ lại', style: 'cancel' },
-      {
-        text: 'Hủy lịch', style: 'destructive',
-        onPress: async () => {
-          setBusy(true);
-          setMessage('');
-          try {
-            await cancelBooking(booking.id);
-            await load();
-          } catch (e) {
-            setMessage(e instanceof ApiError ? e.message : 'Không hủy được. Hãy thử lại.');
-          } finally {
-            setBusy(false);
-          }
+    const disrupted = booking.disruption?.type === 'STAFF_EMERGENCY_LEAVE' && cancellable;
+    Alert.alert(
+      disrupted ? 'Hủy lịch (được hoàn đủ)' : 'Hủy lịch hẹn',
+      disrupted
+        ? 'Cửa hàng không phục vụ được nên bạn được hoàn đủ số tiền đã trả. Xác nhận hủy?'
+        : 'Bạn có chắc muốn hủy lịch này?',
+      [
+        { text: 'Giữ lại', style: 'cancel' },
+        {
+          text: disrupted ? 'Hủy & hoàn đủ' : 'Hủy lịch', style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            setMessage('');
+            try {
+              const result = await cancelBooking(booking.id);
+              await load();
+              setMessage(result.forfeitMessage ?? 'Đã hủy lịch.');
+            } catch (e) {
+              setMessage(e instanceof ApiError ? e.message : 'Không hủy được. Hãy thử lại.');
+            } finally {
+              setBusy(false);
+            }
+          },
         },
-      },
-    ]);
+      ]);
   }
 
   const reschedulable = booking
@@ -283,18 +290,22 @@ export default function BookingDetailScreen() {
             </View>
             <Text style={styles.warnText}>
               {booking.disruption.staffName ?? 'Nhân viên'} không thể phục vụ lịch này.
-              Bạn chọn hủy lịch hoặc đổi sang nhân viên khác — giờ hẹn và tiền cọc giữ nguyên.
+              Bạn chọn đổi nhân viên hoặc dời lịch — giờ hẹn và tiền cọc giữ nguyên.
+              Hủy lúc này được hoàn đủ vì lỗi từ phía cửa hàng.
             </Text>
             <View style={styles.rescheduleActions}>
-              <Pressable disabled={busy} onPress={askCancel}
-                style={[styles.button, styles.redButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
-                <Text style={styles.buttonText}>Hủy lịch</Text>
-              </Pressable>
               <Pressable disabled={busy} onPress={openStaffSheet}
                 style={[styles.button, styles.pinkButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
                 <Text style={styles.buttonText}>Đổi nhân viên</Text>
               </Pressable>
+              <Pressable disabled={busy} onPress={openReschedule}
+                style={[styles.button, styles.greenButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
+                <Text style={styles.buttonText}>Dời lịch</Text>
+              </Pressable>
             </View>
+            <Pressable disabled={busy} onPress={askCancel} style={{ marginTop: 4 }}>
+              <Text style={styles.retryText}>Hủy lịch (được hoàn đủ)</Text>
+            </Pressable>
           </View>
         )}
 

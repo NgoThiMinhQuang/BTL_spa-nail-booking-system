@@ -1714,34 +1714,110 @@ describe('Smoke controller Admin va Staff', () => {
     }
   });
 
-  test('nghi dot xuat tu duyet va chan booking moi ngay', async () => {
+  test('bao nghi dot xuat tu tinh khoang nghi tu ca hom nay', async () => {
     const reqCtl = await import('../src/controllers/request.controller.js');
     const { checkStaffAvailable } = await import('../src/lib/staff-availability.js');
-    const now = new Date();
-    const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
-      + '-' + String(d.getDate()).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0')
-      + ':' + String(d.getMinutes()).padStart(2, '0');
-    const start = new Date(now.getTime() + 60 * 60000);
-    const end = new Date(now.getTime() + 3 * 60 * 60000);
     const user = { staffId: 9001, userId: 9002, name: 'Nhan vien Test' };
-
-    const created = mockRes();
-    await reqCtl.createLeaveRequest(
-      { body: { startDatetime: fmt(start), endDatetime: fmt(end), reason: 'Sot', leave_type: 'EMERGENCY' }, user },
-      created, strictNext);
-    assert.equal(created.statusCode, 201);
-    assert.equal(created.body.data.status, 'APPROVED');
-
-    const blocked = await checkStaffAvailable({
-      staffId: 9001, serviceId: 1,
-      startsAt: fmt(start), endsAt: fmt(end),
-    });
-    assert.equal(blocked.ok, false);
-
     const connection = await connect();
-    try {
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const hm = (d) => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    const dayText = () => {
+      const n = new Date();
+      return n.getFullYear() + '-' + pad2(n.getMonth() + 1) + '-' + pad2(n.getDate());
+    };
+    const clean = async () => {
+      const [ids] = await connection.query('SELECT leave_request_id AS id FROM staff_leave_request WHERE staff_id = 9001');
+      if (ids.length) {
+        await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id IN (?)", [ids.map((r) => r.id)]);
+      }
       await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
+    };
+    const addShift = (from, to) => connection.query(
+      "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, CURDATE(), ?, ?, 'AVAILABLE')",
+      [from + ':00', to + ':00']);
+    const report = (body) => {
+      const res = mockRes();
+      return reqCtl.reportEmergencyLeave({ body, user }, res, strictNext).then(() => res);
+    };
+    let leaveLive = false;
+    try {
+      await clean();
+      /* FULL_SHIFT can cu bat dau sau hien tai trong cung ngay. Gan nua dem
+         (ca tran ngay) thi bo qua nhanh FULL, van kiem cac nhanh khac. */
+      const fStart = new Date(Date.now() + 30 * 60000);
+      const fEnd = new Date(Date.now() + 90 * 60000);
+      if (fEnd.getDate() === new Date().getDate()) {
+        await addShift(hm(fStart), hm(fEnd));
+        const created = await report({ reasonCategory: 'HEALTH', note: 'Sot' });
+        assert.equal(created.statusCode, 201);
+        assert.equal(created.body.data.status, 'APPROVED');
+        assert.equal(created.body.data.windowSource, 'FULL_SHIFT');
+        assert.equal(created.body.data.reasonCategory, 'HEALTH');
+        const [[row]] = await connection.query(
+          'SELECT DATE_FORMAT(start_datetime,?) AS s, DATE_FORMAT(end_datetime,?) AS e FROM staff_leave_request WHERE staff_id = 9001 ORDER BY leave_request_id DESC LIMIT 1',
+          ['%H:%i', '%H:%i']);
+        assert.equal(row.s, hm(fStart));
+        assert.equal(row.e, hm(fEnd));
+
+        const blocked = await checkStaffAvailable({
+          staffId: 9001, serviceId: 1,
+          startsAt: dayText() + ' ' + hm(fStart), endsAt: dayText() + ' ' + hm(fEnd),
+        });
+        assert.equal(blocked.ok, false);
+        leaveLive = true;
+      }
+
+      /* MID_SHIFT: ca 00:00-23:59, nghi tu luc bao. Bo qua 60 giay cuoi ngay. */
+      await clean();
+      leaveLive = false;
+      const eod = new Date();
+      eod.setHours(23, 59, 0, 0);
+      if (Date.now() < eod.getTime()) {
+        await addShift('00:00', '23:59');
+        const mid = await report({ reasonCategory: 'PERSONAL' });
+        assert.equal(mid.statusCode, 201);
+        assert.equal(mid.body.data.windowSource, 'MID_SHIFT');
+        assert.ok(String(mid.body.data.startDatetime).slice(0, 10) === dayText());
+        assert.ok(String(mid.body.data.endDatetime).endsWith('23:59:00'));
+        leaveLive = true;
+      }
+
+      /* Bao lan hai trung khoang -> 409 (can don dang song). */
+      if (leaveLive) {
+        const twice = await report({ reasonCategory: 'FAMILY' });
+        assert.equal(twice.statusCode, 409);
+      }
+
+      /* Nhom ly do sai -> 400. */
+      const badCat = await report({ reasonCategory: 'KHONG_CO' });
+      assert.equal(badCat.statusCode, 400);
+
+      /* Ca da ket thuc -> 409. */
+      await clean();
+      leaveLive = false;
+      await addShift(hm(new Date(Date.now() - 2 * 60 * 60000)), hm(new Date(Date.now() - 60 * 60000)));
+      const ended = await report({ reasonCategory: 'PERSONAL' });
+      assert.equal(ended.statusCode, 409);
+
+      /* Khong co ca -> 409. */
+      await clean();
+      const none = await report({ reasonCategory: 'OTHER' });
+      assert.equal(none.statusCode, 409);
+
+      /* Duong cu chi nhan nghi thuong. */
+      const legacy = mockRes();
+      await reqCtl.createLeaveRequest(
+        { body: { startDatetime: '2030-01-01 09:00', endDatetime: '2030-01-01 18:00', leave_type: 'EMERGENCY' }, user },
+        legacy, strictNext);
+      assert.equal(legacy.statusCode, 400);
     } finally {
+      const [left] = await connection.query('SELECT leave_request_id AS id FROM staff_leave_request WHERE staff_id = 9001');
+      if (left.length) {
+        await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id IN (?)", [left.map((r) => r.id)]);
+      }
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
       await connection.end();
     }
   });
@@ -2549,30 +2625,44 @@ describe('Thong bao nghi dot xuat', () => {
     + ':' + String(d.getMinutes()).padStart(2, '0');
 
   test('bao nghi dot xuat thi khach co tin INAPP trong hop thu', async () => {
-    const { createLeaveRequest } = await import('../src/controllers/request.controller.js');
+    const { reportEmergencyLeave } = await import('../src/controllers/request.controller.js');
     const { listMine } = await import('../src/controllers/notification.controller.js');
     const connection = await connect();
     let bookingId = null;
+    const staffUser = { staffId: 9001, userId: 9002, name: 'Nhan vien Test' };
+    const customerUser = { customerId: 9001, userId: 9001 };
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const hm = (d) => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    const dayText = () => {
+      const n = new Date();
+      return n.getFullYear() + '-' + pad2(n.getMonth() + 1) + '-' + pad2(n.getDate());
+    };
     try {
-      const start = new Date(Date.now() + 2 * 86400000);
-      start.setHours(9, 0, 0, 0);
-      const end = new Date(start.getTime() + 75 * 60000);
-      const pad2 = (n) => String(n).padStart(2, '0');
-      const day = start.getFullYear() + '-' + pad2(start.getMonth() + 1) + '-' + pad2(start.getDate());
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, CURDATE(), '00:00:00', '23:59:00', 'AVAILABLE')");
+      /* Lich hom nay, sau hien tai 30 phut. */
+      const bStart = new Date(Date.now() + 30 * 60000);
+      const bEnd = new Date(bStart.getTime() + 75 * 60000);
+      const sameDay = bStart.getDate() === new Date().getDate()
+        && bEnd.getDate() === new Date().getDate();
+      const fmtDay = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
       const [b] = await connection.query(
         "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9001, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
-        [day + ' 09:00:00', day + ' 10:15:00']);
+        [fmtDay(bStart) + ' ' + hm(bStart) + ':00', fmtDay(bEnd) + ' ' + hm(bEnd) + ':00']);
       bookingId = b.insertId;
 
-      const leaveStart = fmt(new Date(Date.now() + 30 * 60000));
-      const leaveEnd = day + ' 18:00';
       const created = mockRes();
-      await createLeaveRequest(
-        { body: { startDatetime: leaveStart, endDatetime: leaveEnd, reason: 'Sot', leave_type: 'EMERGENCY' }, user: staffUser },
+      await reportEmergencyLeave(
+        { body: { reasonCategory: 'HEALTH', note: 'Sot' }, user: staffUser },
         created, strictNext);
       assert.equal(created.statusCode, 201);
-      assert.ok((created.body.data.notifiedCustomers ?? 0) >= 1);
 
+      /* Sat nua dem lich co the roi sang ngay mai, ngoai khoang nghi hom nay:
+         truong hop do chi kiem don tao, khong kiem tin overlap. */
+      if (!sameDay) return;
+      assert.ok((created.body.data.notifiedCustomers ?? 0) >= 1);
       const inbox = mockRes();
       await listMine({ query: {}, user: customerUser }, inbox, strictNext);
       assert.equal(inbox.statusCode, 200);
@@ -2583,6 +2673,7 @@ describe('Thong bao nghi dot xuat', () => {
     } finally {
       await connection.query('DELETE FROM notification WHERE ref_type = ? AND ref_id = ?', ['booking', bookingId]);
       await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
       if (bookingId) await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
       await connection.end();
     }
@@ -3038,29 +3129,21 @@ describe('Nghi dot xuat bao admin', () => {
   const moment = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
   test('bao nghi dot xuat thi admin co INAPP', async () => {
-    const { createLeaveRequest } = await import('../src/controllers/request.controller.js');
+    const { reportEmergencyLeave } = await import('../src/controllers/request.controller.js');
     const connection = await connect();
     let leaveId = null;
     try {
       const [admins] = await connection.query(
         "SELECT user_id AS userId FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE'");
       assert.ok(admins.length > 0, 'DB test phai co admin');
-      const before = new Map();
-      for (const admin of admins) {
-        const [[row]] = await connection.query(
-          "SELECT COUNT(*) AS n FROM notification WHERE user_id = ? AND ref_type = 'leave_request' AND channel = 'INAPP'",
-          [admin.userId]);
-        before.set(String(admin.userId), Number(row.n));
-      }
+      await connection.query('DELETE FROM staff_leave_request WHERE staff_id = 9001');
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (9001, CURDATE(), '00:00:00', '23:59:00', 'AVAILABLE')");
 
-      const start = new Date(Date.now() + 60 * 60000);
-      const end = new Date(Date.now() + 2 * 60 * 60000);
       const res = mockRes();
-      await createLeaveRequest({
-        body: {
-          startDatetime: moment(start), endDatetime: moment(end),
-          reason: 'Om dot xuat', leaveType: 'EMERGENCY',
-        },
+      await reportEmergencyLeave({
+        body: { reasonCategory: 'HEALTH', note: 'Om dot xuat' },
         user: { staffId: 9001, name: 'NV Test Dot Xuat' },
       }, res, strictNext);
       assert.equal(res.statusCode, 201);
@@ -3071,8 +3154,7 @@ describe('Nghi dot xuat bao admin', () => {
         const [[row]] = await connection.query(
           "SELECT COUNT(*) AS n FROM notification WHERE user_id = ? AND ref_type = 'leave_request' AND ref_id = ? AND channel = 'INAPP'",
           [admin.userId, leaveId]);
-        assert.equal(Number(row.n), 1, `admin ${admin.userId} phai co 1 INAPP`);
-        void before;
+        assert.equal(Number(row.n), 1, 'admin ' + admin.userId + ' phai co 1 INAPP');
       }
       assert.ok(Number(res.body.data.notifiedAdmins) >= admins.length);
     } finally {
@@ -3080,6 +3162,7 @@ describe('Nghi dot xuat bao admin', () => {
         await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id = ?", [leaveId]);
         await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id = ?', [leaveId]);
       }
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id = 9001 AND work_date = CURDATE()');
       await connection.end();
     }
   });
@@ -3407,6 +3490,189 @@ describe('Khach tu doi nhan vien', () => {
       await connection.query('DELETE FROM staff_service WHERE staff_id IN (9713, 9714, 9715)');
       await connection.query('DELETE FROM staff WHERE staff_id IN (9713, 9714, 9715)');
       await connection.query('DELETE FROM users WHERE user_id IN (9713, 9714, 9715)');
+      await connection.end();
+    }
+  });
+});
+
+/* Su co nghi dot xuat: khach duoc doi gio/doi nguoi sat gio, huy hoan du. */
+describe('Mien tru su co nghi dot xuat', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const owner = { customerId: 9001, name: 'Khach Test' };
+  const req = (params = {}, body = {}, user = owner) => ({
+    params, body, user, protocol: 'http', get: () => 'localhost:3000',
+  });
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDay = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  const hm = (d) => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  const dt = (d) => fmtDay(d) + ' ' + hm(d) + ':00';
+
+  async function makeStaff(connection, n) {
+    await connection.query(
+      'INSERT INTO users (user_id, full_name, phone, email, password, role, status) VALUES (?,?,?,?,\'$2b$10$testseed\',\'STAFF\',\'ACTIVE\')',
+      [9700 + n, 'NV Mien Tru ' + n, '093976' + String(n).padStart(4, '0'), 'nvmt' + n + '@test.local']);
+    await connection.query(
+      'INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (?,?,?,?)',
+      [9700 + n, 9700 + n, 'Test', 1]);
+    await connection.query(
+      'INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (?, 1)', [9700 + n]);
+    for (const dayOff of [0, 1]) {
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (?, CURDATE() + INTERVAL ? DAY, '00:00:00', '23:59:00', 'AVAILABLE')",
+        [9700 + n, dayOff]);
+    }
+  }
+
+  async function makeBooking(connection, staffId, startOffsetMin, lenMin = 75) {
+    const s = new Date(Date.now() + startOffsetMin * 60000);
+    const e = new Date(s.getTime() + lenMin * 60000);
+    const [b] = await connection.query(
+      "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+      [staffId, dt(s), dt(e)]);
+    return { id: b.insertId, start: s, end: e };
+  }
+
+  async function wipeAll(connection, ids) {
+    const { staffIds, bookingIds, leaveIds } = ids;
+    if (bookingIds.length) {
+      await connection.query('DELETE FROM payment_transaction WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query('DELETE FROM payment WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query('DELETE FROM booking_event WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query('DELETE FROM notification WHERE ref_type = ? AND ref_id IN (?)', ['booking', bookingIds]);
+      await connection.query('DELETE FROM booking WHERE booking_id IN (?)', [bookingIds]);
+    }
+    if (leaveIds.length) {
+      await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id IN (?)", [leaveIds]);
+      await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id IN (?)', [leaveIds]);
+    }
+    if (staffIds.length) {
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM staff_service WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM staff WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM users WHERE user_id IN (?)', [staffIds]);
+    }
+  }
+
+  /* Don nghi che bang SQL khoang bao lich (xac dinh, khong phu thuoc gio chay test).
+     Duong endpoint da co test rieng o khoi Bao nghi. */
+  async function forceLeave(connection, staffId, start, end, category = 'HEALTH') {
+    const [r] = await connection.query(
+      "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, reason_category, status, reviewed_at, review_note) VALUES (?, ?, ?, 'Test', 'EMERGENCY', ?, 'APPROVED', NOW(), 'auto')",
+      [staffId, dt(start), dt(end), category]);
+    return r.insertId;
+  }
+
+  test('doi gio va doi nguoi sat gio khi co su co', async () => {
+    const ctl = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9721, 9722], bookingIds: [], leaveIds: [] };
+    try {
+      await makeStaff(connection, 21);
+      await makeStaff(connection, 22);
+      const bk = await makeBooking(connection, 9721, 60);
+      track.bookingIds.push(bk.id);
+      /* Lich CONFIRMED con duoi 2 gio: khong su co thi doi gio bi chan. */
+      const control = await makeBooking(connection, 9722, 60);
+      track.bookingIds.push(control.id);
+
+      track.leaveIds.push(await forceLeave(connection, 9721,
+        new Date(bk.start.getTime() - 60 * 60000), new Date(bk.end.getTime() + 60 * 60000)));
+
+      /* Doi gio ra slot TRONG khoang nghi la sai nghiep vu (backend chan
+         dung) — doi sang sau khi khoang nghi ket thuc de kiem mien tru 2h. */
+      const ns = new Date(bk.end.getTime() + 60 * 60000);
+      const ne = new Date(ns.getTime() + 75 * 60000);
+      const rs = mockRes();
+      await ctl.rescheduleBooking(
+        req({ id: String(bk.id) }, { date: fmtDay(ns), time: hm(ns) }), rs, strictNext);
+      assert.equal(rs.statusCode, 200);
+
+      /* Doi sang nguoi con lai -> 200. */
+      const cs = mockRes();
+      await ctl.changeBookingStaff(
+        req({ id: String(bk.id) }, { staffId: 9722 }), cs, strictNext);
+      assert.equal(cs.statusCode, 200);
+      assert.equal(cs.body.data.staffId, '9722');
+
+      /* Lich khong su co doi gio sat gio van 409. */
+      const denied = mockRes();
+      await ctl.rescheduleBooking(
+        req({ id: String(control.id) }, { date: fmtDay(ns), time: hm(ns) }), denied, strictNext);
+      assert.equal(denied.statusCode, 409);
+    } finally {
+      await wipeAll(connection, track);
+      await connection.end();
+    }
+  });
+
+  test('huy khi co su co thi hoan du, khong mat coc', async () => {
+    const ctl = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9723], bookingIds: [], leaveIds: [] };
+    try {
+      await makeStaff(connection, 23);
+      const bk = await makeBooking(connection, 9723, 60);
+      track.bookingIds.push(bk.id);
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 50000, 'CASH', 'DEPOSITED', NOW())",
+        [bk.id]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 50000, 'CASH', NOW(), NULL)",
+        [bk.id]);
+      track.leaveIds.push(await forceLeave(connection, 9723,
+        new Date(bk.start.getTime() - 60 * 60000), new Date(bk.end.getTime() + 60 * 60000)));
+
+      const res = mockRes();
+      await ctl.cancelBooking(req({ id: String(bk.id) }, {}), res, strictNext);
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.data.shopFault, true);
+      assert.equal(Number(res.body.data.forfeited), 0);
+      assert.equal(Number(res.body.data.refunded), 50000);
+      const [[pay]] = await connection.query(
+        'SELECT payment_status AS st FROM payment WHERE booking_id = ?', [bk.id]);
+      assert.equal(pay.st, 'REFUNDED');
+    } finally {
+      await wipeAll(connection, track);
+      await connection.end();
+    }
+  });
+
+  test('danh sach admin biet nguoi dang giu tung lich', async () => {
+    const ctl = await import('../src/controllers/booking.controller.js');
+    const reqCtl = await import('../src/controllers/request.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9724, 9725], bookingIds: [], leaveIds: [] };
+    try {
+      await makeStaff(connection, 24);
+      await makeStaff(connection, 25);
+      const bk = await makeBooking(connection, 9724, 60);
+      track.bookingIds.push(bk.id);
+      track.leaveIds.push(await forceLeave(connection, 9724,
+        new Date(bk.start.getTime() - 60 * 60000), new Date(bk.end.getTime() + 60 * 60000), 'FAMILY'));
+
+      const changed = mockRes();
+      await ctl.changeBookingStaff(
+        req({ id: String(bk.id) }, { staffId: 9725 }), changed, strictNext);
+      assert.equal(changed.statusCode, 200);
+
+      const listed = mockRes();
+      await reqCtl.listLeaveRequests({ query: {} }, listed, strictNext);
+      const incident = listed.body.data.find((r) => String(r.id) === String(track.leaveIds[0]));
+      assert.ok(incident, 'phai thay su co trong danh sach');
+      assert.equal(incident.reasonCategory, 'FAMILY');
+      assert.equal(incident.affectedList.length, 1);
+      assert.equal(incident.affectedList[0].currentStaffId, '9725');
+      assert.equal(incident.affectedList[0].currentStaffName, 'NV Mien Tru 25');
+    } finally {
+      await wipeAll(connection, track);
       await connection.end();
     }
   });

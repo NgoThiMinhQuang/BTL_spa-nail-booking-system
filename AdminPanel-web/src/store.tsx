@@ -261,12 +261,14 @@ export interface LeaveItem {
   id: string; staffId: string; staffName: string; specialty: string | null;
   startDatetime: string; endDatetime: string; reason: string | null;
   leaveType: 'NORMAL' | 'EMERGENCY';
+  reasonCategory: 'HEALTH' | 'FAMILY' | 'PERSONAL' | 'OTHER' | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewNote: string | null; reviewerName: string | null;
   affectedBookings: number;
   affectedList: {
     id: string; startsAt: string; endsAt: string;
     serviceName: string; customerName: string;
+    status: string; currentStaffId: string | null; currentStaffName: string | null;
   }[];
 }
 

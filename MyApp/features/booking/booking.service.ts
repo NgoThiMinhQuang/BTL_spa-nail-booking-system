@@ -121,15 +121,21 @@ export async function fetchBookings(): Promise<Booking[]> {  const response = aw
  *
  * Backend quyết định được hủy hay không:
  *   PENDING   → hủy ngay
- *   CONFIRMED → hủy khi còn trên 2 giờ
+ *   CONFIRMED → hủy khi còn trên 2 giờ (trừ lịch bị biến động do lỗi cửa hàng)
  *   còn lại    → không hủy được
  * Nên ứng dụng gửi lên rồi hiện thông báo lỗi từ server, không tự suy đoán.
+ * Lỗi cửa hàng thì được hoàn đủ — backend trả shopFault + forfeitMessage.
  */
-export async function cancelBooking(id: string, reason?: string): Promise<void> {
-  await api(`/api/bookings/${id}/cancel`, {
+export async function cancelBooking(id: string, reason?: string): Promise<{
+  forfeited: number; refunded: number; shopFault: boolean; forfeitMessage: string | null;
+}> {
+  const response = await api<ApiResponse<{
+    forfeited: number; refunded: number; shopFault: boolean; forfeitMessage: string | null;
+  }>>(`/api/bookings/${id}/cancel`, {
     method: 'PATCH',
     body: JSON.stringify({ reason }),
   });
+  return response.data;
 }
 
 /**

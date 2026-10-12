@@ -30,6 +30,18 @@
 .leave-cancel:hover{background:#F6F0F2}
 .leave-cancel:disabled{opacity:.45;cursor:wait}
 .leave-panel .booking-action-note{margin:12px 16px 0;padding:10px 12px;border-radius:8px;background:#FFF3F6;font-size:13px;line-height:1.5;box-sizing:border-box}
+/* Biểu mẫu báo nghỉ đột xuất: tách riêng khỏi xin nghỉ phép */
+.emergency-flag{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#FBE3EA;color:#B4232F;font-size:12px;font-weight:700;white-space:nowrap}
+.emergency-open{border-color:#EFC3CF;background:#FDF0F4;color:#B4232F}
+.emergency-open:hover{background:#FBE3EA}
+.emergency-shift{margin:0;padding:10px 12px;border-radius:8px;background:#FCFAFB;border:1px solid #F0E7EB;font-size:13px;color:#493B40;box-sizing:border-box}
+.reason-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.reason-card{display:flex;flex-direction:column;gap:2px;margin:0;padding:10px 12px;border-radius:10px;border:1px solid #EADFE3;background:#FCFAFB;cursor:pointer;box-sizing:border-box}
+.reason-card input{position:absolute;opacity:0;pointer-events:none;min-height:0;padding:0}
+.reason-card strong{font-size:13px;color:#493B40}
+.reason-card small{font-size:11.5px;color:#8A7B80}
+.reason-card.is-on{border-color:#c74a70;background:#FDF0F4;box-shadow:0 0 0 3px rgba(213,107,129,.12)}
+.emergency-confirm{margin:0;font-size:12.5px;line-height:1.6;color:#8A7B80}
 .leave-list{list-style:none;margin:12px 16px 0;padding:12px 0 0;border-top:1px solid #F3E9EC;display:grid;gap:10px;box-sizing:border-box}
 .leave-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;background:#FCFAFB;border:1px solid #F0E7EB;border-radius:10px;padding:10px 12px}
 .leave-list li strong{display:block;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
