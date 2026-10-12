@@ -25,8 +25,8 @@ function projectId(): string | undefined {
 
 /**
  * Xin quyền + lấy Expo push token + đăng ký lên backend.
- * Trả null khi: máy ảo (không đẩy được), chưa đăng nhập, hoặc thiếu
- * EAS projectId — các trường hợp này hộp thư trong app vẫn hoạt động.
+ * Trả null khi: máy ảo (không đẩy được) hoặc chưa đăng nhập.
+ * Hộp thư trong app vẫn hoạt động khi không đẩy được ra màn hình.
  */
 export async function setupPushNotifications(): Promise<string | null> {
   try {
@@ -40,8 +40,11 @@ export async function setupPushNotifications(): Promise<string | null> {
     if (status !== 'granted') return null;
 
     const pid = projectId();
-    if (!pid) return null;
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId: pid })).data;
+    /* Có projectId (EAS) thì dùng; chưa có (mới chỉ chạy Expo Go) thì thử
+       không projectId — Expo Go vẫn cấp được token để test ngay. */
+    const token = (await (pid
+      ? Notifications.getExpoPushTokenAsync({ projectId: pid })
+      : Notifications.getExpoPushTokenAsync())).data;
     if (!token) return null;
 
     if (Platform.OS === 'android') {

@@ -14,6 +14,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:booking": "node scripts/smoke-booking.mjs",
     "smoke:scope": "node scripts/check-staff-scope.mjs",
+    "push:test": "node scripts/send-test-push.mjs",
     "vnpay:check": "node scripts/check-vnpay.mjs"
   },
   "dependencies": {

@@ -41,7 +41,7 @@ export default function ProfileScreen() {
       .catch(() => { if (active) setError('Không thể tải thông tin cá nhân.'); })
       .finally(() => { if (active) setLoading(false); });
     /* Đã đăng nhập rồi mới đăng ký được push — mỗi lần vào Cá nhân thử
-       một lần (hàm tự bỏ qua khi chưa login / máy ảo / thiếu projectId). */
+       một lần (hàm tự bỏ qua khi chưa login hoặc máy ảo). */
     setupPushNotifications();
     fetchInbox().then(
       (inbox) => { if (active) setUnread(inbox.unread); },
