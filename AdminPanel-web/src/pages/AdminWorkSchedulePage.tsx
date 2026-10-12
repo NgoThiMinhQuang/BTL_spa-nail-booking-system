@@ -403,9 +403,9 @@ export function AdminWorkSchedulePage() {
             ) : (
               <div style={{ padding: '4px 16px 16px' }}>
                 {[...shiftsByDate.entries()].map(([date, list]) => (
-                  <section key={date} className="adm-day-group">
+                  <section key={date} className={`adm-day-group${date === today() ? ' is-today' : ''}`}>
                     <h4>
-                      {weekdayShort(date)} · {fmtDayShort(date)}
+                      <span className="adm-day-chip">{weekdayShort(date)} · {fmtDayShort(date)}</span>
                       {date === today() && <span className="badge pending"><i />Hôm nay</span>}
                       <em>{list.length} ca</em>
                     </h4>
@@ -413,8 +413,11 @@ export function AdminWorkSchedulePage() {
                       {list.map((shift) => {
                         const hours = Math.round(
                           (timeToMinutes(shift.endTime) - timeToMinutes(shift.startTime)) / 60 * 10) / 10;
+                        const tone = shift.status === 'OFF'
+                          ? 'is-off'
+                          : shift.bookingCount > 0 ? 'is-busy' : 'is-free';
                         return (
-                          <li key={shift.id} className="adm-shift-row">
+                          <li key={shift.id} className={`adm-shift-row ${tone}`}>
                             <Avatar name={shift.staffName}
                               url={staffById.get(shift.staffId)?.avatarUrl ?? shift.avatarUrl} size={32} />
                             <span className="adm-shift-who">

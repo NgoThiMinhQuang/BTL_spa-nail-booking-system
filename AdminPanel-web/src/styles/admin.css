@@ -249,23 +249,33 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
 
 /* ---- Danh sách ca gom theo ngày ---- */
 .adm-day-group{margin:0 0 4px}
-.adm-day-group>h4{display:flex;align-items:center;gap:8px;margin:14px 0 6px;
-  font-size:12px;font-weight:600;letter-spacing:.6px;color:var(--nh-muted);text-transform:uppercase}
-.adm-day-group>h4 em{margin-left:auto;font-style:normal;text-transform:none;
-  letter-spacing:0;font-weight:400}
-.adm-day-group>ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.adm-shift-row{display:flex;align-items:center;gap:12px;padding:9px 12px;
-  border:1px solid var(--nh-line);border-radius:12px;background:#fff}
-.adm-shift-row:hover{background:#FDFAFB}
+.adm-day-group>h4{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+.adm-day-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:10px;
+  background:#F4F2F6;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--nh-ink);
+  text-transform:uppercase;font-variant-numeric:tabular-nums}
+.adm-day-group.is-today .adm-day-chip{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-day-group>h4 em{margin-left:auto;font-style:normal;font-size:11.5px;color:var(--nh-muted)}
+.adm-day-group>ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+/* Thẻ ca: nền tint + viền trái theo trạng thái, ăn màu với ma trận tuần */
+.adm-shift-row{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 14px;
+  border:1px solid var(--nh-line);border-left-width:4px;border-radius:13px;background:#fff;
+  box-shadow:0 1px 3px rgba(45,36,48,.05);transition:box-shadow .15s,transform .15s}
+.adm-shift-row:hover{box-shadow:0 5px 16px -8px rgba(45,36,48,.25)}
+.adm-shift-row.is-busy{background:#F1F8F4;border-color:#E2EFE8;border-left-color:var(--nh-sage)}
+.adm-shift-row.is-free{background:#FAF9FC;border-color:#ECE9F1;border-left-color:#C9BED6}
+.adm-shift-row.is-off{background:#FDF6F8;border-color:#F6E2E9;border-left-color:#E5B7C4}
 .adm-shift-who{flex:1;min-width:0}
 .adm-shift-who strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-shift-who small{display:block;font-size:11px;color:var(--nh-muted);margin-top:1px}
-.adm-shift-when{text-align:right}
+.adm-shift-when{text-align:right;background:#fff;border:1px solid var(--nh-line);
+  border-radius:10px;padding:6px 11px;box-shadow:0 1px 2px rgba(45,36,48,.05)}
 .adm-shift-when strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .adm-shift-when small{font-size:11px;color:var(--nh-muted)}
-.adm-shift-actions{display:flex;gap:4px}
+.adm-shift-actions{display:flex;gap:6px}
+.adm-shift-actions .adm-icon-btn{border:1px solid var(--nh-line);background:#fff;width:30px;height:30px}
+.adm-shift-actions .adm-icon-btn:hover{border-color:#F1C9D4}
 @media(max-width:620px){
   .adm-req-card{flex-wrap:wrap}
   .adm-req-actions{width:100%}
