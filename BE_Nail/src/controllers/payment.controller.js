@@ -13,6 +13,7 @@ import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
 import { canPaymentTransition, finalAmount, resolvePaymentAmount } from '../lib/payment-state.js';
 import { notifyCustomer } from '../lib/notifications.js';
+import { confirmRefundManually, processRefundTxn } from '../lib/payment-transactions.js';
 import { METHOD_TEXT, sendReceiptEmail } from '../lib/customer-mail.js';
 import { recordCashFlow } from '../lib/payment-transactions.js';
 import { SETTLED_STATUSES } from '../lib/booking-state.js';
@@ -364,6 +365,43 @@ export async function getMyPayments(req, res, next) {
         };
       }),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+/* ================================================================
+   Thử lại / chốt tay một dòng hoàn tiền (P0.4)
+   ----------------------------------------------------------------
+   - retry: gọi lại cổng VNPay cho dòng FAILED (hoặc PENDING quá hạn).
+     Chỉ dòng ONLINE thật mới gọi được cổng; hoàn tay thì báo rõ.
+   - confirm: Admin xác nhận đã hoàn tay (tiền mặt/chuyển khoản ngoài
+     cổng, hoặc đã xử lý với VNPay bằng tay). Ghi lịch sử đầy đủ.
+   ================================================================ */
+
+/** POST /api/admin/payments/refunds/:txnId/retry — thử lại hoàn qua cổng. */
+export async function retryRefund(req, res, next) {
+  try {
+    const result = await processRefundTxn(req.params.txnId);
+    if (!result.ok) {
+      return res.status(result.manual ? 409 : 502).json({ message: result.message });
+    }
+    res.json({ data: { id: String(req.params.txnId), status: result.status } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** POST /api/admin/payments/refunds/:txnId/confirm {note} — chốt đã hoàn tay. */
+export async function confirmRefund(req, res, next) {
+  try {
+    const note = String(req.body?.note ?? '').trim().slice(0, 255) || null;
+    const result = await confirmRefundManually(req.params.txnId, {
+      note, adminName: req.user?.name ?? 'Quản trị viên',
+    });
+    if (!result.ok) {
+      return res.status(409).json({ message: result.message });
+    }
+    res.json({ data: { id: String(req.params.txnId), status: result.status } });
   } catch (error) {
     next(error);
   }

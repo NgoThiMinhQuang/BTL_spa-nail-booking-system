@@ -3894,3 +3894,525 @@ describe('Coc va doi soat P0', () => {
     }
   });
 });
+
+/* P0.4 + P0.5 + P1: hoan tien that, parity VNPay, chong dat trung, bao khach,
+   giu ky nang, ban giao, nghi van lam, khoa lich su, gio tuong lai, cho NO_SHOW. */
+describe('P0 P1 dot quet', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const owner = { customerId: 9001, name: 'Khach Test' };
+  const adminUser = { userId: 9004, name: 'Quan tri Test' };
+  const staffUser = (sid) => ({ staffId: sid, userId: 9000 + sid, name: 'NV Test' });
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDay = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  const hm = (d) => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  const dt = (d) => fmtDay(d) + ' ' + hm(d) + ':00';
+  const req = (params = {}, body = {}, user = owner) => ({
+    params, body, user, protocol: 'http', get: () => 'localhost:3000',
+  });
+
+  async function makeStaff(connection, n, dayOff = 2) {
+    const id = 9850 + n;
+    await connection.query(
+      "INSERT INTO users (user_id, full_name, phone, email, password, role, status) VALUES (?,?,?,?,'$2b$10$testseed','STAFF','ACTIVE')",
+      [id, 'NV Quet ' + n, '093985' + String(n).padStart(4, '0'), 'nvquet' + n + '@test.local']);
+    await connection.query(
+      'INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (?,?,?,?)',
+      [id, id, 'Test', 1]);
+    await connection.query(
+      'INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (?, 1)', [id]);
+    for (const off of [0, 1, dayOff]) {
+      await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (?, CURDATE() + INTERVAL ? DAY, '00:00:00', '23:59:00', 'AVAILABLE')",
+        [id, off]);
+    }
+    return id;
+  }
+
+  async function wipe(connection, staffIds, bookingIds, leaveIds = []) {
+    if (bookingIds.length) {
+      await connection.query('DELETE FROM payment_transaction WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query('DELETE FROM payment WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query('DELETE FROM booking_event WHERE booking_id IN (?)', [bookingIds]);
+      await connection.query("DELETE FROM notification WHERE ref_type = 'booking' AND ref_id IN (?)", [bookingIds]);
+    }
+    if (leaveIds.length) {
+      await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id IN (?)", [leaveIds]);
+      await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id IN (?)', [leaveIds]);
+    }
+    if (staffIds.length) {
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM staff_service WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM staff WHERE staff_id IN (?)', [staffIds]);
+      await connection.query('DELETE FROM users WHERE user_id IN (?)', [staffIds]);
+    }
+  }
+
+  test('P0.4: REFUND sinh PENDING, che do that khong tu SUCCEEDED', async () => {
+    const savedMock = process.env.VNPAY_MOCK;
+    const savedTmn = process.env.VNPAY_TMN_CODE;
+    const savedHash = process.env.VNPAY_HASH_SECRET;
+    delete process.env.VNPAY_MOCK;
+    process.env.VNPAY_TMN_CODE = 'TESTCODE';
+    process.env.VNPAY_HASH_SECRET = 'TESTSECRET';
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9851], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 51);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(b.insertId);
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())",
+        [b.insertId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', NOW(), NULL)",
+        [b.insertId]);
+
+      const res = mockRes();
+      await patchBooking(
+        { params: { id: String(b.insertId) }, body: { status: 'CANCELLED', cancelReason: 'Test P0.4' }, user: adminUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const [[txn]] = await connection.query(
+        "SELECT status, is_mock AS isMock FROM payment_transaction WHERE booking_id = ? AND type = 'REFUND'",
+        [b.insertId]);
+      assert.equal(txn.status, 'PENDING');
+      assert.equal(Number(txn.isMock), 0);
+      const [[pay]] = await connection.query(
+        'SELECT payment_status AS st FROM payment WHERE booking_id = ?', [b.insertId]);
+      assert.equal(pay.st, 'REFUNDED');
+    } finally {
+      process.env.VNPAY_MOCK = savedMock;
+      if (savedTmn !== undefined) process.env.VNPAY_TMN_CODE = savedTmn;
+      else delete process.env.VNPAY_TMN_CODE;
+      if (savedHash !== undefined) process.env.VNPAY_HASH_SECRET = savedHash;
+      else delete process.env.VNPAY_HASH_SECRET;
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P0.4: processor goi cong that, that bai thi FAILED, chot tay duoc', async () => {
+    const savedMock = process.env.VNPAY_MOCK;
+    const savedTmn = process.env.VNPAY_TMN_CODE;
+    const savedHash = process.env.VNPAY_HASH_SECRET;
+    delete process.env.VNPAY_MOCK;
+    process.env.VNPAY_TMN_CODE = 'TESTCODE';
+    process.env.VNPAY_HASH_SECRET = 'TESTSECRET';
+    const tx = await import('../src/lib/payment-transactions.js');
+    const connection = await connect();
+    const track = { staffIds: [9852], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 52);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(b.insertId);
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date, gateway_txn_no, gateway_txn_ref) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW(), 'GW123', 'BKREF123')",
+        [b.insertId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by, status, is_mock) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', NOW(), NULL, 'SUCCEEDED', 0)",
+        [b.insertId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by, status, is_mock) VALUES (?, 'REFUND', -60000, 'ONLINE', NOW(), NULL, 'PENDING', 0)",
+        [b.insertId]);
+      const [[row]] = await connection.query(
+        "SELECT transaction_id AS id FROM payment_transaction WHERE booking_id = ? AND type = 'REFUND'", [b.insertId]);
+
+      /* Cong tu choi -> FAILED, khong mat tien oan. */
+      const failFetch = async () => ({
+        ok: true,
+        json: async () => ({ vnp_ResponseCode: '91', vnp_Message: 'Not found' }),
+      });
+      const failed = await tx.processRefundTxn(row.id, { fetchImpl: failFetch });
+      assert.equal(failed.ok, false);
+      assert.equal(failed.status, 'FAILED');
+      const [[st1]] = await connection.query(
+        'SELECT status FROM payment_transaction WHERE transaction_id = ?', [row.id]);
+      assert.equal(st1.status, 'FAILED');
+
+      /* Cong chap nhan -> SUCCEEDED. */
+      const okFetch = async () => ({
+        ok: true,
+        json: async () => ({ vnp_ResponseCode: '00', vnp_Message: 'Success' }),
+      });
+      const done = await tx.processRefundTxn(row.id, { fetchImpl: okFetch });
+      assert.equal(done.ok, true);
+      const [[st2]] = await connection.query(
+        'SELECT status FROM payment_transaction WHERE transaction_id = ?', [row.id]);
+      assert.equal(st2.status, 'SUCCEEDED');
+
+      /* Hoan tay: dong PENDING khac. */
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by, status, is_mock) VALUES (?, 'REFUND', -10000, 'CASH', NOW(), NULL, 'PENDING', 0)",
+        [b.insertId]);
+      const [[cash]] = await connection.query(
+        "SELECT transaction_id AS id FROM payment_transaction WHERE booking_id = ? AND amount = -10000", [b.insertId]);
+      const manual = await tx.confirmRefundManually(cash.id, { note: 'Da dua tien mat' });
+      assert.equal(manual.ok, true);
+      const [[st3]] = await connection.query(
+        'SELECT status, gateway_message AS m FROM payment_transaction WHERE transaction_id = ?', [cash.id]);
+      assert.equal(st3.status, 'SUCCEEDED');
+      assert.ok(String(st3.m).includes('tien mat'));
+
+      /* Hoan tay dong CASH qua processor thi bao ro, khong goi cong. */
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by, status, is_mock) VALUES (?, 'REFUND', -5000, 'CASH', NOW(), NULL, 'PENDING', 0)",
+        [b.insertId]);
+      const [[cash2]] = await connection.query(
+        "SELECT transaction_id AS id FROM payment_transaction WHERE booking_id = ? AND amount = -5000", [b.insertId]);
+      const skipped = await tx.processRefundTxn(cash2.id, { fetchImpl: okFetch });
+      assert.equal(skipped.ok, false);
+      assert.equal(skipped.manual, true);
+    } finally {
+      process.env.VNPAY_MOCK = savedMock;
+      if (savedTmn !== undefined) process.env.VNPAY_TMN_CODE = savedTmn;
+      else delete process.env.VNPAY_TMN_CODE;
+      if (savedHash !== undefined) process.env.VNPAY_HASH_SECRET = savedHash;
+      else delete process.env.VNPAY_HASH_SECRET;
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P0.4: buildRefundPayload ky dung dinh dang VNPay', async () => {
+    const { buildRefundPayload } = await import('../src/lib/vnpay.js');
+    const a = buildRefundPayload({
+      requestId: 'RF1', txnRef: 'BK1', txnNo: 'GW1', amountVnd: 60000,
+      orderInfo: 'Hoan', transactionDate: '20260101120000', createBy: 'system',
+      ipAddr: '127.0.0.1', createDate: new Date('2026-01-02T03:04:05'),
+    });
+    assert.equal(a.vnp_Command, 'refund');
+    assert.equal(a.vnp_TransactionType, '02');
+    assert.equal(a.vnp_Amount, 6000000);
+    assert.ok(/^[0-9a-f]{128}$/.test(a.vnp_SecureHash));
+    const b = buildRefundPayload({
+      requestId: 'RF1', txnRef: 'BK1', txnNo: 'GW1', amountVnd: 60000,
+      orderInfo: 'Hoan', transactionDate: '20260101120000', createBy: 'system',
+      ipAddr: '127.0.0.1', createDate: new Date('2026-01-02T03:04:05'),
+    });
+    assert.equal(a.vnp_SecureHash, b.vnp_SecureHash);
+  });
+
+  test('P0.5: IPN doi ca 2 ma + so tien, sai thi ma dung', async () => {
+    const savedMock = process.env.VNPAY_MOCK;
+    const savedTmn = process.env.VNPAY_TMN_CODE;
+    const savedHash = process.env.VNPAY_HASH_SECRET;
+    delete process.env.VNPAY_MOCK;
+    process.env.VNPAY_TMN_CODE = 'TESTCODE';
+    process.env.VNPAY_HASH_SECRET = 'TESTSECRETTESTSECRETTESTSECRET12';
+    const { vnpayIpn } = await import('../src/controllers/deposit.controller.js');
+    const { vnpaySign, depositTxnRef } = await import('../src/lib/vnpay.js');
+    const connection = await connect();
+    const track = { staffIds: [9853], bookingIds: [], leaveIds: [] };
+    const sign = (params) => {
+      const h = vnpaySign(params, 'TESTSECRETTESTSECRETTESTSECRET12');
+      return { ...params, vnp_SecureHash: h };
+    };
+    try {
+      const sid = await makeStaff(connection, 53);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(b.insertId);
+      const ref = depositTxnRef(b.insertId);
+
+      /* Thieu TransactionStatus -> khong xu ly, van ack 00. */
+      const miss = mockRes();
+      await vnpayIpn({ query: sign({ vnp_TxnRef: ref, vnp_Amount: '6000000', vnp_ResponseCode: '00' }) }, miss, strictNext);
+      assert.equal(miss.body.RspCode, '00');
+      const [[p0]] = await connection.query(
+        'SELECT COUNT(*) AS n FROM payment WHERE booking_id = ?', [b.insertId]);
+      assert.equal(Number(p0.n), 0);
+
+      /* Sai so tien -> 04. */
+      const bad = mockRes();
+      await vnpayIpn({
+        query: sign({
+          vnp_TxnRef: ref, vnp_Amount: '100000', vnp_ResponseCode: '00', vnp_TransactionStatus: '00',
+        }),
+      }, bad, strictNext);
+      assert.equal(bad.body.RspCode, '04');
+
+      /* Du ca 2 ma + du tien -> 00 va ghi coc. */
+      const ok = mockRes();
+      await vnpayIpn({
+        query: sign({
+          vnp_TxnRef: ref, vnp_Amount: '6000000', vnp_ResponseCode: '00',
+          vnp_TransactionStatus: '00', vnp_TransactionNo: 'GW999',
+        }),
+      }, ok, strictNext);
+      assert.equal(ok.body.RspCode, '00');
+      const [[p1]] = await connection.query(
+        'SELECT payment_status AS st, gateway_txn_no AS gw FROM payment WHERE booking_id = ?', [b.insertId]);
+      assert.equal(p1.st, 'DEPOSITED');
+      assert.equal(p1.gw, 'GW999');
+
+      /* IPN lap lai -> luy dang. */
+      const dup = mockRes();
+      await vnpayIpn({
+        query: sign({
+          vnp_TxnRef: ref, vnp_Amount: '6000000', vnp_ResponseCode: '00',
+          vnp_TransactionStatus: '00', vnp_TransactionNo: 'GW999',
+        }),
+      }, dup, strictNext);
+      assert.equal(dup.body.RspCode, '00');
+      const [[cnt]] = await connection.query(
+        "SELECT COUNT(*) AS n FROM payment_transaction WHERE booking_id = ? AND type = 'DEPOSIT'", [b.insertId]);
+      assert.equal(Number(cnt.n), 1);
+    } finally {
+      process.env.VNPAY_MOCK = savedMock;
+      if (savedTmn !== undefined) process.env.VNPAY_TMN_CODE = savedTmn;
+      else delete process.env.VNPAY_TMN_CODE;
+      if (savedHash !== undefined) process.env.VNPAY_HASH_SECRET = savedHash;
+      else delete process.env.VNPAY_HASH_SECRET;
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P1: khach khong giu 2 lich trung gio + ma chong gui trung', async () => {
+    const { createBooking } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9854, 9855], bookingIds: [], leaveIds: [] };
+    try {
+      const a = await makeStaff(connection, 54);
+      const b = await makeStaff(connection, 55);
+      const day = fmtDay(new Date(Date.now() + 2 * 86400000));
+      const first = mockRes();
+      await createBooking(
+        { body: { serviceId: 1, staffId: String(a), date: day, time: '10:00', clientKey: 'CK-TEST-0001' }, user: owner },
+        first, strictNext);
+      assert.equal(first.statusCode, 201);
+      track.bookingIds.push(Number(first.body.data.id));
+
+      /* Cung khach, cung gio, nhan vien khac -> 409. */
+      const clash = mockRes();
+      await createBooking(
+        { body: { serviceId: 1, staffId: String(b), date: day, time: '10:00' }, user: owner },
+        clash, strictNext);
+      assert.equal(clash.statusCode, 409);
+
+      /* Gui lai cung clientKey -> tra lich cu, khong tao them. */
+      const dup = mockRes();
+      await createBooking(
+        { body: { serviceId: 1, staffId: String(a), date: day, time: '10:00', clientKey: 'CK-TEST-0001' }, user: owner },
+        dup, strictNext);
+      assert.equal(dup.statusCode, 200);
+      assert.equal(dup.body.data.duplicate, true);
+      assert.equal(dup.body.data.id, first.body.data.id);
+      const [[n]] = await connection.query(
+        'SELECT COUNT(*) AS n FROM booking WHERE customer_id = 9001 AND client_key = ?', ['CK-TEST-0001']);
+      assert.equal(Number(n.n), 1);
+
+      /* Key sai dinh dang -> 400. */
+      const bad = mockRes();
+      await createBooking(
+        { body: { serviceId: 1, date: day, time: '11:30', clientKey: 'x' }, user: owner },
+        bad, strictNext);
+      assert.equal(bad.statusCode, 400);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P1: admin doi lich bao khach, lich PROCESSING khong go nguoi', async () => {
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9856, 9857], bookingIds: [], leaveIds: [] };
+    try {
+      const a = await makeStaff(connection, 56);
+      const b = await makeStaff(connection, 57);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [bk] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [a, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(bk.insertId);
+
+      const moved = mockRes();
+      await patchBooking(
+        { params: { id: String(bk.insertId) }, body: { staffId: b }, user: adminUser },
+        moved, strictNext);
+      assert.equal(moved.statusCode, 200);
+      const [[nt]] = await connection.query(
+        "SELECT COUNT(*) AS n FROM notification WHERE ref_type = 'booking' AND ref_id = ? AND title LIKE '%Nhân viên%'",
+        [bk.insertId]);
+      assert.ok(Number(nt.n) >= 1, 'doi nguoi phai bao khach');
+
+      await connection.query("UPDATE booking SET status = 'PROCESSING' WHERE booking_id = ?", [bk.insertId]);
+      const stripped = mockRes();
+      await patchBooking(
+        { params: { id: String(bk.insertId) }, body: { staffId: null }, user: adminUser },
+        stripped, strictNext);
+      assert.equal(stripped.statusCode, 409);
+      const [[kept]] = await connection.query(
+        'SELECT staff_id AS s FROM booking WHERE booking_id = ?', [bk.insertId]);
+      assert.equal(Number(kept.s), b);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P1: nhan vien dang nghi khong bam bat dau duoc', async () => {
+    const { updateBookingStatus } = await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9858], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 58);
+      const s = new Date(Date.now() + 5 * 60000);
+      const [bk] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(bk.insertId);
+      const [lv] = await connection.query(
+        "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, reason_category, status, reviewed_at, review_note) VALUES (?, NOW() - INTERVAL 1 HOUR, NOW() + INTERVAL 3 HOUR, 'Test', 'EMERGENCY', 'HEALTH', 'APPROVED', NOW(), 'auto')",
+        [sid]);
+      track.leaveIds.push(lv.insertId);
+
+      const blocked = mockRes();
+      await updateBookingStatus(
+        { params: { id: String(bk.insertId) }, body: { status: 'PROCESSING' }, user: staffUser(sid) },
+        blocked, strictNext);
+      assert.equal(blocked.statusCode, 409);
+
+      await connection.query("UPDATE booking SET status = 'PROCESSING' WHERE booking_id = ?", [bk.insertId]);
+      const done = mockRes();
+      await updateBookingStatus(
+        { params: { id: String(bk.insertId) }, body: { status: 'COMPLETED' }, user: staffUser(sid) },
+        done, strictNext);
+      assert.equal(done.statusCode, 200);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P1: khoa sua xoa ca qua khu, chuyen lich ve qua khu, NO_SHOW som', async () => {
+    const reqCtl = await import('../src/controllers/request.controller.js');
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9859], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 59);
+      const [sc] = await connection.query(
+        "INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status) VALUES (?, CURDATE() - INTERVAL 5 DAY, '09:00:00', '18:00:00', 'AVAILABLE')",
+        [sid]);
+      const pastShift = sc.insertId;
+
+      const upd = mockRes();
+      await reqCtl.updateSchedule(
+        { params: { id: String(pastShift) }, body: { startTime: '10:00', endTime: '17:00' } },
+        upd, strictNext);
+      assert.equal(upd.statusCode, 409);
+      const del = mockRes();
+      await reqCtl.deleteSchedule({ params: { id: String(pastShift) } }, del, strictNext);
+      assert.equal(del.statusCode, 409);
+
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [bk] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(bk.insertId);
+      const past = mockRes();
+      await patchBooking(
+        { params: { id: String(bk.insertId) }, body: { date: '2020-01-01', time: '09:00' }, user: adminUser },
+        past, strictNext);
+      assert.equal(past.statusCode, 409);
+
+      const near = new Date(Date.now() + 5 * 60000);
+      const [bk2] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(near), dt(new Date(near.getTime() + 75 * 60000))]);
+      track.bookingIds.push(bk2.insertId);
+      const early = mockRes();
+      await patchBooking(
+        { params: { id: String(bk2.insertId) }, body: { status: 'NO_SHOW' }, user: adminUser },
+        early, strictNext);
+      assert.equal(early.statusCode, 409);
+
+      await connection.query('DELETE FROM staff_schedule WHERE schedule_id = ?', [pastShift]);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P1: go dich vu khi con lich thi 409', async () => {
+    const { removeServiceFromStaff } = await import('../src/controllers/catalog.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9860], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 60);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [bk] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(bk.insertId);
+
+      const blocked = mockRes();
+      await removeServiceFromStaff(
+        { params: { id: String(sid), serviceId: '1' } }, blocked, strictNext);
+      assert.equal(blocked.statusCode, 409);
+
+      await connection.query("UPDATE booking SET status = 'CANCELLED' WHERE booking_id = ?", [bk.insertId]);
+      const ok = mockRes();
+      await removeServiceFromStaff(
+        { params: { id: String(sid), serviceId: '1' } }, ok, strictNext);
+      assert.equal(ok.statusCode, 200);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+
+  test('P0.4: che do gia lap tu SUCCEEDED + gan nhan Mo phong', async () => {
+    const { patchBooking } = await import('../src/controllers/booking-admin.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9861], bookingIds: [], leaveIds: [] };
+    try {
+      const sid = await makeStaff(connection, 61);
+      const s = new Date(Date.now() + 2 * 86400000);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, ?, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [sid, dt(s), dt(new Date(s.getTime() + 75 * 60000))]);
+      track.bookingIds.push(b.insertId);
+      await connection.query(
+        "INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date) VALUES (?, 60000, 'ONLINE', 'DEPOSITED', NOW())",
+        [b.insertId]);
+      await connection.query(
+        "INSERT INTO payment_transaction (booking_id, type, amount, payment_method, paid_at, created_by) VALUES (?, 'DEPOSIT', 60000, 'ONLINE', NOW(), NULL)",
+        [b.insertId]);
+
+      const res = mockRes();
+      await patchBooking(
+        { params: { id: String(b.insertId) }, body: { status: 'CANCELLED', cancelReason: 'Test mock' }, user: adminUser },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      /* VNPAY_MOCK=true trong test: tu SUCCEEDED nhung danh dau gia lap. */
+      const [[txn]] = await connection.query(
+        "SELECT status, is_mock AS isMock FROM payment_transaction WHERE booking_id = ? AND type = 'REFUND'",
+        [b.insertId]);
+      assert.equal(txn.status, 'SUCCEEDED');
+      assert.equal(Number(txn.isMock), 1);
+    } finally {
+      await wipe(connection, track.staffIds, track.bookingIds, track.leaveIds);
+      await connection.end();
+    }
+  });
+});

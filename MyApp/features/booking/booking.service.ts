@@ -193,7 +193,10 @@ export async function fetchReceipt(id: string): Promise<{
   addons: { name: string; quantity: number; price: number; total: number }[];
   total: number; collected: number; refunded: number; remaining: number;
   paymentStatus: string | null;
-  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+  transactions: {
+    id: string; type: string; amount: number; method: string | null; paidAt: string;
+    txnStatus?: string; isMock?: boolean;
+  }[];
 }> {
   const response = await api<ApiResponse<{
     bookingId: string; receiptNo: string | null; status: string;
@@ -201,7 +204,10 @@ export async function fetchReceipt(id: string): Promise<{
     addons: { name: string; quantity: number; price: number; total: number }[];
     total: number; collected: number; refunded: number; remaining: number;
     paymentStatus: string | null;
-    transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+    transactions: {
+      id: string; type: string; amount: number; method: string | null; paidAt: string;
+      txnStatus?: string; isMock?: boolean;
+    }[];
   }>>(`/api/bookings/${encodeURIComponent(id)}/receipt`);
   return response.data;
 }

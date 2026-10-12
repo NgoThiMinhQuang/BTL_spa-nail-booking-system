@@ -1043,6 +1043,19 @@ export async function updateSchedule(req, res, next) {
       return res.status(404).json({ message: 'Không tìm thấy ca làm việc.' });
     }
 
+    /* Khóa sửa lịch sử: ca đã qua gắn với chấm công, lương và booking đã
+       phát sinh — sửa giờ quá khứ làm sai hết. Muốn điều chỉnh thì làm
+       đường riêng có ghi lý do, không sửa thẳng. */
+    const now = new Date();
+    const todayText =
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (shift.workDate < todayText) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Ca đã qua ngày không sửa được. Liên hệ quản trị để điều chỉnh theo quy trình riêng.',
+      });
+    }
+
     const stranded = await findStrandedBookings(
       connection, shift.staffId, shift.workDate, `${startTime}:00`, `${endTime}:00`);
     if (stranded.length) {
@@ -1082,6 +1095,17 @@ export async function deleteSchedule(req, res, next) {
     if (!shift) {
       await connection.rollback();
       return res.status(404).json({ message: 'Không tìm thấy ca làm việc.' });
+    }
+
+    /* Như sửa ca: ca quá khứ đã chốt công/lương, không xoá lịch sử. */
+    const now = new Date();
+    const todayText =
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (shift.workDate < todayText) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Ca đã qua ngày không xoá được.',
+      });
     }
 
     const stranded = await findStrandedBookings(connection, shift.staffId, shift.workDate, null, null);

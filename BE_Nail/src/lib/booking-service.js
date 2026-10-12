@@ -85,7 +85,7 @@ async function createBookingTx(connection, input) {
   const {
     serviceId, customerId = null, guestName = null, guestPhone = null,
     startsAt, duration, bufferTime, price, source, note = null,
-    actorRole = 'CUSTOMER', actorName = null,
+    actorRole = 'CUSTOMER', actorName = null, clientKey = null,
   } = input;
 
   let staffId = Number(input.staffId) || null;
@@ -102,6 +102,58 @@ async function createBookingTx(connection, input) {
     const error = new Error('Không thể đặt lịch trong quá khứ.');
     error.status = 409;
     throw error;
+  }
+
+  /* Mã chống gửi trùng do client sinh (UUID mỗi lần bấm Đặt): mạng chậm
+     bấm hai lần / gửi lại request không tạo hai lịch — trả về lịch đã
+     tạo từ lần gửi trước. */
+  const key = String(clientKey ?? '').trim();
+  if (key) {
+    if (!/^[A-Za-z0-9-_]{8,64}$/.test(key)) {
+      const error = new Error('Mã chống gửi trùng không hợp lệ.');
+      error.status = 400;
+      throw error;
+    }
+    const [[existing]] = await connection.query(
+      `SELECT b.booking_id AS bookingId, b.staff_id AS staffId,
+              b.start_time AS startsAt, b.end_time AS endsAt,
+              su.full_name AS staffName
+         FROM booking b
+         LEFT JOIN staff st ON st.staff_id = b.staff_id
+         LEFT JOIN users su ON su.user_id = st.user_id
+        WHERE b.client_key = ? LIMIT 1`, [key]);
+    if (existing) {
+      return {
+        bookingId: existing.bookingId, staffId: existing.staffId,
+        staffName: existing.staffName, startsAt: existing.startsAt,
+        endsAt: existing.endsAt, duplicate: true,
+      };
+    }
+  }
+
+  /* Một khách không giữ hai lịch chồng giờ: đặt lần hai cùng giờ thì hệ
+     thống tự chọn nhân viên khác nhau, khách tưởng có hai lịch mà thật ra
+     không đi được cả hai. Khách vãng lai check theo SĐT đã lưu. */
+  const ownerClause = customerId
+    ? { sql: 'b.customer_id = ?', params: [customerId] }
+    : guestPhone
+      ? { sql: 'b.customer_id IS NULL AND b.guest_phone = ?', params: [String(guestPhone).trim()] }
+      : null;
+  if (ownerClause) {
+    const [[clash]] = await connection.query(
+      `SELECT b.booking_id AS id, DATE_FORMAT(b.start_time,'%H:%i %d/%m') AS slot
+         FROM booking b
+        WHERE ${ownerClause.sql}
+          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+          AND b.start_time < ? AND b.end_time > ? LIMIT 1`,
+      [...ownerClause.params, endsAt, startsAt]);
+    if (clash) {
+      const error = new Error(
+        `Bạn đã có lịch #${clash.id} lúc ${clash.slot} trùng giờ. `
+        + 'Hãy đổi giờ lịch cũ hoặc chọn khung giờ khác.');
+      error.status = 409;
+      throw error;
+    }
   }
 
   /* Chặn trùng ở tầng database: khoá dòng lịch của nhân viên trước khi
@@ -150,11 +202,11 @@ async function createBookingTx(connection, input) {
     `INSERT INTO booking
        (customer_id, guest_name, guest_phone, staff_id, service_id,
         service_price, service_duration, buffer_time,
-        start_time, end_time, status, note, source)
-     VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING',?,?)`,
+        start_time, end_time, status, note, source, client_key)
+     VALUES (?,?,?,?,?,?,?,?,?,?,'PENDING',?,?,?)`,
     [customerId, guestName, guestPhone, staffId, serviceId,
       price, duration, bufferTime ?? 0,
-      startsAt, endsAt, note, source],
+      startsAt, endsAt, note, source, key || null],
   );
 
   const who = customerId
@@ -170,7 +222,7 @@ async function createBookingTx(connection, input) {
     connection,
   });
 
-  return { bookingId: result.insertId, staffId, staffName, startsAt, endsAt };
+  return { bookingId: result.insertId, staffId, staffName, startsAt, endsAt, duplicate: false };
 }
 
 /**

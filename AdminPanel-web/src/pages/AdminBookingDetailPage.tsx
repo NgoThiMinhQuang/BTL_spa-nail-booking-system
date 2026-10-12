@@ -56,7 +56,10 @@ interface Detail {
   paymentId: string | null; paymentStatus: string | null; paymentText: string | null;
   methodText: string | null; paidAmount: number | null; paymentDate: string | null;
   receiptNo: string | null;
-  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+  transactions: {
+    id: string; type: string; amount: number; method: string | null; paidAt: string;
+    txnStatus?: string; isMock?: boolean; gatewayMessage?: string | null;
+  }[];
   addonTotal: number; total: number;
   addons: Addon[]; images: { id: string; url: string }[]; events: BookingEvent[];
   review: { id: string; rating: number; comment: string | null; createdAt: string } | null;
@@ -120,6 +123,105 @@ function PayBadge({ status }: { status: string | null }) {
       : status === 'DEPOSITED' ? 'pending' : 'cancelled'}`}>
       <i />{status}
     </span>
+  );
+}
+
+const TXN_TYPE_TEXT: Record<string, string> = {
+  DEPOSIT: 'Đặt cọc', FINAL: 'Thu đủ', REFUND: 'Hoàn tiền',
+};
+const TXN_STATUS_TEXT: Record<string, { label: string; cls: string }> = {
+  PENDING: { label: 'Chờ hoàn', cls: 'pending' },
+  PROCESSING: { label: 'Đang hoàn', cls: 'pending' },
+  SUCCEEDED: { label: 'Hoàn xong', cls: 'completed' },
+  FAILED: { label: 'Hoàn lỗi', cls: 'cancelled' },
+};
+
+/* Dòng tiền từng khoản: trạng thái hoàn thật (PENDING → SUCCEEDED qua
+   cổng hoặc tay), gắn nhãn Mô phỏng cho tiền giả lập. Dòng REFUND chờ
+   thì Admin thử lại qua cổng hoặc chốt đã hoàn tay ngay tại đây. */
+function CashflowSection({ transactions, onChanged }: {
+  transactions: Detail['transactions'];
+  onChanged: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+
+  if (transactions.length === 0) return null;
+
+  async function act(txnId: string, action: 'retry' | 'confirm') {
+    let note: string | null = null;
+    if (action === 'confirm') {
+      note = window.prompt('Ghi chú xác nhận đã hoàn (VD: đã đưa tiền mặt):', '') ?? '';
+      if (note !== '' && !note.trim()) {
+        setMessage('Xác nhận hoàn tay cần ghi chú.');
+        return;
+      }
+    }
+    setBusyId(txnId);
+    setMessage('');
+    try {
+      const response = await fetch(`/api/admin/payments/refunds/${txnId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: action === 'confirm' ? JSON.stringify({ note: note?.trim() || null }) : undefined,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setMessage(payload?.message ?? 'Không thực hiện được.');
+        return;
+      }
+      onChanged();
+    } catch {
+      setMessage('Mất kết nối tới máy chủ.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <section className="adm-dblock">
+      <h4>Dòng tiền <em>{transactions.length} khoản</em></h4>
+      <ul className="adm-cashflow">
+        {transactions.map((t) => {
+          const meta = TXN_STATUS_TEXT[t.txnStatus ?? 'SUCCEEDED']
+            ?? { label: t.txnStatus ?? '', cls: '' };
+          const actionable = t.type === 'REFUND'
+            && ['PENDING', 'FAILED'].includes(t.txnStatus ?? 'SUCCEEDED');
+          return (
+            <li key={t.id}>
+              <span className="adm-cashflow-main">
+                <strong>{TXN_TYPE_TEXT[t.type] ?? t.type} · {formatVND(t.amount)}</strong>
+                <small>
+                  {t.method ?? '—'} · {fmtDate(t.paidAt)} {fmtTime(t.paidAt)}
+                  {t.isMock && ' · Mô phỏng'}
+                  {t.gatewayMessage ? ` · ${t.gatewayMessage}` : ''}
+                </small>
+              </span>
+              {t.type === 'REFUND' && (
+                <span className={`badge ${meta.cls}`}><i />{meta.label}</span>
+              )}
+              {actionable && (
+                <span className="adm-cashflow-actions">
+                  <button className="button secondary" disabled={busyId === t.id}
+                    onClick={() => act(t.id, 'retry')}>
+                    Thử lại qua cổng
+                  </button>
+                  <button className="button secondary" disabled={busyId === t.id}
+                    onClick={() => act(t.id, 'confirm')}>
+                    Chốt đã hoàn
+                  </button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {message && <p className="adm-error">{message}</p>}
+      <p className="adm-field-note">
+        Chờ hoàn = đã xác định khoản phải hoàn; Hoàn xong = cổng xác nhận hoặc Admin chốt tay.
+        Dòng Mô phỏng là tiền giả lập, không trừ/chuyển tiền thật.
+      </p>
+    </section>
   );
 }
 
@@ -505,6 +607,8 @@ export function AdminBookingDetailPage() {
           </button>
         )}
       </section>
+
+      <CashflowSection transactions={data.transactions ?? []} onChanged={() => { load(); reload(); }} />
 
       {/* Đánh giá */}
       {data.status === 'COMPLETED' && (

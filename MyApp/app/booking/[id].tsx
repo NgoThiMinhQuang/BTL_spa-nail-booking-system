@@ -56,7 +56,10 @@ export default function BookingDetailScreen() {
   const [receipt, setReceipt] = useState<{
     receiptNo: string | null; total: number; collected: number;
     refunded: number; remaining: number;
-    transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+    transactions: {
+      id: string; type: string; amount: number; method: string | null; paidAt: string;
+      txnStatus?: string; isMock?: boolean;
+    }[];
   } | null>(null);
   const [issue, setIssue] = useState('');
   const [showIssue, setShowIssue] = useState(false);
@@ -391,6 +394,8 @@ export default function BookingDetailScreen() {
                 <Text style={styles.addonName}>
                   {t.type === 'DEPOSIT' ? 'Đặt cọc' : t.type === 'FINAL' ? 'Thanh toán' : 'Hoàn tiền'}
                   {t.method ? ` · ${t.method}` : ''}
+                  {t.type === 'REFUND' && t.txnStatus && t.txnStatus !== 'SUCCEEDED'
+                    ? ` (${t.txnStatus === 'FAILED' ? 'hoàn lỗi, đang xử lý lại' : 'chờ hoàn tiền'})` : ''}
                 </Text>
                 <Text style={styles.addonPrice}>{t.amount.toLocaleString('vi-VN')}đ</Text>
               </View>

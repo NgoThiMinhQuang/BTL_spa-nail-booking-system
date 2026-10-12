@@ -895,6 +895,23 @@ export async function removeServiceFromStaff(req, res, next) {
       return res.status(404).json({ message: 'Nhân viên này không được gán dịch vụ đó.' });
     }
 
+    /* Còn lịch hẹn chưa xong của đúng người + đúng dịch vụ này thì không gỡ:
+       gỡ xong các lịch đó thành "dịch vụ không ai làm được", báo cáo và
+       phân công đều sai. Xử lý xong các lịch đó rồi hãy gỡ. */
+    const [[active]] = await connection.query(
+      `SELECT COUNT(*) AS n, MIN(DATE_FORMAT(b.start_time,'%H:%i %d/%m')) AS firstSlot
+         FROM booking b
+        WHERE b.staff_id = ? AND b.service_id = ?
+          AND b.status IN ('PENDING','CONFIRMED','PROCESSING')
+          AND b.start_time > NOW()`, [staffId, serviceId]);
+    if (Number(active.n) > 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Nhân viên còn ${active.n} lịch ${linked.name} chưa xong (gần nhất lúc ${active.firstSlot}) `
+          + 'nên không gỡ được. Hãy bàn giao các lịch đó trước.',
+      });
+    }
+
     /* Gỡ khỏi nhân viên là một việc, còn xoá khỏi danh mục là việc khác
        và phải được bảo vệ riêng (deleteService kiểm tra cả lịch hẹn lẫn
        booking_addon). Trước đây gỡ người cuối thì xoá luôn dịch vụ — mất

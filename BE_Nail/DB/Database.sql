@@ -335,6 +335,9 @@ CREATE TABLE booking (
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+    client_key VARCHAR(64) NULL COMMENT 'Ma chong gui trung do client sinh. UNIQUE cho phep nhieu NULL',
+    UNIQUE KEY uq_booking_client_key (client_key),
+
     -- Index phục vụ kiểm tra trùng lịch: truy vấn luôn có điều kiện
     -- staff_id = ? AND start_time < ? AND end_time > ?
     KEY idx_booking_staff_time (staff_id, start_time, end_time),
@@ -467,6 +470,8 @@ CREATE TABLE payment (
     payment_method ENUM('CASH','BANK_TRANSFER','ONLINE') NULL,
     payment_status ENUM('UNPAID','DEPOSITED','PAID','REFUNDED') NOT NULL DEFAULT 'UNPAID',
     payment_date DATETIME NULL COMMENT 'Mốc thời gian nhận tiền',
+    gateway_txn_no VARCHAR(60) NULL COMMENT 'Ma giao dich cua cong VNPay (de goi API hoan)',
+    gateway_txn_ref VARCHAR(100) NULL COMMENT 'Ma tham chieu goc cua merchant',
 
     UNIQUE KEY uq_payment_booking (booking_id),
     KEY idx_payment_status (payment_status),
@@ -491,6 +496,11 @@ CREATE TABLE payment_transaction (
     paid_at DATETIME NOT NULL COMMENT 'Thời điểm tiền thực tế vào/ra két',
     created_by BIGINT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('PENDING','PROCESSING','SUCCEEDED','FAILED') NOT NULL DEFAULT 'SUCCEEDED'
+        COMMENT 'PENDING = da xac dinh khoan phai hoan; PROCESSING = da goi cong; SUCCEEDED = cong xac nhan (hoac thu tay da doi chieu); FAILED = cong tu choi/loi',
+    is_mock TINYINT(1) NOT NULL DEFAULT 0
+        COMMENT '1 = tien gia lap (che do MOCK). Giao dien phai hien ro Mo phong',
+    gateway_message VARCHAR(255) NULL COMMENT 'Ket qua/loi tra ve tu cong hoan',
 
     KEY idx_txn_booking (booking_id),
     KEY idx_txn_paid_at (paid_at),

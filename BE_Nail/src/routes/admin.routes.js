@@ -41,6 +41,7 @@ import {
   updateSchedule,
 } from '../controllers/request.controller.js';
 import { patchPayment, savePayment } from '../controllers/payment.controller.js';
+import { confirmRefund, retryRefund } from '../controllers/payment.controller.js';
 import { listAttendanceAdmin } from '../controllers/attendance.controller.js';
 import { listAll as listNotifications, retrySend as retryNotification, listMine as listMyNotifications, markRead as markNotificationRead } from '../controllers/notification.controller.js';
 import {
@@ -173,6 +174,9 @@ router.patch('/payrolls/:id/reopen', reopenPayroll);
 router.get('/leave', listLeaveRequests);
 
 /* ---- Thanh toán ---- */
+/* Hoàn tiền: thử lại qua cổng / chốt đã hoàn tay cho từng dòng REFUND. */
+router.post('/payments/refunds/:txnId/retry', retryRefund);
+router.post('/payments/refunds/:txnId/confirm', confirmRefund);
 router.patch('/payments/:id', patchPayment);
 
 /* ---- Lịch hẹn: đặt trước /:id để không bị "id" nuốt các đường con ---- */

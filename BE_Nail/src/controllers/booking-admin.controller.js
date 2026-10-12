@@ -13,6 +13,7 @@ import {
 } from '../lib/booking-labels.js';
 import { canTransition, SETTLED_STATUSES } from '../lib/booking-state.js';
 import { settleCancelPayment } from '../lib/payment-transactions.js';
+import { notifyCustomer } from '../lib/notifications.js';
 import { checkStaffAvailable, freeSlotsForStaff, listAvailableStaff } from '../lib/staff-availability.js';
 import {
   actualServiceMinutes, createBooking as createBookingRecord, isDate, loadActiveService, momentOf, recheckAfterMove,
@@ -251,7 +252,9 @@ export async function getBooking(req, res, next) {
        hoàn tiền từng dòng — không gộp, không tính cọc hai lần. */
     const [transactions] = await pool.query(
       `SELECT t.transaction_id AS id, t.type, t.amount,
-              t.payment_method AS method, t.paid_at AS paidAt
+              t.payment_method AS method, t.paid_at AS paidAt,
+              t.status AS txnStatus, t.is_mock AS isMock,
+              t.gateway_message AS gatewayMessage
          FROM payment_transaction t WHERE t.booking_id = ?
          ORDER BY t.paid_at ASC, t.transaction_id ASC`, [id]);
 
@@ -337,6 +340,9 @@ export async function getBooking(req, res, next) {
           amount: Number(t.amount),
           method: t.method,
           paidAt: t.paidAt,
+          txnStatus: t.txnStatus ?? 'SUCCEEDED',
+          isMock: Number(t.isMock ?? 0) === 1,
+          gatewayMessage: t.gatewayMessage ?? null,
         })),
       },
     });
@@ -420,13 +426,14 @@ export async function patchBooking(req, res, next) {
         return res.status(409).json({ message: transition.reason });
       }
 
-      /* NO_SHOW chỉ khi giờ hẹn đã qua: đánh dấu "không đến" khi chưa tới
-         giờ sẽ oan cho khách (mất cọc theo chính sách) dù họ vẫn có thể
-         tới đúng giờ. */
-      if (status === 'NO_SHOW' && new Date() < new Date(current.startsAt)) {
+      /* NO_SHOW chỉ sau giờ hẹn 15 phút: đánh dấu "không đến" khi khách
+         vẫn còn trong thời gian chờ sẽ oan cho khách (mất cọc theo chính
+         sách) dù họ có thể tới muộn vài phút. */
+      if (status === 'NO_SHOW'
+        && new Date().getTime() < new Date(current.startsAt).getTime() + 15 * 60000) {
         await connection.rollback();
         return res.status(409).json({
-          message: 'Chưa tới giờ hẹn nên chưa thể đánh dấu khách không đến.',
+          message: 'Chưa qua 15 phút sau giờ hẹn nên chưa thể đánh dấu khách không đến.',
         });
       }
 
@@ -504,6 +511,19 @@ export async function patchBooking(req, res, next) {
       }
     }
 
+    /* Lịch đang thực hiện mà gỡ nhân viên (null) thì lịch kẹt: không còn
+       ai có quyền bấm hoàn thành. Bắt buộc bàn giao sang người cụ thể —
+       kiểm tra CONFIRMED ở dưới không bao được trường hợp này vì trạng
+       thái không đổi. */
+    if (current.status === 'PROCESSING'
+      && body.staffId !== undefined
+      && (body.staffId === null || body.staffId === '')) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: 'Lịch đang thực hiện phải bàn giao sang nhân viên cụ thể, không được gỡ trống.',
+      });
+    }
+
     /* Trạng thái CUỐI CÙNG sau khi đã xử lý body.staffId: CONFIRMED mà
        không có người phục vụ là trạng thái không hợp lệ. Phải kiểm tra ở
        đây chứ không phải lúc đọc body.status, vì hai trường hợp lọt lưới:
@@ -551,6 +571,15 @@ export async function patchBooking(req, res, next) {
       endsAt = new Date(
         startsAt.getTime() + (Number(current.duration) + Number(current.bufferTime ?? 0)) * 60000,
       );
+      /* Không chuyển lịch về quá khứ: giờ mới phải ở tương lai, nếu không
+         báo cáo, lương và thông báo khách đều tính trên mốc sai. */
+      if (!(startsAt instanceof Date) || Number.isNaN(startsAt.getTime())
+        || startsAt.getTime() <= Date.now()) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Giờ hẹn mới phải ở tương lai, không chuyển lịch về quá khứ được.',
+        });
+      }
       set.push('b.start_time = ?', 'b.end_time = ?');
       params.push(startsAt, endsAt);
     }
@@ -597,6 +626,9 @@ export async function patchBooking(req, res, next) {
     const actorName = req.user?.name ?? 'Quản trị viên';
     const day = dayOf(startsAt);
     const slot = `${clockOf(startsAt)}–${clockOf(endsAt)}`;
+    /* Gom nội dung báo cho khách sau commit: đổi người, đổi giờ, hủy,
+       vắng mặt — khách không tự biết lịch mình bị lễ tân sửa. */
+    const notices = [];
 
     if (body.staffId !== undefined && staffId !== current.staffId) {
       const [[oldStaff]] = await connection.query(
@@ -614,6 +646,12 @@ export async function patchBooking(req, res, next) {
         actorName,
         connection,
       });
+      notices.push({
+        title: 'Nhân viên phục vụ thay đổi',
+        body: `Nhân viên phục vụ lịch hẹn #${id} của bạn đổi từ `
+          + `${oldStaff?.full_name ?? 'chưa phân công'} sang ${newStaff?.full_name ?? 'chưa phân công'}. `
+          + `Giờ hẹn giữ nguyên ${day} ${slot}.`,
+      });
     }
 
     if ((body.date !== undefined || body.time !== undefined)
@@ -625,6 +663,11 @@ export async function patchBooking(req, res, next) {
         actorRole: 'ADMIN',
         actorName,
         connection,
+      });
+      notices.push({
+        title: 'Giờ hẹn thay đổi',
+        body: `Giờ hẹn lịch #${id} của bạn đổi sang ${day} ${slot}. `
+          + 'Vui lòng xác nhận lại với cửa hàng nếu khung giờ mới không phù hợp.',
       });
     }
 
@@ -661,6 +704,13 @@ export async function patchBooking(req, res, next) {
             connection,
           });
         }
+        notices.push({
+          title: 'Lịch hẹn bị hủy bởi cửa hàng',
+          body: `Lịch hẹn #${id} đã bị hủy. Lý do: ${body.cancelReason ?? 'không ghi nhận'}.`
+            + (settled.refunded > 0
+              ? ` Bạn được hoàn đủ ${settled.refunded.toLocaleString('vi-VN')} đ.`
+              : ''),
+        });
       }
 
       /* Khách không đến: chỉ mất cọc, phần trả thừa (nếu đã trả đủ) hoàn
@@ -680,10 +730,34 @@ export async function patchBooking(req, res, next) {
             connection,
           });
         }
+        notices.push({
+          title: 'Lịch hẹn ghi nhận vắng mặt',
+          body: `Lịch hẹn #${id} được ghi nhận vắng mặt. `
+            + (settled.forfeited > 0
+              ? `Tiền cọc ${settled.forfeited.toLocaleString('vi-VN')} đ không được hoàn lại theo chính sách.`
+              : 'Không phát sinh giữ cọc.')
+            + ' Liên hệ cửa hàng nếu có nhầm lẫn.',
+        });
       }
     }
 
     await connection.commit();
+    /* Báo cho khách mọi thay đổi lễ tân vừa sửa: đổi người, đổi giờ, hủy,
+       vắng mặt. Kênh phụ — lỗi gửi không làm hỏng thao tác đã chốt. */
+    if (notices.length && current.customerId) {
+      for (const notice of notices) {
+        try {
+          await notifyCustomer(pool, {
+            customerId: current.customerId,
+            title: notice.title,
+            body: notice.body,
+            type: 'BOOKING', refType: 'booking', refId: id,
+          });
+        } catch {
+          /* Bỏ qua từng tin, tin khác vẫn gửi. */
+        }
+      }
+    }
     res.json({
       data: { id: String(id), startsAt, endsAt, staffId: staffId == null ? null : String(staffId) },
     });
@@ -899,6 +973,7 @@ export async function createBooking(req, res, next) {
       bufferTime: service.bufferTime,
       source: 'WALK_IN',
       note,
+      clientKey: req.body?.clientKey ?? req.body?.client_key ?? null,
       actorRole: 'ADMIN',
       actorName: req.user?.name ?? 'Quản trị viên',
     });

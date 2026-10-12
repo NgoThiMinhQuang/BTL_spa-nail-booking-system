@@ -115,3 +115,94 @@ export function bookingIdFromTxnRef(txnRef) {
   const id = Number(String(txnRef ?? '').split('-')[0]);
   return Number.isInteger(id) ? id : null;
 }
+
+/* ================================================================
+   API hoàn tiền VNPay (P0.4)
+   ----------------------------------------------------------------
+   Sổ két chỉ ghi "đã hoàn" khi cổng xác nhận — trước đây settle ghi
+   REFUNDED + dòng REFUND mà chưa hề gọi cổng. Cần cả hai mã gốc của
+   giao dịch cọc (vnp_TxnRef của merchant + vnp_TransactionNo của
+   VNPay) nên confirmDepositPayment phải lưu chúng vào bảng payment.
+   ================================================================ */
+
+export const VNPAY_API_SANDBOX = 'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
+export const VNPAY_API_PROD = 'https://vnpayment.vn/merchant_webapi/api/transaction';
+
+/** URL gọi hoàn: ưu tiên VNPAY_API_URL, còn lại theo sandbox/prod. */
+export function vnpayApiUrl() {
+  const custom = String(process.env.VNPAY_API_URL ?? '').trim();
+  if (custom) return custom;
+  const { url } = vnpayConfig();
+  return url.includes('sandbox') ? VNPAY_API_SANDBOX : VNPAY_API_PROD;
+}
+
+const stamp14 = (d) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+    + `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+};
+
+/** Dựng payload hoàn toàn tiền (vnp_TransactionType 02). Thuần túy, test được. */
+export function buildRefundPayload({
+  requestId, txnRef, txnNo, amountVnd, orderInfo,
+  transactionDate, createBy = 'system', ipAddr = '127.0.0.1', createDate = new Date(),
+}) {
+  const { tmnCode, hashSecret } = vnpayConfig();
+  const created = stamp14(createDate instanceof Date ? createDate : new Date(createDate));
+  const params = {
+    vnp_RequestId: String(requestId),
+    vnp_Version: VNPAY_VERSION,
+    vnp_Command: 'refund',
+    vnp_TmnCode: tmnCode,
+    vnp_TransactionType: '02',
+    vnp_TxnRef: String(txnRef),
+    vnp_Amount: Math.round(Number(amountVnd) * 100),
+    vnp_OrderInfo: String(orderInfo ?? `Hoan tien ${txnRef}`).slice(0, 255),
+    vnp_TransactionNo: String(txnNo),
+    vnp_TransactionDate: String(transactionDate),
+    vnp_CreateBy: String(createBy).slice(0, 50),
+    vnp_CreateDate: created,
+    vnp_IpAddr: String(ipAddr || '127.0.0.1'),
+  };
+  /* Chữ ký hoàn khác chữ ký pay: nối bằng '|' theo đúng thứ tự VNPay
+     quy định, không sort + không encode query. */
+  const data = [
+    params.vnp_RequestId, params.vnp_Version, params.vnp_Command,
+    params.vnp_TmnCode, params.vnp_TransactionType, params.vnp_TxnRef,
+    params.vnp_Amount, params.vnp_OrderInfo, params.vnp_TransactionNo,
+    params.vnp_TransactionDate, params.vnp_CreateBy, params.vnp_CreateDate,
+    params.vnp_IpAddr,
+  ].join('|');
+  params.vnp_SecureHash = crypto
+    .createHmac('sha512', hashSecret).update(Buffer.from(data, 'utf-8')).digest('hex');
+  return params;
+}
+
+/**
+ * Gọi hoàn tiền lên VNPay. Không bao giờ ném lỗi — trả { ok, message? }.
+ * fetchImpl để test chích stub, không gọi mạng thật.
+ */
+export async function refundViaVNPay(input, fetchImpl = fetch) {
+  const config = vnpayConfig();
+  if (config.mock || !config.tmnCode || !config.hashSecret) {
+    return { ok: false, error: 'VNPay chưa cấu hình (đang ở chế độ giả lập hoặc thiếu key).' };
+  }
+  if (!input?.txnNo) {
+    return { ok: false, error: 'Thiếu mã giao dịch gốc của VNPay nên không gọi hoàn được.' };
+  }
+  try {
+    const payload = buildRefundPayload(input);
+    const response = await fetchImpl(vnpayApiUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json().catch(() => null);
+    const code = String(result?.vnp_ResponseCode ?? '');
+    if (response.ok && code === '00') return { ok: true, code, message: String(result?.vnp_Message ?? 'OK') };
+    return { ok: false, code: code || String(response.status), error: String(result?.vnp_Message ?? `VNPay trả về ${code || response.status}`) };
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error).slice(0, 200) };
+  }
+}

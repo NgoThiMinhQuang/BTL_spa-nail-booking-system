@@ -29,7 +29,10 @@ export interface InvoiceData {
   paymentText: string | null;
   methodText: string | null;
   paymentDate: string | null;
-  transactions: { id: string; type: string; amount: number; method: string | null; paidAt: string }[];
+  transactions: {
+    id: string; type: string; amount: number; method: string | null; paidAt: string;
+    txnStatus?: string; isMock?: boolean;
+  }[];
 }
 
 export function BookingInvoice({ data }: { data: InvoiceData }) {
@@ -113,7 +116,7 @@ export function BookingInvoice({ data }: { data: InvoiceData }) {
           <div><dt>Tổng cộng</dt><dd>{formatVND(data.total)}</dd></div>
           {data.transactions.map((t) => (
             <div key={t.id} className="invoice-txn">
-              <dt>{typeText[t.type] ?? t.type}{t.method ? ` (${methodText[t.method] ?? t.method})` : ''}</dt>
+              <dt>{typeText[t.type] ?? t.type}{t.method ? ` (${methodText[t.method] ?? t.method})` : ''}{t.isMock ? ' · mô phỏng' : ''}</dt>
               <dd>{formatVND(t.amount)}</dd>
             </div>
           ))}

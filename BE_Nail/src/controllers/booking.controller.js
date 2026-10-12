@@ -23,6 +23,7 @@ import {
 } from '../lib/booking-service.js';
 import { freeSlotsForAnyStaff, freeSlotsForStaff } from '../lib/staff-availability.js';
 import {
+  approvedLeaveOverlaps,
   checkStaffAvailable, listAvailableStaff, lockStaffBookings,
 } from '../lib/staff-availability.js';
 import { settleCancelPayment } from '../lib/payment-transactions.js';
@@ -256,11 +257,28 @@ export async function createBooking(req, res, next) {
       bufferTime: service.bufferTime,
       source: 'MOBILE',
       note,
+      clientKey: req.body?.clientKey ?? req.body?.client_key ?? null,
       actorRole: 'CUSTOMER',
       actorName: req.user.name,
     });
 
     await connection.commit();
+
+    /* Gửi trùng (bấm hai lần): trả về lịch đã tạo, không gửi mail lại. */
+    if (record.duplicate) {
+      return res.status(200).json({
+        data: {
+          id: String(record.bookingId),
+          customerId: String(req.user.customerId),
+          serviceId: String(serviceId),
+          staffId: record.staffId == null ? null : String(record.staffId),
+          startsAt: record.startsAt,
+          endsAt: record.endsAt,
+          status: 'pending',
+          duplicate: true,
+        },
+      });
+    }
 
     /* Mail xác nhận cho khách để lại mail (kênh thêm — không có mail thì
        mọi thứ vẫn như cũ, lỗi gửi không chặn đặt lịch). */
@@ -787,7 +805,8 @@ export async function getBookingReceipt(req, res, next) {
       `SELECT service_name AS name, quantity, price
          FROM booking_addon WHERE booking_id = ? ORDER BY addon_id`, [bookingId]);
     const [transactions] = await pool.query(
-      `SELECT transaction_id AS id, type, amount, payment_method AS method, paid_at AS paidAt
+      `SELECT transaction_id AS id, type, amount, payment_method AS method, paid_at AS paidAt,
+              status AS txnStatus, is_mock AS isMock
          FROM payment_transaction WHERE booking_id = ?
          ORDER BY paid_at ASC, transaction_id ASC`, [bookingId]);
 
@@ -831,6 +850,8 @@ export async function getBookingReceipt(req, res, next) {
           amount: Number(t.amount),
           method: t.method,
           paidAt: t.paidAt,
+          txnStatus: t.txnStatus ?? 'SUCCEEDED',
+          isMock: Number(t.isMock ?? 0) === 1,
         })),
       },
     });
@@ -1047,7 +1068,7 @@ export async function updateBookingStatus(req, res, next) {
     const [[booking]] = await connection.query(
       `SELECT b.booking_id, b.status, b.staff_id AS staffId, su.full_name AS staffName,
               b.service_id AS serviceId, b.service_duration AS serviceDuration,
-              b.start_time AS startsAt,
+              b.start_time AS startsAt, b.end_time AS endsAt,
               s.service_name AS serviceName,
               pay.payment_status AS paymentStatus
          FROM booking b
@@ -1069,6 +1090,26 @@ export async function updateBookingStatus(req, res, next) {
     if (booking.staffId !== req.user.staffId) {
       await connection.rollback();
       return res.status(403).json({ message: 'Lịch hẹn này không được phân công cho bạn.' });
+    }
+
+    /* Đang trong thời gian nghỉ duyệt thì không được bắt đầu phục vụ:
+       nhân viên đã báo nghỉ mà lịch vẫn CONFIRMED (chờ Admin bàn giao)
+       thì bấm "bắt đầu" sẽ phục vụ chui ngoài phân công. Hoàn thành nốt
+       (PROCESSING → COMPLETED) vẫn cho phép để lịch không bị kẹt. */
+    if (nextStatus === 'PROCESSING' && booking.staffId) {
+      const leave = await approvedLeaveOverlaps({
+        staffId: booking.staffId,
+        startsAt: new Date(),
+        endsAt: booking.endsAt ?? new Date(Date.now() + 60000),
+        runner: connection,
+      });
+      if (leave) {
+        await connection.rollback();
+        return res.status(409).json({
+          message: 'Bạn đang trong thời gian nghỉ đã duyệt nên không bắt đầu lịch này được. '
+            + 'Liên hệ quản trị để bàn giao.',
+        });
+      }
     }
 
     const transition = canStaffTransition(booking.status, nextStatus);

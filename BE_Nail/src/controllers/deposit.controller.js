@@ -135,7 +135,7 @@ export async function createDepositIntent(req, res, next) {
  * (REFUND), báo khách và Admin. Lũy đẳng qua dòng REFUND đã ghi.
  * Chạy trong giao dịch của caller, commit ở caller.
  */
-async function reconcileLateDeposit(connection, { booking, amount }) {
+async function reconcileLateDeposit(connection, { booking, amount, gatewayTxnNo = null, gatewayTxnRef = null }) {
   const bookingId = booking.booking_id;
   const [[done]] = await connection.query(
     `SELECT COUNT(*) AS n FROM payment_transaction
@@ -149,12 +149,15 @@ async function reconcileLateDeposit(connection, { booking, amount }) {
   if (payRow) {
     await connection.query(
       `UPDATE payment SET amount = ?, payment_method = 'ONLINE',
-            payment_status = 'DEPOSITED', payment_date = NOW()
-        WHERE payment_id = ?`, [cash, payRow.pid]);
+            payment_status = 'DEPOSITED', payment_date = NOW(),
+            gateway_txn_no = COALESCE(?, gateway_txn_no),
+            gateway_txn_ref = COALESCE(?, gateway_txn_ref)
+        WHERE payment_id = ?`, [cash, gatewayTxnNo, gatewayTxnRef, payRow.pid]);
   } else {
     await connection.query(
-      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
-       VALUES (?,?,'ONLINE','DEPOSITED',NOW())`, [bookingId, cash]);
+      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date,
+                            gateway_txn_no, gateway_txn_ref)
+       VALUES (?,?,'ONLINE','DEPOSITED',NOW(),?,?)`, [bookingId, cash, gatewayTxnNo, gatewayTxnRef]);
   }
   await recordCashFlow(connection, {
     bookingId, type: 'DEPOSIT', amount: cash,
@@ -215,7 +218,7 @@ async function notifyLateRefund({ bookingId, booking, refunded }) {
  * - Tiền đến muộn khi lịch đã chết (hết hạn bị hủy nhưng cổng vẫn thu):
  *   đối soát — ghi nhận tiền thật rồi hoàn đủ ngay, báo khách + Admin.
  */
-export async function confirmDepositPayment({ bookingId, amount }) {
+export async function confirmDepositPayment({ bookingId, amount, gatewayTxnNo = null, gatewayTxnRef = null }) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -282,15 +285,18 @@ export async function confirmDepositPayment({ bookingId, amount }) {
     if (pay) {
       await connection.query(
         `UPDATE payment SET amount = ?, payment_method = 'ONLINE',
-             payment_status = 'DEPOSITED', payment_date = NOW()
-         WHERE booking_id = ?`,
-        [Number(amount), bookingId],
+              payment_status = 'DEPOSITED', payment_date = NOW(),
+              gateway_txn_no = COALESCE(?, gateway_txn_no),
+              gateway_txn_ref = COALESCE(?, gateway_txn_ref)
+          WHERE booking_id = ?`,
+        [Number(amount), gatewayTxnNo, gatewayTxnRef, bookingId],
       );
     } else {
       await connection.query(
-        `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
-         VALUES (?,?,'ONLINE','DEPOSITED',NOW())`,
-        [bookingId, Number(amount)],
+        `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date,
+                              gateway_txn_no, gateway_txn_ref)
+         VALUES (?,?,'ONLINE','DEPOSITED',NOW(),?,?)`,
+        [bookingId, Number(amount), gatewayTxnNo, gatewayTxnRef],
       );
     }
     /* Tiền cọc vào két theo đúng ngày cọc (kể cả qua cổng online). */
@@ -417,7 +423,12 @@ export async function vnpayReturn(req, res, next) {
       }));
     }
     try {
-      const result = await confirmDepositPayment({ bookingId, amount: paid });
+      const result = await confirmDepositPayment({
+        bookingId,
+        amount: paid,
+        gatewayTxnNo: String(params.vnp_TransactionNo ?? '') || null,
+        gatewayTxnRef: String(params.vnp_TxnRef ?? '') || null,
+      });
       if (result.status !== 200) {
         return res.status(result.status).send(resultPage({ ok: false, title: 'Không ghi nhận được', lines: [result.message] }));
       }
@@ -452,7 +463,9 @@ export async function vnpayReturn(req, res, next) {
 
 /**
  * GET /api/payments/vnpay-ipn — VNPay gọi ngầm xác nhận (server-to-server).
- * Trả đúng mã VNPay quy định để cổng ngừng gọi lại.
+ * Trả đúng mã VNPay quy định để cổng ngừng gọi lại. Cùng điều kiện thành
+ * công như return (cả hai mã 00) + kiểm tra số tiền khớp mức cọc yêu cầu
+ * (mã 04) để hai luồng không lệch nhau.
  */
 export async function vnpayIpn(req, res, next) {
   try {
@@ -461,11 +474,24 @@ export async function vnpayIpn(req, res, next) {
     const bookingId = bookingIdFromTxnRef(params.vnp_TxnRef);
     if (!bookingId) return res.json({ RspCode: '01', Message: 'Order not found' });
     const paid = Math.round(Number(params.vnp_Amount ?? 0) / 100);
-    if (String(params.vnp_ResponseCode ?? '') !== '00') {
+    if (String(params.vnp_ResponseCode ?? '') !== '00'
+      || String(params.vnp_TransactionStatus ?? '') !== '00') {
       return res.json({ RspCode: '00', Message: 'Confirm Success' });
     }
+    /* Số tiền cổng báo phải đủ mức cọc — không thì từ chối đối soát (04)
+       chứ không ghi nhận thiếu rồi tính như đã cọc đủ. */
+    const due = await amountDue(pool, bookingId);
+    if (!due) return res.json({ RspCode: '01', Message: 'Order not found' });
+    if (paid < depositAmount(due.total)) {
+      return res.json({ RspCode: '04', Message: 'Invalid amount' });
+    }
     try {
-      const result = await confirmDepositPayment({ bookingId, amount: paid });
+      const result = await confirmDepositPayment({
+        bookingId,
+        amount: paid,
+        gatewayTxnNo: String(params.vnp_TransactionNo ?? '') || null,
+        gatewayTxnRef: String(params.vnp_TxnRef ?? '') || null,
+      });
       if (result.status === 404) return res.json({ RspCode: '01', Message: 'Order not found' });
       if (result.status !== 200) return res.json({ RspCode: '02', Message: 'Order already confirmed' });
       return res.json({ RspCode: '00', Message: 'Confirm Success' });
