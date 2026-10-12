@@ -3084,3 +3084,69 @@ describe('Nghi dot xuat bao admin', () => {
     }
   });
 });
+
+/* Hop thu cua chinh admin + kenh Telegram khan cap. */
+describe('Hop thu admin va Telegram', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  test('admin chi doc duoc tin cua chinh minh', async () => {
+    const { listMine, markRead } = await import('../src/controllers/notification.controller.js');
+    const connection = await connect();
+    try {
+      const [[admin]] = await connection.query(
+        "SELECT user_id AS userId FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE' LIMIT 1");
+      const [[other]] = await connection.query(
+        "SELECT user_id AS userId FROM users WHERE user_id <> ? LIMIT 1", [admin.userId]);
+      const [mine] = await connection.query(
+        "INSERT INTO notification (user_id, title, body, type, channel, status) VALUES (?, 'Tin admin', 'nd', 'GENERAL', 'INAPP', 'SENT')",
+        [admin.userId]);
+      const [theirs] = await connection.query(
+        "INSERT INTO notification (user_id, title, body, type, channel, status) VALUES (?, 'Tin nguoi khac', 'nd', 'GENERAL', 'INAPP', 'SENT')",
+        [other.userId]);
+
+      const listed = mockRes();
+      await listMine({ query: {}, user: { userId: admin.userId } }, listed, strictNext);
+      assert.equal(listed.statusCode, 200);
+      assert.ok(listed.body.data.some((n) => String(n.id) === String(mine.insertId)));
+      assert.ok(!listed.body.data.some((n) => String(n.id) === String(theirs.insertId)));
+      assert.equal(Number(listed.body.meta.unread) >= 1, true);
+
+      const forbidden = mockRes();
+      await markRead({ params: { id: String(theirs.insertId) }, user: { userId: admin.userId } }, forbidden, strictNext);
+      assert.equal(forbidden.statusCode, 404);
+
+      const read = mockRes();
+      await markRead({ params: { id: String(mine.insertId) }, user: { userId: admin.userId } }, read, strictNext);
+      assert.equal(read.statusCode, 200);
+      const [[row]] = await connection.query(
+        'SELECT status FROM notification WHERE notification_id = ?', [mine.insertId]);
+      assert.equal(row.status, 'READ');
+
+      await connection.query('DELETE FROM notification WHERE notification_id IN (?, ?)', [mine.insertId, theirs.insertId]);
+    } finally {
+      await connection.end();
+    }
+  });
+
+  test('chua cau hinh Telegram thi bo qua em', async () => {
+    const savedToken = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChat = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_ADMIN_CHAT_ID;
+    try {
+      const { sendTelegramAlert } = await import('../src/lib/notifications.js');
+      const result = await sendTelegramAlert('KHAN: test');
+      assert.equal(result.skipped, true);
+    } finally {
+      if (savedToken !== undefined) process.env.TELEGRAM_BOT_TOKEN = savedToken;
+      if (savedChat !== undefined) process.env.TELEGRAM_ADMIN_CHAT_ID = savedChat;
+    }
+  });
+});

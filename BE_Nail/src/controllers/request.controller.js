@@ -17,7 +17,7 @@
 
 import { pool } from '../config/database.js';
 import { isDate } from '../lib/booking-service.js';
-import { createNotification, pushToUser } from '../lib/notifications.js';
+import { createNotification, pushToUser, sendTelegramAlert } from '../lib/notifications.js';
 
 /* 'YYYY-MM-DD HH:mm' → 'HH:mm ngày DD/MM' để nhắn cho khách. */
 function fmtSlot(value) {
@@ -241,6 +241,23 @@ export async function createLeaveRequest(req, res, next) {
         /* Bỏ qua — như kênh khách, lỗi gửi xem ở trang thông báo. */
       }
 
+      /* Kênh khẩn cấp ra điện thoại admin (Telegram): Expo push chỉ tới
+         khi máy đã cài app + đăng ký token. Chưa cấu hình thì bỏ qua êm. */
+      let telegramSent = 0;
+      try {
+        const affected = Number(remaining[0]?.n ?? 0);
+        const urgent =
+          `KHẨN: ${req.user.name} báo nghỉ đột xuất từ ${fmtSlot(startsAt)} đến ${fmtSlot(endsAt)}. `
+          + `Có ${affected} lịch cần xử lý`
+          + (notified > 0 ? ` (đã báo app cho ${notified} khách)` : '')
+          + (walkinCount > 0 ? ` (${walkinCount} khách vãng lai cần gọi)` : '')
+          + '. Mở web quản trị để bàn giao lịch.';
+        const telegram = await sendTelegramAlert(urgent);
+        telegramSent = telegram.sent ?? 0;
+      } catch {
+        /* Kênh phụ — không được làm hỏng đơn nghỉ. */
+      }
+
       return res.status(201).json({
         data: {
           id: String(result.insertId),
@@ -255,6 +272,7 @@ export async function createLeaveRequest(req, res, next) {
           notifiedCustomers: notified,
           walkinCustomers: walkinCount,
           notifiedAdmins: adminNotified,
+          telegramSent,
         },
       });
     }

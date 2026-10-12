@@ -131,6 +131,20 @@ export function AdminLayout({
     }
   }
 
+  /* Chấm đỏ ở chuông = còn tin nhắn cho chính admin chưa đọc (nghỉ đột
+     xuất, tin khẩn). Tải lại mỗi lần chuyển trang để đọc xong là mất chấm. */
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/notifications/mine?unread=1')
+      .then((response) => response.json().catch(() => null))
+      .then((payload: { meta?: { unread?: number } } | null) => {
+        if (!cancelled) setUnread(Number(payload?.meta?.unread ?? 0));
+      })
+      .catch(() => { /* kẹt mạng thì coi như không có tin mới */ });
+    return () => { cancelled = true; };
+  }, [state.view]);
+
   /* Đóng menu tài khoản khi bấm ra ngoài hoặc nhấn Esc. */
   useEffect(() => {
     if (!menuOpen) return;
@@ -230,7 +244,7 @@ export function AdminLayout({
             <button className="adm-bell" aria-label="Thông báo — mở trang theo dõi tin"
               title="Mở trang thông báo" onClick={() => goView('admin-notifications')}>
               <Icon name="bell" />
-              {state.reviewStats.total > 0 && <i />}
+              {(unread > 0 || state.reviewStats.total > 0) && <i />}
             </button>
           </div>
         </header>

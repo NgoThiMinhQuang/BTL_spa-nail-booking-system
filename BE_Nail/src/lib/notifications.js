@@ -104,3 +104,45 @@ export async function notifyCustomer(runner, {
     return { notified: false };
   }
 }
+
+/* ================================================================
+   Kênh Telegram cho tin khẩn cấp (nghỉ đột xuất...)
+   ----------------------------------------------------------------
+   Expo push chỉ tới khi máy admin đã cài app + đăng ký token; SMS thì
+   chưa có nhà mạng. Telegram miễn phí, tới điện thoại ngay cả khi không
+   mở app — hợp nhất cho tin "cần biết trong vài phút".
+
+   Cấu hình trong .env (xem .env.example):
+     TELEGRAM_BOT_TOKEN   — token @BotFather cấp khi tạo bot.
+     TELEGRAM_ADMIN_CHAT_ID — id chat/nhóm nhận tin, nhiều id cách nhau
+       bằng dấu phẩy. Lấy bằng cách nhắn cho bot rồi mở
+       https://api.telegram.org/bot<token>/getUpdates xem chat.id.
+   Chưa cấu hình thì bỏ qua êm (skipped) — luồng nghiệp vụ không dừng.
+   ================================================================ */
+
+const TELEGRAM_API = 'https://api.telegram.org';
+
+/** Gửi một tin khẩn tới mọi chat admin. Không bao giờ ném lỗi. */
+export async function sendTelegramAlert(text) {
+  const token = String(process.env.TELEGRAM_BOT_TOKEN ?? '').trim();
+  const chats = String(process.env.TELEGRAM_ADMIN_CHAT_ID ?? '')
+    .split(',').map((part) => part.trim()).filter(Boolean);
+  if (!token || chats.length === 0) return { skipped: true, sent: 0 };
+
+  let sent = 0;
+  for (const chat of chats) {
+    try {
+      const response = await fetch(`${TELEGRAM_API}/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, text: String(text).slice(0, 3500) }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.ok && payload?.ok === true) sent += 1;
+    } catch {
+      /* Kênh phụ — ghi nhận gửi hụt, luồng chính vẫn đi tiếp. */
+    }
+  }
+  return { skipped: false, sent };
+}
