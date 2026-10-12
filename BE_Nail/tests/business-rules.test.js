@@ -2930,3 +2930,95 @@ describe('Thu vien anh dich vu', () => {
     }
   });
 });
+
+/* Nghiep vu danh muc: dem so dich vu live + an danh muc la an that khoi app khach. */
+describe('Nghiep vu danh muc', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const mockGet = () => 'localhost:3000';
+
+  test('an danh muc thi app khach khong thay dich vu cua no', async () => {
+    const catalog = await import('../src/controllers/catalog.controller.js');
+    const mobile = await import('../src/controllers/service.controller.js');
+    const connection = await connect();
+    let categoryId = null;
+    let serviceId = null;
+    try {
+      const [c] = await connection.query(
+        "INSERT INTO service_category (category_name, description, status) VALUES ('Nhom An Test', 'test', 'ACTIVE')");
+      categoryId = c.insertId;
+      const [s] = await connection.query(
+        'INSERT INTO services (service_name, description, price, duration, buffer_time, status, category_id) VALUES (?,?,?,?,?,?,?)',
+        ['DV An Test', 'test', 100000, 60, 0, 'ACTIVE', categoryId]);
+      serviceId = s.insertId;
+
+      const mobileReq = () => ({ query: {}, protocol: 'http', get: mockGet });
+      const visible = mockRes();
+      await mobile.listServices(mobileReq(), visible, strictNext);
+      assert.ok(visible.body.data.some((item) => String(item.id) === String(serviceId)),
+        'danh muc dang mo thi dich vu phai hien');
+
+      const hidden = mockRes();
+      await catalog.setCategoryStatus(
+        { params: { id: String(categoryId) }, body: { status: 'INACTIVE' } }, hidden, strictNext);
+      assert.equal(hidden.statusCode, 200);
+
+      const gone = mockRes();
+      await mobile.listServices(mobileReq(), gone, strictNext);
+      assert.ok(!gone.body.data.some((item) => String(item.id) === String(serviceId)),
+        'an danh muc thi dich vu phai bien khoi app khach');
+
+      const detail = mockRes();
+      await mobile.getService(
+        { params: { id: String(serviceId) }, protocol: 'http', get: mockGet }, detail, strictNext);
+      assert.equal(detail.statusCode, 404);
+
+      /* Mo lai thi hien nhu cu. */
+      await catalog.setCategoryStatus(
+        { params: { id: String(categoryId) }, body: { status: 'ACTIVE' } }, mockRes(), strictNext);
+      const back = mockRes();
+      await mobile.listServices(mobileReq(), back, strictNext);
+      assert.ok(back.body.data.some((item) => String(item.id) === String(serviceId)));
+    } finally {
+      if (serviceId) await connection.query('DELETE FROM services WHERE service_id = ?', [serviceId]);
+      if (categoryId) await connection.query('DELETE FROM service_category WHERE category_id = ?', [categoryId]);
+      await connection.end();
+    }
+  });
+
+  test('so dich vu dem live, khong doc cache', async () => {
+    const { listCategories } = await import('../src/controllers/catalog.controller.js');
+    const connection = await connect();
+    let categoryId = null;
+    let serviceId = null;
+    try {
+      const [c] = await connection.query(
+        "INSERT INTO service_category (category_name, description, status) VALUES ('Nhom Dem Test', 'test', 'ACTIVE')");
+      categoryId = c.insertId;
+      /* Co tinh lam lech cache de chung minh khong doc no. */
+      await connection.query(
+        'UPDATE service_category SET service_count = 99 WHERE category_id = ?', [categoryId]);
+      const [s] = await connection.query(
+        'INSERT INTO services (service_name, price, duration, buffer_time, status, category_id) VALUES (?,?,?,?,?,?)',
+        ['DV Dem Test', 50000, 30, 0, 'ACTIVE', categoryId]);
+      serviceId = s.insertId;
+
+      const res = mockRes();
+      await listCategories({ query: {} }, res, strictNext);
+      const row = res.body.data.find((item) => String(item.id) === String(categoryId));
+      assert.ok(row, 'danh muc moi phai co trong danh sach');
+      assert.equal(Number(row.serviceCount), 1);
+    } finally {
+      if (serviceId) await connection.query('DELETE FROM services WHERE service_id = ?', [serviceId]);
+      if (categoryId) await connection.query('DELETE FROM service_category WHERE category_id = ?', [categoryId]);
+      await connection.end();
+    }
+  });
+});

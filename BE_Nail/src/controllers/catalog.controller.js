@@ -316,9 +316,13 @@ export async function deleteService(req, res, next) {
 
 export async function listCategories(req, res, next) {
   try {
+    /* serviceCount đếm live thay vì đọc cột cache service_count (cột đó
+       không có trigger/code nào cập nhật nên thêm/xoá dịch vụ là lệch). */
     const [rows] = await pool.query(
       `SELECT c.category_id AS id, c.category_name AS name, c.description,
-              c.status, c.service_count AS serviceCount,
+              c.status,
+              (SELECT COUNT(*) FROM services s
+                WHERE s.category_id = c.category_id) AS serviceCount,
               (SELECT COALESCE(SUM(s.price), 0) FROM services s
                 WHERE s.category_id = c.category_id AND s.status = 'ACTIVE') AS totalPrice,
               (SELECT COUNT(*) FROM booking b JOIN services s2 ON s2.service_id = b.service_id

@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile } from '../components/Primitives';
+import { ServiceDrawer } from '../components/ServiceDrawer';
 import { useApp } from '../store';
 import { sendAdmin } from '../lib/admin-api';
 import { fmtNum, formatVND, moneyShort } from '../lib/utils';
@@ -20,6 +21,8 @@ export function AdminCategoriesPage() {
 
   const [editing, setEditing] = useState<CategoryItem | null>(null);
   const [creating, setCreating] = useState(false);
+  /* Mở ngăn thêm dịch vụ với đúng nhóm này điền sẵn. */
+  const [addService, setAddService] = useState<CategoryItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [form, setForm] = useState({ name: '', description: '', status: 'ACTIVE' });
@@ -227,6 +230,9 @@ export function AdminCategoriesPage() {
               <button className="button secondary" onClick={() => setOpenId(null)}>Đóng</button>
               {open && (
                 <>
+                  <button className="button" onClick={() => setAddService(open)}>
+                    ＋ Thêm dịch vụ
+                  </button>
                   <button className="button secondary" onClick={() => openEdit(open)}>Sửa</button>
                   <button className="button secondary" onClick={() => removeCategory(open)}>Xoá</button>
                 </>
@@ -242,6 +248,12 @@ export function AdminCategoriesPage() {
           onClick={() => setCreating(false)}>
           <div className="adm-modal adm-modal-wide" onClick={(e) => e.stopPropagation()}>
             <h3>{editing ? `Sửa danh mục "${editing.name}"` : 'Thêm danh mục mới'}</h3>
+            {editing && (
+              <p className="adm-field-note">
+                Sửa chỉ đổi tên, mô tả và trạng thái của nhóm —{' '}
+                {editing.serviceCount} dịch vụ bên trong giữ nguyên, kể cả giá và ảnh.
+              </p>
+            )}
             <form className="adm-form" onSubmit={submitCategory}>
               <label className="adm-field">
                 <span>Tên danh mục</span>
@@ -274,6 +286,19 @@ export function AdminCategoriesPage() {
             </form>
           </div>
         </div>
+      )}
+      {/* Ngăn thêm dịch vụ với đúng nhóm này điền sẵn — mở từ hộp
+          chi tiết nên hộp vẫn nằm phía sau, lưu xong số liệu tự cập nhật. */}
+      {addService && (
+        <ServiceDrawer
+          key={`new-in-${addService.id}`}
+          service={null}
+          initialMode="edit"
+          categories={categories}
+          presetCategoryId={addService.id}
+          onClose={() => setAddService(null)}
+          onChanged={reload}
+        />
       )}
     </>
   );

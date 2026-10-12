@@ -51,8 +51,8 @@ const EMPTY_FORM: FormState = {
   bufferTime: '0', description: '', status: 'ACTIVE', image: '',
 };
 
-function toForm(service: ServiceItem | null): FormState {
-  if (!service) return EMPTY_FORM;
+function toForm(service: ServiceItem | null, presetCategoryId = ''): FormState {
+  if (!service) return { ...EMPTY_FORM, categoryId: presetCategoryId };
   return {
     name: service.name, categoryId: service.categoryId ?? '',
     price: String(service.price), duration: String(service.duration),
@@ -199,24 +199,26 @@ function ServiceGalleryStrip({ serviceId }: { serviceId: string }) {
   );
 }
 
-export function ServiceDrawer({ service, initialMode, categories, onClose, onChanged }: {
+export function ServiceDrawer({ service, initialMode, categories, presetCategoryId, onClose, onChanged }: {
   /** null = thêm dịch vụ mới. */
   service: ServiceItem | null;
   initialMode: 'detail' | 'edit';
   categories: CategoryItem[];
+  /** Mở từ trang danh mục thì điền sẵn nhóm này cho dịch vụ mới. */
+  presetCategoryId?: string;
   onClose: () => void;
   /** Gọi tải lại danh sách sau khi lưu / ẩn / mở / xoá. */
   onChanged: () => void;
 }) {
   const [mode, setMode] = useState<'detail' | 'edit'>(service ? initialMode : 'edit');
-  const [form, setForm] = useState<FormState>(() => toForm(service));
+  const [form, setForm] = useState<FormState>(() => toForm(service, presetCategoryId));
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
 
   /* Mở dịch vụ khác thì quay về chế độ gọi ban đầu. */
   useEffect(() => {
     setMode(service ? initialMode : 'edit');
-    setForm(toForm(service));
+    setForm(toForm(service, presetCategoryId));
     setFeedback('');
   }, [service?.id, initialMode]); // eslint-disable-line react-hooks/exhaustive-deps
 

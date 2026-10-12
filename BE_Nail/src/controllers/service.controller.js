@@ -38,7 +38,9 @@ export async function listServices(req, res, next) {
       LEFT JOIN service_category c ON c.category_id = s.category_id
       LEFT JOIN booking b ON b.service_id = s.service_id
       LEFT JOIN review r ON r.booking_id = b.booking_id
-      WHERE ${conditions.join(' AND ')}
+      /* Ẩn danh mục là ẩn luôn nhóm dịch vụ khỏi app khách (không cần sửa
+         từng dịch vụ con): dịch vụ chưa xếp nhóm vẫn hiện bình thường. */
+      WHERE ${conditions.join(' AND ')} AND (c.category_id IS NULL OR c.status = 'ACTIVE')
       GROUP BY s.service_id, c.category_id
       ORDER BY s.service_id DESC
     `, params);
@@ -68,6 +70,7 @@ export async function getService(req, res, next) {
       LEFT JOIN booking b ON b.service_id = s.service_id
       LEFT JOIN review r ON r.booking_id = b.booking_id
       WHERE s.service_id = ? AND s.status = 'ACTIVE'
+        AND (c.category_id IS NULL OR c.status = 'ACTIVE')
       GROUP BY s.service_id, c.category_id
     `, [req.params.id]);
 
@@ -98,7 +101,9 @@ export async function getService(req, res, next) {
       pool.query(`SELECT other.service_id AS id, other.service_name AS name, other.price,
         other.duration, other.image AS imageUrl
         FROM services current CROSS JOIN services other
+        LEFT JOIN service_category oc ON oc.category_id = other.category_id
         WHERE current.service_id = ? AND other.service_id <> current.service_id AND other.status = 'ACTIVE'
+          AND (oc.category_id IS NULL OR oc.status = 'ACTIVE')
         ORDER BY (other.category_id = current.category_id) DESC, other.service_id DESC LIMIT 6`, [req.params.id]),
     ]);
 
