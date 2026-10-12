@@ -17,7 +17,7 @@
 
 import { pool } from '../config/database.js';
 import { isDate } from '../lib/booking-service.js';
-import { createNotification, pushToUser, sendTelegramAlert } from '../lib/notifications.js';
+import { adminEmailList, createNotification, pushToUser, sendEmailAlert, sendTelegramAlert } from '../lib/notifications.js';
 
 /* 'YYYY-MM-DD HH:mm' → 'HH:mm ngày DD/MM' để nhắn cho khách. */
 function fmtSlot(value) {
@@ -244,6 +244,7 @@ export async function createLeaveRequest(req, res, next) {
       /* Kênh khẩn cấp ra điện thoại admin (Telegram): Expo push chỉ tới
          khi máy đã cài app + đăng ký token. Chưa cấu hình thì bỏ qua êm. */
       let telegramSent = 0;
+      let emailSent = 0;
       try {
         const affected = Number(remaining[0]?.n ?? 0);
         const urgent =
@@ -254,6 +255,17 @@ export async function createLeaveRequest(req, res, next) {
           + '. Mở web quản trị để bàn giao lịch.';
         const telegram = await sendTelegramAlert(urgent);
         telegramSent = telegram.sent ?? 0;
+        /* Song song gửi Gmail cho admin để có vết lưu + đọc trên máy tính. */
+        const emails = adminEmailList();
+        if (emails.length > 0) {
+          const mailed = await sendEmailAlert({
+            to: emails,
+            subject: `[KHẨN] ${req.user.name} báo nghỉ đột xuất`,
+            text: `${urgent}\n\nLý do nhân viên ghi: ${reason || '—'}\n`
+              + `Đơn đã tự duyệt. Mở trang nghỉ phép trên web quản trị để bàn giao lịch.`,
+          });
+          emailSent = mailed.sent ?? 0;
+        }
       } catch {
         /* Kênh phụ — không được làm hỏng đơn nghỉ. */
       }
@@ -273,6 +285,7 @@ export async function createLeaveRequest(req, res, next) {
           walkinCustomers: walkinCount,
           notifiedAdmins: adminNotified,
           telegramSent,
+          emailSent,
         },
       });
     }

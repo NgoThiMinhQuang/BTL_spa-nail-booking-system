@@ -146,3 +146,56 @@ export async function sendTelegramAlert(text) {
   }
   return { skipped: false, sent };
 }
+
+/* ================================================================
+   Gmail cho tin khẩn cấp (nghỉ đột xuất...)
+   ----------------------------------------------------------------
+   Gửi qua SMTP của Google bằng "mật khẩu ứng dụng" (App Password),
+   KHÔNG phải mật khẩu đăng nhập Gmail. Cách lấy xem .env.example.
+   Gmail cá nhân gửi vài trăm mail/ngày — tiệm mình dùng cho tin khẩn
+   thì thoải mái. Chưa cấu hình thì bỏ qua êm (skipped).
+   ================================================================ */
+
+let mailer = null;
+
+async function getMailer() {
+  if (mailer) return mailer;
+  const user = String(process.env.GMAIL_USER ?? '').trim();
+  const pass = String(process.env.GMAIL_APP_PASSWORD ?? '').replace(/\s+/g, '');
+  if (!user || !pass) return null;
+  const { default: nodemailer } = await import('nodemailer');
+  mailer = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user, pass },
+  });
+  return mailer;
+}
+
+/** Gửi một email khẩn tới các địa chỉ admin. Không bao giờ ném lỗi. */
+export async function sendEmailAlert({ to, subject, text }) {
+  const recipients = (Array.isArray(to) ? to : String(to ?? '').split(','))
+    .map((part) => String(part).trim()).filter(Boolean);
+  if (recipients.length === 0) return { skipped: true, sent: 0 };
+  try {
+    const transport = await getMailer();
+    if (!transport) return { skipped: true, sent: 0 };
+    const from = String(process.env.GMAIL_USER ?? '').trim();
+    await transport.sendMail({
+      from: `"NailHouse Khẩn" <${from}>`,
+      to: recipients.join(', '),
+      subject: String(subject).slice(0, 150),
+      text: String(text).slice(0, 6000),
+    });
+    return { skipped: false, sent: recipients.length };
+  } catch {
+    return { skipped: false, sent: 0 };
+  }
+}
+
+/** Địa chỉ admin nhận mail khẩn, cách nhau bằng dấu phẩy. */
+export function adminEmailList() {
+  return String(process.env.ADMIN_EMAILS ?? '')
+    .split(',').map((part) => part.trim()).filter(Boolean);
+}

@@ -3150,3 +3150,28 @@ describe('Hop thu admin va Telegram', () => {
     }
   });
 });
+
+/* Gmail khan cap: chua cau hinh thi bo qua, khong lam hong don nghi. */
+describe('Gmail khan cap', () => {
+  test('thieu cau hinh thi skipped, list mail loc dung', async () => {
+    const savedUser = process.env.GMAIL_USER;
+    const savedPass = process.env.GMAIL_APP_PASSWORD;
+    const savedList = process.env.ADMIN_EMAILS;
+    delete process.env.GMAIL_USER;
+    delete process.env.GMAIL_APP_PASSWORD;
+    process.env.ADMIN_EMAILS = ' chu@example.com ,, quan@example.com ';
+    try {
+      const { sendEmailAlert, adminEmailList } = await import('../src/lib/notifications.js');
+      assert.deepEqual(adminEmailList(), ['chu@example.com', 'quan@example.com']);
+      const result = await sendEmailAlert({
+        to: adminEmailList(), subject: 'test', text: 'test',
+      });
+      assert.equal(result.skipped, true);
+    } finally {
+      if (savedUser !== undefined) process.env.GMAIL_USER = savedUser;
+      if (savedPass !== undefined) process.env.GMAIL_APP_PASSWORD = savedPass;
+      if (savedList !== undefined) process.env.ADMIN_EMAILS = savedList;
+      else delete process.env.ADMIN_EMAILS;
+    }
+  });
+});
