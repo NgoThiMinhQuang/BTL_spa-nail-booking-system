@@ -25,26 +25,34 @@ function projectId(): string | undefined {
 
 /**
  * Xin quyền + lấy Expo push token + đăng ký lên backend.
- * Trả null khi: máy ảo (không đẩy được) hoặc chưa đăng nhập.
- * Hộp thư trong app vẫn hoạt động khi không đẩy được ra màn hình.
- */export async function setupPushNotifications(): Promise<string | null> {
+ * Trả lý do rõ ràng để màn hình hiện đúng hướng xử lý, thay vì im lặng.
+ */
+export async function setupPushNotifications(): Promise<
+  { ok: true; token: string } | { ok: false; reason: 'emulator' | 'no-login' | 'denied' | 'token-failed' }
+> {
   try {
-    if (!Device.isDevice) return null;
-    if (!(await getToken())) return null;
+    if (!Device.isDevice) return { ok: false, reason: 'emulator' };
+    if (!(await getToken())) return { ok: false, reason: 'no-login' };
 
     const { status: existing } = await Notifications.getPermissionsAsync();
     const status = existing === 'granted'
       ? existing
       : (await Notifications.requestPermissionsAsync()).status;
-    if (status !== 'granted') return null;
+    if (status !== 'granted') return { ok: false, reason: 'denied' };
 
     const pid = projectId();
     /* Có projectId (EAS) thì dùng; chưa có (mới chỉ chạy Expo Go) thì thử
        không projectId — Expo Go vẫn cấp được token để test ngay. */
-    const token = (await (pid
-      ? Notifications.getExpoPushTokenAsync({ projectId: pid })
-      : Notifications.getExpoPushTokenAsync())).data;
-    if (!token) return null;
+    let token: string | null = null;
+    try {
+      token = (await (pid
+        ? Notifications.getExpoPushTokenAsync({ projectId: pid })
+        : Notifications.getExpoPushTokenAsync())).data ?? null;
+    } catch {
+      token = null;
+    }
+    /* iOS không cấp token khi thiếu projectId — phải chạy `npx eas init`. */
+    if (!token) return { ok: false, reason: 'token-failed' };
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
@@ -53,9 +61,9 @@ function projectId(): string | undefined {
       });
     }
     await registerDevice(token, Platform.OS === 'ios' ? 'ios' : 'android');
-    return token;
+    return { ok: true, token };
   } catch {
-    return null;
+    return { ok: false, reason: 'token-failed' };
   }
 }
 

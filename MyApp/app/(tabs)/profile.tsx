@@ -58,15 +58,16 @@ export default function ProfileScreen() {
   const [unread, setUnread] = useState(0);
   const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'undetermined' | ''>('');
 
-  /* Nút bật thông báo: bấm là biết kết quả ngay thay vì đoán.
-     Từng bấm Từ chối thì iOS không hỏi lại — mở thẳng Cài đặt. */
+  /* Nút bật thông báo: bấm là biết kết quả ngay thay vì đoán. */
   async function enablePush() {
-    const token = await setupPushNotifications();
+    const result = await setupPushNotifications();
     const status = await getPushPermissionStatus().catch(() => 'undetermined' as const);
     setPushStatus(status);
-    if (token) {
+    if (result.ok) {
       Alert.alert('Đã bật thông báo', 'Tin mới sẽ hiện ngay trên màn hình khóa của bạn.');
-    } else if (status === 'denied') {
+      return;
+    }
+    if (result.reason === 'denied' || status === 'denied') {
       Alert.alert(
         'Chưa bật được thông báo',
         'Bạn từng bấm Từ chối nên iPhone không hỏi lại. Mở Cài đặt → Expo Go → Thông báo để bật.',
@@ -74,6 +75,11 @@ export default function ProfileScreen() {
           { text: 'Để sau', style: 'cancel' },
           { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
         ],
+      );
+    } else if (result.reason === 'token-failed') {
+      Alert.alert(
+        'Thiếu projectId của Expo',
+        'Máy cho phép rồi nhưng chưa lấy được token. Trên máy tính, trong thư mục MyApp chạy "npx eas init" (đăng nhập tài khoản expo.dev miễn phí), rồi mở lại app bấm Bật.',
       );
     } else {
       Alert.alert('Chưa bật được thông báo', 'Hãy thử lại: mở lại tab Cá nhân rồi bấm Bật.');
