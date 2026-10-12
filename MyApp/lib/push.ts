@@ -27,8 +27,7 @@ function projectId(): string | undefined {
  * Xin quyền + lấy Expo push token + đăng ký lên backend.
  * Trả null khi: máy ảo (không đẩy được) hoặc chưa đăng nhập.
  * Hộp thư trong app vẫn hoạt động khi không đẩy được ra màn hình.
- */
-export async function setupPushNotifications(): Promise<string | null> {
+ */export async function setupPushNotifications(): Promise<string | null> {
   try {
     if (!Device.isDevice) return null;
     if (!(await getToken())) return null;
@@ -57,6 +56,21 @@ export async function setupPushNotifications(): Promise<string | null> {
     return token;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Trạng thái quyền thông báo của máy: để màn Cá nhân hiện "Đang bật"
+ * hay "Chưa bật" + nút bật lại. iOS từng bấm Từ chối thì luôn 'denied'
+ * và hệ điều hành không hỏi lại — phải mở Cài đặt thủ công.
+ */
+export async function getPushPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  try {
+    if (!Device.isDevice) return 'undetermined';
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+  } catch {
+    return 'undetermined';
   }
 }
 

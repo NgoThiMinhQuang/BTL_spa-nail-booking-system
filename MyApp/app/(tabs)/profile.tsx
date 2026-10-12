@@ -2,11 +2,11 @@ import { fetchHomeData } from '@/features/home/home.service';
 import type { HomeCustomer } from '@/features/home/home.types';
 import { logout } from '@/features/auth/auth.service';
 import { fetchInbox } from '@/features/notifications/notification.service';
-import { setupPushNotifications } from '@/lib/push';
+import { getPushPermissionStatus, setupPushNotifications } from '@/lib/push';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -42,7 +42,11 @@ export default function ProfileScreen() {
       .finally(() => { if (active) setLoading(false); });
     /* Đã đăng nhập rồi mới đăng ký được push — mỗi lần vào Cá nhân thử
        một lần (hàm tự bỏ qua khi chưa login hoặc máy ảo). */
-    setupPushNotifications();
+    setupPushNotifications().finally(() => {
+      getPushPermissionStatus()
+        .then((status) => { if (active) setPushStatus(status); })
+        .catch(() => {});
+    });
     fetchInbox().then(
       (inbox) => { if (active) setUnread(inbox.unread); },
       () => {},
@@ -52,6 +56,29 @@ export default function ProfileScreen() {
 
   const comingSoon = (label: string) => Alert.alert(label, 'Tính năng này đang được hoàn thiện.');
   const [unread, setUnread] = useState(0);
+  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'undetermined' | ''>('');
+
+  /* Nút bật thông báo: bấm là biết kết quả ngay thay vì đoán.
+     Từng bấm Từ chối thì iOS không hỏi lại — mở thẳng Cài đặt. */
+  async function enablePush() {
+    const token = await setupPushNotifications();
+    const status = await getPushPermissionStatus().catch(() => 'undetermined' as const);
+    setPushStatus(status);
+    if (token) {
+      Alert.alert('Đã bật thông báo', 'Tin mới sẽ hiện ngay trên màn hình khóa của bạn.');
+    } else if (status === 'denied') {
+      Alert.alert(
+        'Chưa bật được thông báo',
+        'Bạn từng bấm Từ chối nên iPhone không hỏi lại. Mở Cài đặt → Expo Go → Thông báo để bật.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+        ],
+      );
+    } else {
+      Alert.alert('Chưa bật được thông báo', 'Hãy thử lại: mở lại tab Cá nhân rồi bấm Bật.');
+    }
+  }
   const menuItems: MenuItem[] = [
     { icon: 'person-outline', label: 'Thông tin cá nhân', action: () => router.push('/personal-info') },
     { icon: 'calendar-outline', label: 'Lịch hẹn của tôi', action: () => router.push('/bookings') },
@@ -83,6 +110,23 @@ export default function ProfileScreen() {
             {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
           <Pressable hitSlop={10} onPress={() => router.push('/personal-info')} style={styles.profileArrow}><Ionicons name="chevron-forward" size={22} color="#9B8C90" /></Pressable>
+        </View>
+
+        <View style={styles.pushCard}>
+          <View style={styles.menuIcon}><Ionicons name="notifications-outline" size={22} color={COLORS.pink} /></View>
+          <View style={styles.pushCopy}>
+            <Text style={styles.pushTitle}>Thông báo điện thoại</Text>
+            <Text style={styles.pushSub}>
+              {pushStatus === 'granted'
+                ? 'Đang bật — tin hiện trên màn hình khóa'
+                : 'Chưa bật — tin chỉ nằm trong app'}
+            </Text>
+          </View>
+          {pushStatus !== 'granted' && (
+            <Pressable onPress={enablePush} style={styles.pushButton}>
+              <Text style={styles.pushButtonText}>Bật</Text>
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.menuCard}>
@@ -133,6 +177,12 @@ const styles = StyleSheet.create({
   menuCard: { marginTop: 20, borderRadius: 20, paddingHorizontal: 14, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.line, overflow: 'hidden' },
   menuItem: { minHeight: 62, flexDirection: 'row', alignItems: 'center' }, menuDivider: { borderBottomWidth: 1, borderBottomColor: COLORS.line }, menuPressed: { opacity: .6 },
   menuIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.pinkSoft, alignItems: 'center', justifyContent: 'center' }, menuLabel: { flex: 1, color: '#4C4145', fontSize: 15, fontWeight: '600', marginLeft: 13 },
+  pushCard: { marginTop: 14, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.line, flexDirection: 'row', alignItems: 'center' },
+  pushCopy: { flex: 1, marginLeft: 13 },
+  pushTitle: { color: '#4C4145', fontSize: 15, fontWeight: '600' },
+  pushSub: { color: COLORS.muted, fontSize: 12.5, marginTop: 3 },
+  pushButton: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 14, backgroundColor: COLORS.pink },
+  pushButtonText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
   badge: { minWidth: 23, height: 23, paddingHorizontal: 6, borderRadius: 12, backgroundColor: '#D85B78', alignItems: 'center', justifyContent: 'center', marginRight: 6 }, badgeText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
   logoutButton: { height: 54, marginTop: 28, borderRadius: 17, borderWidth: 1, borderColor: '#EDCBD4', backgroundColor: '#FFFDFD', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }, logoutText: { color: COLORS.pink, fontSize: 15, fontWeight: '800' },
   version: { color: '#B1A5A8', fontSize: 13, textAlign: 'center', marginTop: 18 },
