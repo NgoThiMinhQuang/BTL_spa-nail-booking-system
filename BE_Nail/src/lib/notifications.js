@@ -174,7 +174,7 @@ async function getMailer() {
 }
 
 /** Gửi một email khẩn tới các địa chỉ admin. Không bao giờ ném lỗi. */
-export async function sendEmailAlert({ to, subject, text }) {
+export async function sendEmailAlert({ to, subject, text, fromName = 'NailHouse Khan' }) {
   const recipients = (Array.isArray(to) ? to : String(to ?? '').split(','))
     .map((part) => String(part).trim()).filter(Boolean);
   if (recipients.length === 0) return { skipped: true, sent: 0 };
@@ -183,7 +183,7 @@ export async function sendEmailAlert({ to, subject, text }) {
     if (!transport) return { skipped: true, sent: 0 };
     const from = String(process.env.GMAIL_USER ?? '').trim();
     await transport.sendMail({
-      from: `"NailHouse Khẩn" <${from}>`,
+      from: `"${fromName}" <${from}>`,
       to: recipients.join(', '),
       subject: String(subject).slice(0, 150),
       text: String(text).slice(0, 6000),

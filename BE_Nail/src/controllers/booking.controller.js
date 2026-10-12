@@ -26,6 +26,7 @@ import {
   checkStaffAvailable, lockStaffBookings,
 } from '../lib/staff-availability.js';
 import { settleCancelPayment } from '../lib/payment-transactions.js';
+import { cleanEmail, resolveCustomerEmail, sendBookingConfirmation } from '../lib/customer-mail.js';
 import fs from 'node:fs';
 import multer from 'multer';
 import path from 'node:path';
@@ -227,6 +228,12 @@ export async function createBooking(req, res, next) {
   if (!Number.isInteger(serviceId) || !isDate(date) || !/^\d{2}:\d{2}$/.test(time)) {
     return res.status(400).json({ message: 'Thông tin đặt lịch không hợp lệ.' });
   }
+  /* Email nhận xác nhận/hóa đơn: tùy chọn, sai định dạng thì báo ngay để
+     khách sửa chứ không lặng lẽ bỏ qua (sai một chữ là mất mail). */
+  const emailInput = cleanEmail(req.body?.email);
+  if (emailInput === undefined) {
+    return res.status(400).json({ message: 'Địa chỉ email không đúng định dạng.' });
+  }
   /* Không chỉ định nhân viên thì để backend tự chọn người phù hợp. */
   if (staffId !== null && !Number.isInteger(staffId)) {
     return res.status(400).json({ message: 'Mã chuyên viên không hợp lệ.' });
@@ -255,6 +262,37 @@ export async function createBooking(req, res, next) {
 
     await connection.commit();
 
+    /* Mail xác nhận cho khách để lại mail (kênh thêm — không có mail thì
+       mọi thứ vẫn như cũ, lỗi gửi không chặn đặt lịch). */
+    let confirmationEmail = 'skipped';
+    try {
+      const address = await resolveCustomerEmail(pool, req.user.customerId, emailInput);
+      if (address) {
+        const [[info]] = await pool.query(
+          `SELECT s.service_name AS serviceName, u.full_name AS staffName
+             FROM services s
+             LEFT JOIN staff st ON st.staff_id = ?
+             LEFT JOIN users u ON u.user_id = st.user_id
+            WHERE s.service_id = ? LIMIT 1`,
+          [record.staffId, serviceId],
+        );
+        const emailed = await sendBookingConfirmation({
+          to: address,
+          booking: {
+            id: record.bookingId,
+            customerName: req.user.name,
+            serviceName: info?.serviceName ?? 'Dịch vụ NailHouse',
+            staffName: info?.staffName ?? null,
+            slot: `${time} ngày ${date.split('-').reverse().join('/')} (dự kiến ${service.duration} phút)`,
+            price: `${Number(service.price).toLocaleString('vi-VN')} đ`,
+          },
+        });
+        if (emailed) confirmationEmail = 'sent';
+      }
+    } catch {
+      /* Mail là phụ — lịch đã commit, không rollback vì gửi lỗi. */
+    }
+
     res.status(201).json({
       data: {
         id: String(record.bookingId),
@@ -268,6 +306,7 @@ export async function createBooking(req, res, next) {
         duration: service.duration,
         bufferTime: service.bufferTime,
         note,
+        confirmationEmail,
       },
     });
   } catch (error) {

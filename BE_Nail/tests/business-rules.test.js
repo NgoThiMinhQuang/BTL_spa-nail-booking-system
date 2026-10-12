@@ -3175,3 +3175,88 @@ describe('Gmail khan cap', () => {
     }
   });
 });
+
+/* Mail cho khach: o email khi dat lich + xac nhan/hoa don qua Gmail. */
+describe('Mail cho khach dat lich', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  test('cleanEmail chi nhan dang hop le', async () => {
+    const { cleanEmail } = await import('../src/lib/customer-mail.js');
+    assert.equal(cleanEmail(undefined), null);
+    assert.equal(cleanEmail(''), null);
+    assert.equal(cleanEmail('  Khach@Example.COM '), 'khach@example.com');
+    assert.equal(cleanEmail('sai-dinh-dang'), undefined);
+    assert.equal(cleanEmail('a@b'), undefined);
+    assert.equal(cleanEmail(`x@${'y'.repeat(200)}.com`), undefined);
+  });
+
+  test('email sai dinh dang thi dat lich bao 400 ngay', async () => {
+    const { createBooking } = await import('../src/controllers/booking.controller.js');
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const res = mockRes();
+    await createBooking({
+      body: { serviceId: 1, date: tomorrow, time: '10:00', email: 'sai-dinh-dang' },
+      user: { customerId: 9001, name: 'Khach Test' },
+    }, res, strictNext);
+    assert.equal(res.statusCode, 400);
+  });
+
+  test('mail moi duoc luu vao ho so khi chua co', async () => {
+    const { resolveCustomerEmail } = await import('../src/lib/customer-mail.js');
+    const connection = await connect();
+    try {
+      const [[before]] = await connection.query(
+        `SELECT u.email AS email FROM customer c
+           JOIN users u ON u.user_id = c.user_id WHERE c.customer_id = 9001 LIMIT 1`);
+      const original = before?.email ?? null;
+      await connection.query(
+        `UPDATE users u JOIN customer c ON c.user_id = u.user_id
+            SET u.email = NULL WHERE c.customer_id = 9001`);
+
+      const saved = await resolveCustomerEmail(testPool, 9001, 'khach.moi@example.com');
+      assert.equal(saved, 'khach.moi@example.com');
+      const [[stored]] = await connection.query(
+        `SELECT u.email AS email FROM customer c
+           JOIN users u ON u.user_id = c.user_id WHERE c.customer_id = 9001 LIMIT 1`);
+      assert.equal(String(stored.email).toLowerCase(), 'khach.moi@example.com');
+
+      /* Lan sau khong nhap thi dung mail da luu. */
+      const reused = await resolveCustomerEmail(testPool, 9001, null);
+      assert.equal(reused, 'khach.moi@example.com');
+
+      await connection.query(
+        `UPDATE users u JOIN customer c ON c.user_id = u.user_id
+            SET u.email = ? WHERE c.customer_id = 9001`, [original]);
+    } finally {
+      await connection.end();
+    }
+  });
+
+  test('chua cau hinh Gmail thi gui xac nhan/hoa don bo qua em', async () => {
+    const savedUser = process.env.GMAIL_USER;
+    const savedPass = process.env.GMAIL_APP_PASSWORD;
+    delete process.env.GMAIL_USER;
+    delete process.env.GMAIL_APP_PASSWORD;
+    try {
+      const { sendBookingConfirmation, sendReceiptEmail } = await import('../src/lib/customer-mail.js');
+      assert.equal(await sendBookingConfirmation({
+        to: 'khach@example.com',
+        booking: { id: 1, customerName: 'Khach', serviceName: 'DV', staffName: null, slot: 'x', price: '0 d' },
+      }), false);
+      assert.equal(await sendReceiptEmail({
+        to: 'khach@example.com',
+        receipt: { bookingId: 1, customerName: 'Khach', serviceName: 'DV', staffName: null, amount: '0 d', method: 'Cash', paidAt: 'x' },
+      }), false);
+    } finally {
+      if (savedUser !== undefined) process.env.GMAIL_USER = savedUser;
+      if (savedPass !== undefined) process.env.GMAIL_APP_PASSWORD = savedPass;
+    }
+  });
+});

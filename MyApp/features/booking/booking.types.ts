@@ -75,6 +75,8 @@ export type BookingDraft = {
   date: string;
   time: string;
   note?: string;
+  /** Email nhận xác nhận/hóa đơn. Backend lưu vào hồ sơ nếu chưa có. */
+  email?: string;
   /** Ảnh mẫu móng khách gửi kèm lịch hẹn. */
   images?: string[];
 };

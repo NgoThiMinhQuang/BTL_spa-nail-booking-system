@@ -13,6 +13,7 @@ import { pool } from '../config/database.js';
 import { logEvent } from '../lib/booking-events.js';
 import { canPaymentTransition, finalAmount, resolvePaymentAmount } from '../lib/payment-state.js';
 import { notifyCustomer } from '../lib/notifications.js';
+import { METHOD_TEXT, sendReceiptEmail } from '../lib/customer-mail.js';
 import { recordCashFlow } from '../lib/payment-transactions.js';
 import { SETTLED_STATUSES } from '../lib/booking-state.js';
 
@@ -81,6 +82,7 @@ export async function savePayment(req, res, next) {
       `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.source,
               b.start_time AS startsAt, b.customer_id AS customerId,
               COALESCE(u.full_name, b.guest_name, 'khách vãng lai') AS customerName,
+              u.email AS customerEmail,
               pay.payment_status AS currentStatus, pay.amount AS currentAmount
          FROM booking b
          LEFT JOIN payment pay ON pay.booking_id = b.booking_id
@@ -234,6 +236,37 @@ export async function savePayment(req, res, next) {
           + 'Cảm ơn bạn đã tin tưởng NailHouse!',
         type: 'PAYMENT', refType: 'booking', refId: bookingId,
       });
+      /* Hóa đơn qua Gmail cho khách để lại mail (kênh thêm, lỗi thì bỏ). */
+      try {
+        const address = booking.customerEmail
+          ? String(booking.customerEmail).trim().toLowerCase() : '';
+        if (address) {
+          const [[detail]] = await pool.query(
+            `SELECT s.service_name AS serviceName, su.full_name AS staffName
+               FROM booking b
+               JOIN services s ON s.service_id = b.service_id
+               LEFT JOIN staff st ON st.staff_id = b.staff_id
+               LEFT JOIN users su ON su.user_id = st.user_id
+              WHERE b.booking_id = ? LIMIT 1`, [bookingId]);
+          const paidMoment = paidAt ?? new Date();
+          const pad = (n) => String(n).padStart(2, '0');
+          await sendReceiptEmail({
+            to: address,
+            receipt: {
+              bookingId,
+              customerName: booking.customerName,
+              serviceName: detail?.serviceName ?? 'Dịch vụ NailHouse',
+              staffName: detail?.staffName ?? null,
+              amount: `${amount.toLocaleString('vi-VN')} đ`,
+              method: METHOD_TEXT[method || 'CASH'] ?? (method || 'CASH'),
+              paidAt: `${pad(paidMoment.getHours())}:${pad(paidMoment.getMinutes())} `
+                + `ngày ${pad(paidMoment.getDate())}/${pad(paidMoment.getMonth() + 1)}/${paidMoment.getFullYear()}`,
+            },
+          });
+        }
+      } catch {
+        /* Mail là phụ — tiền đã chốt, không rollback vì gửi lỗi. */
+      }
     }
     res.json({
       data: {

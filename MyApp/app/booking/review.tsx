@@ -1,4 +1,5 @@
 import { createBooking, uploadBookingImages } from '@/features/booking/booking.service';
+import { me } from '@/features/auth/auth.service';
 import { BookingProgress } from '@/components/booking/BookingProgress';
 import { fetchServiceById } from '@/features/service/service.service';
 import type { NailService } from '@/features/service/service.types';
@@ -17,12 +18,15 @@ export default function Review(){
  const {serviceId='',staffId='',date='',time=''}=p;
  const [service,setService]=useState<NailService|null>(null),[staff,setStaff]=useState<StaffDetail|null>(null),[note,setNote]=useState(''),[loading,setLoading]=useState(true),[sending,setSending]=useState(false),[error,setError]=useState('');
  const [photos,setPhotos]=useState<string[]>([]);
+ const [email,setEmail]=useState('');
  useEffect(()=>{Promise.all([fetchServiceById(serviceId),staffId?fetchStaffById(staffId):Promise.resolve(null)]).then(([a,b])=>{setService(a);setStaff(b)}).catch(()=>setError('Không thể tải thông tin xác nhận.')).finally(()=>setLoading(false))},[serviceId,staffId]);
+ /* Điền sẵn mail trong hồ sơ (nếu có) để khỏi nhập lại — mail là tùy chọn. */
+ useEffect(()=>{me().then((u)=>{if(u?.email)setEmail(u.email)}).catch(()=>null)},[]);
  /* Ảnh mẫu trên máy (tối đa 6). Upload sau khi có bookingId — xem finish. */
  const pickPhotos=async()=>{setError('');try{const perm=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!perm.granted){setError('Cần cho phép truy cập ảnh để gửi mẫu nail.');return}const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsMultipleSelection:true,selectionLimit:Math.max(1,6-photos.length),quality:0.8});if(!result.canceled){setPhotos((prev)=>[...prev,...result.assets.map((a)=>a.uri)].slice(0,6))}}catch{setError('Không mở được thư viện ảnh.')}};
  /* Tạo lịch PENDING rồi sang màn đặt cọc 30% — lịch chỉ giữ chỗ
     chính thức sau khi cọc thành công (CONFIRMED + DEPOSITED). */
- const finish=async()=>{setSending(true);setError('');try{const booking=await createBooking({serviceId,staffId,date,time,note});if(photos.length){try{await uploadBookingImages(booking.id,photos)}catch{/* ảnh tùy chọn: qua màn cọc, không chặn */}}router.replace({pathname:'/booking/deposit',params:{bookingId:booking.id}})}catch(e){setError(e instanceof Error?e.message:'Không thể tạo lịch hẹn.')}finally{setSending(false)}};
+ const finish=async()=>{const mail=email.trim();if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)){setError('Địa chỉ email chưa đúng. Kiểm tra lại hoặc bỏ trống.');return}setSending(true);setError('');try{const booking=await createBooking({serviceId,staffId,date,time,note,email:mail||undefined});if(photos.length){try{await uploadBookingImages(booking.id,photos)}catch{/* ảnh tùy chọn: qua màn cọc, không chặn */}}router.replace({pathname:'/booking/deposit',params:{bookingId:booking.id}})}catch(e){setError(e instanceof Error?e.message:'Không thể tạo lịch hẹn.')}finally{setSending(false)}};
  if(loading)return <SafeAreaView style={s.center}><ActivityIndicator color={C.pink}/><Text>Đang tải thông tin...</Text></SafeAreaView>;
  const end=service?(()=>{const [h,m]=time.split(':').map(Number),v=h*60+m+service.duration;return `${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`})():'';
  const dateText=date?new Intl.DateTimeFormat('vi-VN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(date+'T00:00:00')):'';
@@ -39,6 +43,7 @@ export default function Review(){
    </Box>
    <Box icon="calendar" title="Thời gian hẹn" change={()=>router.back()}><Row icon="calendar-outline" color={C.pink} text={dateText}/><Row icon="time-outline" color={C.pink} text={`${time} – ${end} (${service?.duration} phút)`}/></Box>
    <View style={s.box}><View style={s.boxTitle}><Ionicons name="document-text" size={22} color={C.pink}/><Text style={s.boxTitleText}>Ghi chú <Text style={s.optional}>(tùy chọn)</Text></Text></View><View style={s.note}><TextInput value={note} onChangeText={setNote} maxLength={200} multiline placeholder="Ví dụ: Tôi muốn màu hồng nhẹ nhàng, đính đá ít..." placeholderTextColor="#AAA4AE" style={s.input}/><Text style={s.count}>{note.length}/200</Text></View></View>
+   <View style={s.box}><View style={s.boxTitle}><Ionicons name="mail-outline" size={22} color={C.pink}/><Text style={s.boxTitleText}>Email nhận xác nhận <Text style={s.optional}>(tùy chọn)</Text></Text></View><TextInput value={email} onChangeText={setEmail} maxLength={150} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="vidu@gmail.com" placeholderTextColor="#AAA4AE" style={[s.input,{minHeight:44}]}/><Text style={{fontSize:12,color:C.muted,marginTop:8}}>Nhận mail xác nhận lịch và hóa đơn thanh toán. Bỏ trống vẫn đặt lịch bình thường.</Text></View>
    <View style={s.box}><View style={s.boxTitle}><Ionicons name="images" size={22} color={C.pink}/><Text style={s.boxTitleText}>Ảnh mẫu <Text style={s.optional}>(tối đa 6)</Text></Text></View><View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:4}}>{photos.map((uri)=>(<View key={uri} style={{position:'relative'}}><Image source={{uri}} style={{width:84,height:84,borderRadius:10}}/><Pressable hitSlop={8} onPress={()=>setPhotos((prev)=>prev.filter((x)=>x!==uri))} style={{position:'absolute',top:-8,right:-8,backgroundColor:'#FFF',borderRadius:12,width:24,height:24,alignItems:'center',justifyContent:'center'}}><Ionicons name="close" size={15} color={C.dark}/></Pressable></View>))}{photos.length<6&&(<Pressable onPress={pickPhotos} style={{width:84,height:84,borderRadius:10,backgroundColor:C.soft,alignItems:'center',justifyContent:'center'}}><Ionicons name="add" size={30} color={C.pink}/></Pressable>)}</View><Text style={{fontSize:12,color:C.muted,marginTop:8}}>Thợ xem trước để chuẩn bị sơn, đá và mẫu vẽ.</Text></View>
   </ScrollView>
   <View style={s.footer}><Pressable disabled={sending} onPress={finish} style={[s.continue,sending&&{opacity:.5}]}>{sending?<ActivityIndicator color="#FFF"/>:<><Text style={s.continueText}>Tiếp tục đặt cọc</Text><Ionicons name="arrow-forward" size={22} color="#FFF"/></>}</Pressable></View>
