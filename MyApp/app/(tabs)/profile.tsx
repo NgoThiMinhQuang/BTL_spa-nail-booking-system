@@ -34,6 +34,9 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const [unread, setUnread] = useState(0);
+  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'undetermined' | ''>('');
+
   useFocusEffect(useCallback(() => {
     let active = true;
     fetchHomeData()
@@ -54,9 +57,6 @@ export default function ProfileScreen() {
     return () => { active = false; };
   }, []));
 
-  const comingSoon = (label: string) => Alert.alert(label, 'Tính năng này đang được hoàn thiện.');
-  const [unread, setUnread] = useState(0);
-  const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'undetermined' | ''>('');
 
   /* Nút bật thông báo: bấm là biết kết quả ngay thay vì đoán. */
   async function enablePush() {

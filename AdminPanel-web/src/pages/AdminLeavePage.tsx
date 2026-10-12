@@ -4,6 +4,7 @@
    cần xử lý — phải đổi nhân viên, đổi giờ hoặc hủy các lịch đó trước. */
 
 import { useState } from 'react';
+import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { EmptyState, Panel, SectionHeading, StatTile, StatusBadge } from '../components/Primitives';
 import { useApp } from '../store';
@@ -39,34 +40,43 @@ const REASON_TEXT: Record<string, string> = {
 function IncidentCard({ item }: { item: LeaveItem }) {
   const { openBookingDetail } = useApp();
   const [expanded, setExpanded] = useState(item.affectedList.length > 0);
+  const total = item.affectedList.length;
   const waiting = item.affectedList.filter(
     (b) => (b.currentStaffId ?? item.staffId) === item.staffId);
-  const handed = item.affectedList.length - waiting.length;
+  const handed = total - waiting.length;
+  const pct = total === 0 ? 100 : Math.round((handed / total) * 100);
 
   return (
-    <li className="adm-req-card">
+    <li className="adm-req-card adm-inc-card">
+      <Avatar name={item.staffName} url={null} size={44} />
       <div className="adm-req-copy">
         <div className="adm-req-head">
           <strong>{item.staffName}</strong>
           <span className="badge cancelled"><i />Nghỉ đột xuất</span>
-          {item.affectedList.length === 0
+          {total === 0
             ? <span className="badge completed"><i />Hoàn tất xử lý</span>
             : <span className="badge pending"><i />Còn {waiting.length} lịch chờ</span>}
         </div>
-        <p>
-          {fmtDay(item.startDatetime.slice(0, 10))} · {fmtTime(item.startDatetime)} – {fmtTime(item.endDatetime)}
-          {item.reasonCategory ? ` · ${REASON_TEXT[item.reasonCategory] ?? item.reasonCategory}` : ''}
-          {item.reason ? ` · ${item.reason}` : ''}
+        <p className="adm-inc-meta">
+          <span>{fmtDay(item.startDatetime.slice(0, 10))}</span>
+          <span>{fmtTime(item.startDatetime)} – {fmtTime(item.endDatetime)}</span>
+          {item.reasonCategory && <span>{REASON_TEXT[item.reasonCategory] ?? item.reasonCategory}</span>}
+          {item.reason && <span className="adm-inc-note">{item.reason}</span>}
         </p>
-        {handed > 0 && (
-          <p className="adm-field-note">Đã đổi {handed} lịch sang nhân viên khác.</p>
-        )}
-        {item.affectedList.length > 0 && (
-          <button className="adm-link" onClick={() => setExpanded((open) => !open)}>
-            {expanded ? 'Ẩn danh sách lịch ▴' : `Xem ${item.affectedList.length} lịch ảnh hưởng ▾`}
-          </button>
-        )}
-        {expanded && item.affectedList.length > 0 && (
+        <div className="adm-progress" title={`Đã bàn giao ${handed}/${total} lịch`}>
+          <span style={{ width: `${pct}%` }} />
+        </div>
+        <p className="adm-field-note">
+          {total === 0
+            ? 'Không còn lịch nào chờ bàn giao.'
+            : `Đã bàn giao ${handed}/${total} lịch.`}
+          {total > 0 && (
+            <button className="adm-link" onClick={() => setExpanded((open) => !open)}>
+              {expanded ? 'Ẩn danh sách ▴' : `Xem danh sách ▾`}
+            </button>
+          )}
+        </p>
+        {expanded && total > 0 && (
           <div className="table-scroll">
             <table className="adm-table">
               <thead>

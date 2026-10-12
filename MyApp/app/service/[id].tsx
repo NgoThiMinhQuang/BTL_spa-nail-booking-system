@@ -7,11 +7,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFavorites } from '@/contexts/FavoritesContext';
+
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const galleryUrl = (url: string, id: string) => `${url}${url.includes('?') ? '&' : '?'}gallery=${id}`;
-
-import { useFavorites } from '@/contexts/FavoritesContext';
 
 export default function ServiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

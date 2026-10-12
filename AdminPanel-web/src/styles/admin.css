@@ -875,3 +875,24 @@ a.adm-person-phone:hover{color:var(--nh-primary-dark);text-decoration:underline}
 .adm-mine-body{margin-top:4px !important;color:var(--nh-muted) !important;line-height:1.6}
 .adm-mine-list small{font-size:11px;color:#A8999F;font-variant-numeric:tabular-nums}
 .adm-mine-list .button{flex:0 0 auto;padding:7px 12px;font-size:11.5px}
+
+/* ---- Bảng lịch ảnh hưởng trong thẻ sự cố: nới khoảng cách ---- */
+.adm-req-card .table-scroll{margin-top:12px;border:1px solid var(--nh-line);
+  border-radius:12px;overflow:hidden}
+.adm-req-card .adm-table th{padding:12px 16px;background:#FAF7FA}
+.adm-req-card .adm-table td{padding:15px 16px}
+.adm-req-card .adm-table tbody tr+tr td{border-top:1px solid var(--nh-line)}
+.adm-req-card .adm-link{margin-top:8px}
+
+/* ---- Thẻ sự cố nghỉ đột xuất: avatar + meta thoáng + thanh tiến độ ---- */
+.adm-inc-card{align-items:flex-start;gap:14px;padding:16px}
+.adm-inc-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin:2px 0 0;font-size:12px;
+  color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.adm-inc-meta>span{display:inline-flex;align-items:center;gap:6px}
+.adm-inc-meta>span+span{padding-left:14px;border-left:1px solid var(--nh-line)}
+.adm-inc-note{color:var(--nh-ink) !important;font-style:italic}
+.adm-progress{height:8px;border-radius:5px;background:#F3E9ED;overflow:hidden;margin-top:10px}
+.adm-progress>span{display:block;height:100%;border-radius:5px;
+  background:linear-gradient(90deg,var(--nh-primary),#D98AA0);transition:width .25s}
+.adm-inc-card .adm-field-note{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.adm-inc-card .adm-field-note .adm-link{margin:0 0 0 auto;padding:2px 0}

@@ -9,14 +9,12 @@ import {
   Platform,
   StyleSheet,
   ImageBackground,
-  Alert,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { ApiError } from '@/services/api';
 import { login } from '@/features/auth/auth.service';
 
 export default function LoginScreen() {

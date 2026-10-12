@@ -9,8 +9,8 @@
      COMPLETED + PAID      hoàn tất
 
    Không thêm trạng thái booking mới: "chờ cọc" chính là PENDING + UNPAID.
-   Khách hủy sau khi đã cọc thì cọc không hoàn lại (không có nghiệp vụ
-   hoàn tiền) — dòng payment giữ nguyên DEPOSITED. */
+   Khách tự hủy sau khi đã cọc thì cọc không hoàn lại; hủy do lỗi từ phía
+   cửa hàng thì hoàn đủ (xem settleCancelPayment mode FULL). */
 
 export const DEPOSIT_RATE = 0.3;
 

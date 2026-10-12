@@ -9,8 +9,13 @@
         backend xác thực chữ ký, ghi DEPOSITED rồi tự động
         PENDING → CONFIRMED (lịch có sẵn nhân viên từ lúc đặt).
      4. Quá 15 phút chưa cọc → sweeper tự hủy, trả slot cho khách khác.
-     5. Khách hủy sau khi đã cọc → cọc không hoàn lại (không có nghiệp
-        vụ hoàn tiền): dòng payment giữ nguyên DEPOSITED.
+     5. Khách hủy sau khi đã cọc → cọc không hoàn lại, trừ khi hủy do lỗi
+        từ phía cửa hàng (nhân viên nghỉ đột xuất) thì hoàn đủ.
+     6. Trước khi xác nhận sau cọc, kiểm tra lại khả dụng: nhân viên bận
+        đột xuất thì chỉ ghi nhận cọc, giữ PENDING để khách chọn đổi
+        người/dời lịch/hủy hoàn đủ — không xác nhận chỗ chết.
+     7. Tiền về muộn khi lịch đã chết (hết hạn bị hủy nhưng cổng vẫn thu):
+        đối soát — ghi nhận tiền thật rồi hoàn đủ ngay, báo khách + Admin.
 
    Không thêm trạng thái booking mới: "chờ cọc" = PENDING + UNPAID. */
 
@@ -21,8 +26,9 @@ import {
   DEPOSIT_WINDOW_MINUTES, depositAmount, depositExpiresAt, isDepositExpired, remainingAmount,
 } from '../lib/deposit.js';
 import { canPaymentTransition } from '../lib/payment-state.js';
-import { notifyCustomer } from '../lib/notifications.js';
-import { recordCashFlow } from '../lib/payment-transactions.js';
+import { createNotification, notifyCustomer, pushToUser } from '../lib/notifications.js';
+import { recordCashFlow, settleCancelPayment } from '../lib/payment-transactions.js';
+import { checkStaffAvailable } from '../lib/staff-availability.js';
 import { amountDue } from './payment.controller.js';
 import {
   bookingIdFromTxnRef, buildPaymentUrl, depositTxnRef, verifyReturn, vnpayConfig,
@@ -46,6 +52,7 @@ export async function createDepositIntent(req, res, next) {
     const [[booking]] = await pool.query(
       `SELECT b.booking_id, b.customer_id AS customerId, b.status,
               b.created_at AS createdAt, b.staff_id AS staffId,
+              b.service_id AS serviceId, b.start_time AS startsAt, b.end_time AS endsAt,
               pay.payment_status AS paymentStatus
          FROM booking b
          LEFT JOIN payment pay ON pay.booking_id = b.booking_id
@@ -67,6 +74,23 @@ export async function createDepositIntent(req, res, next) {
       return res.status(410).json({
         message: 'Lịch đã quá 15 phút chờ đặt cọc nên bị hủy. Vui lòng đặt lịch mới.',
       });
+    }
+
+    /* Nhân viên bận đột xuất giữa lúc khách ra cổng trả tiền: chặn ngay từ
+       intent để khách khỏi trả tiền cho một chỗ không phục vụ được. Lần
+       kiểm tra quyết định vẫn nằm ở confirm (chốt trong giao dịch). */
+    if (booking.staffId) {
+      const slot = await checkStaffAvailable({
+        bookingId: id, staffId: booking.staffId, serviceId: booking.serviceId,
+        startsAt: booking.startsAt, endsAt: booking.endsAt,
+      });
+      if (!slot.ok) {
+        return res.status(409).json({
+          message: 'Nhân viên bận đột xuất, chưa thu cọc được. '
+            + 'Hãy đổi nhân viên hoặc dời lịch trong ứng dụng.',
+          reason: slot.reason,
+        });
+      }
     }
 
     const due = await amountDue(pool, id);
@@ -105,15 +129,99 @@ export async function createDepositIntent(req, res, next) {
 }
 
 /**
+ * Đối soát tiền đến muộn: cổng thu thành công nhưng lịch đã chết (hết hạn
+ * bị sweeper hủy, khách hủy trước khi tiền về...). Không được để giao
+ * dịch biến mất: ghi nhận tiền thật (DEPOSIT + vào két) rồi hoàn đủ ngay
+ * (REFUND), báo khách và Admin. Lũy đẳng qua dòng REFUND đã ghi.
+ * Chạy trong giao dịch của caller, commit ở caller.
+ */
+async function reconcileLateDeposit(connection, { booking, amount }) {
+  const bookingId = booking.booking_id;
+  const [[done]] = await connection.query(
+    `SELECT COUNT(*) AS n FROM payment_transaction
+      WHERE booking_id = ? AND type = 'REFUND'`, [bookingId]);
+  if (Number(done.n) > 0) {
+    return { status: 200, already: true, reconciled: true, refunded: 0, bookingStatus: booking.status };
+  }
+  const cash = Math.max(0, Math.round(Number(amount ?? 0)));
+  const [[payRow]] = await connection.query(
+    'SELECT payment_id AS pid FROM payment WHERE booking_id = ? LIMIT 1 FOR UPDATE', [bookingId]);
+  if (payRow) {
+    await connection.query(
+      `UPDATE payment SET amount = ?, payment_method = 'ONLINE',
+            payment_status = 'DEPOSITED', payment_date = NOW()
+        WHERE payment_id = ?`, [cash, payRow.pid]);
+  } else {
+    await connection.query(
+      `INSERT INTO payment (booking_id, amount, payment_method, payment_status, payment_date)
+       VALUES (?,?,'ONLINE','DEPOSITED',NOW())`, [bookingId, cash]);
+  }
+  await recordCashFlow(connection, {
+    bookingId, type: 'DEPOSIT', amount: cash,
+    method: 'ONLINE', paidAt: new Date(), createdBy: null,
+  });
+  const settled = await settleCancelPayment(connection, bookingId, { mode: 'FULL', createdBy: null });
+  await logEvent({
+    bookingId,
+    type: 'PAYMENT',
+    detail: `Tiền cọc online ${cash.toLocaleString('vi-VN')} đ đến sau khi lịch đã ${String(booking.status).toLowerCase()} — đã tự động hoàn đủ.`,
+    actorRole: 'SYSTEM',
+    actorName: 'Hệ thống',
+    connection,
+  });
+  return { status: 200, already: false, reconciled: true, refunded: settled.refunded, bookingStatus: booking.status };
+}
+
+/* Báo tiền hoàn sau đối soát: khách biết tiền đi đâu, Admin thấy dòng
+   tiền bất thường để đối chiếu với cổng. Kênh phụ, không ném lỗi. */
+async function notifyLateRefund({ bookingId, booking, refunded }) {
+  try {
+    await notifyCustomer(pool, {
+      customerId: booking.customerId,
+      title: 'Tiền cọc đã được hoàn lại',
+      body: `Khoản cọc ${Number(refunded).toLocaleString('vi-VN')} đ cho lịch hẹn #${bookingId} `
+        + 'đến sau khi lịch đã kết thúc nên hệ thống đã tự động hoàn đủ cho bạn.',
+      type: 'REFUND', refType: 'booking', refId: bookingId,
+    });
+    const [admins] = await pool.query(
+      "SELECT user_id AS userId FROM users WHERE role = 'ADMIN' AND status = 'ACTIVE'");
+    const title = 'Đối soát cọc đến muộn';
+    const body = `Lịch #${bookingId} (${booking.status}) nhận cọc muộn `
+      + `${Number(refunded).toLocaleString('vi-VN')} đ — đã tự động hoàn đủ cho khách. `
+      + 'Kiểm tra đối chiếu với cổng thanh toán nếu cần.';
+    for (const admin of admins) {
+      await createNotification(pool, {
+        userId: admin.userId, title, body,
+        type: 'REFUND', refType: 'booking', refId: bookingId,
+      });
+      await pushToUser(pool, {
+        userId: admin.userId, title, body,
+        type: 'REFUND', refType: 'booking', refId: bookingId,
+      });
+    }
+  } catch {
+    /* Kênh phụ — tiền đã quyết toán xong trong DB. */
+  }
+}
+
+/**
  * Ghi DEPOSITED + tự động xác nhận lịch. Dùng chung cho return và IPN,
  * phải lũy đẳng: VNPay có thể gọi IPN nhiều lần cho một giao dịch.
+ *
+ * Hai chốt chặn tiền cọc (P0):
+ * - Kiểm tra lại khả dụng ngay trước khi xác nhận: nhân viên báo nghỉ
+ *   giữa lúc khách trả tiền thì chỉ ghi nhận cọc, giữ PENDING để khách
+ *   chọn đổi người/dời lịch/hủy hoàn đủ — không xác nhận chỗ chết.
+ * - Tiền đến muộn khi lịch đã chết (hết hạn bị hủy nhưng cổng vẫn thu):
+ *   đối soát — ghi nhận tiền thật rồi hoàn đủ ngay, báo khách + Admin.
  */
 export async function confirmDepositPayment({ bookingId, amount }) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     const [[booking]] = await connection.query(
-      `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.customer_id AS customerId
+      `SELECT b.booking_id, b.status, b.staff_id AS staffId, b.customer_id AS customerId,
+              b.service_id AS serviceId, b.start_time AS startsAt, b.end_time AS endsAt
          FROM booking b WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [bookingId],
     );
     if (!booking) {
@@ -131,9 +239,27 @@ export async function confirmDepositPayment({ bookingId, amount }) {
       await connection.rollback();
       return { status: 200, already: true, bookingStatus: booking.status };
     }
+    /* Lịch không còn chờ cọc mà tiền vẫn về: đối soát, không để giao dịch
+       thành công biến mất khỏi nghiệp vụ (xem reconcileLateDeposit). */
     if (booking.status !== 'PENDING') {
-      await connection.rollback();
-      return { status: 409, message: 'Lịch không còn ở trạng thái chờ đặt cọc.' };
+      const reconciled = await reconcileLateDeposit(connection, { booking, amount });
+      await connection.commit();
+      if (reconciled.reconciled && !reconciled.already) {
+        await notifyLateRefund({ bookingId, booking, refunded: reconciled.refunded });
+      }
+      return reconciled;
+    }
+
+    /* Kiểm tra lại khả dụng trong cùng giao dịch: ca, nghỉ, trùng lịch
+       có thể đổi giữa lúc khách mở cổng thanh toán và lúc tiền về. */
+    let staffUnavailable = false;
+    if (booking.staffId) {
+      const slot = await checkStaffAvailable({
+        bookingId, staffId: booking.staffId, serviceId: booking.serviceId,
+        startsAt: booking.startsAt, endsAt: booking.endsAt,
+        runner: connection, forUpdate: true,
+      });
+      if (!slot.ok) staffUnavailable = true;
     }
 
     const due = await amountDue(connection, bookingId);
@@ -185,12 +311,14 @@ export async function confirmDepositPayment({ bookingId, amount }) {
       connection,
     });
 
-    /* Cọc xong thì lịch thành chính thức. Lịch Mobile luôn có nhân viên
-       từ lúc đặt (tự chọn khi khách bỏ trống), nên xác nhận được ngay;
-       trường hợp không có người thì giữ PENDING để Admin phân công rồi
-       xác nhận (lúc đó đã có DEPOSITED nên qua được luật chắn). */
+    /* Cọc xong thì lịch thành chính thức — trừ khi nhân viên vừa bận:
+       tiền vẫn ghi nhận đủ (tiền thật đã về), nhưng giữ PENDING để khách
+       chọn đổi người/dời lịch/hủy hoàn đủ thay vì xác nhận chỗ chết.
+       Lịch Mobile luôn có nhân viên từ lúc đặt (tự chọn khi khách bỏ
+       trống); trường hợp không có người thì giữ PENDING để Admin phân
+       công rồi xác nhận (lúc đó đã có DEPOSITED nên qua được luật chắn). */
     let confirmed = false;
-    if (booking.staffId) {
+    if (booking.staffId && !staffUnavailable) {
       const go = canTransition('PENDING', 'CONFIRMED');
       if (go.ok) {
         await connection.query(
@@ -205,17 +333,37 @@ export async function confirmDepositPayment({ bookingId, amount }) {
         });
         confirmed = true;
       }
+    } else if (staffUnavailable) {
+      await logEvent({
+        bookingId,
+        type: 'NOTE',
+        detail: 'Đã nhận cọc nhưng nhân viên bận đột xuất — giữ chờ khách chọn đổi người/dời lịch/hủy hoàn đủ.',
+        actorRole: 'SYSTEM',
+        actorName: 'Hệ thống',
+        connection,
+      });
     }
 
     await connection.commit();
-    await notifyCustomer(pool, {
-      customerId: booking.customerId,
-      title: 'Đặt cọc thành công',
-      body: `Lịch hẹn #${bookingId} đã nhận cọc ${Number(amount).toLocaleString('vi-VN')} đ. `
-        + 'Cửa hàng đã giữ chỗ cho bạn.',
-      type: 'PAYMENT', refType: 'booking', refId: bookingId,
-    });
-    return { status: 200, already: false, confirmed, bookingStatus: confirmed ? 'CONFIRMED' : 'PENDING' };
+    if (staffUnavailable) {
+      await notifyCustomer(pool, {
+        customerId: booking.customerId,
+        title: 'Đã nhận cọc — cần chọn lại nhân viên',
+        body: `Lịch hẹn #${bookingId} đã nhận cọc ${Number(amount).toLocaleString('vi-VN')} đ `
+          + 'nhưng nhân viên bận đột xuất. Mở ứng dụng để chọn đổi nhân viên, '
+          + 'dời lịch hoặc hủy hoàn đủ.',
+        type: 'PAYMENT', refType: 'booking', refId: bookingId,
+      });
+    } else {
+      await notifyCustomer(pool, {
+        customerId: booking.customerId,
+        title: 'Đặt cọc thành công',
+        body: `Lịch hẹn #${bookingId} đã nhận cọc ${Number(amount).toLocaleString('vi-VN')} đ. `
+          + 'Cửa hàng đã giữ chỗ cho bạn.',
+        type: 'PAYMENT', refType: 'booking', refId: bookingId,
+      });
+    }
+    return { status: 200, already: false, confirmed, bookingStatus: confirmed ? 'CONFIRMED' : 'PENDING', staffUnavailable };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -273,12 +421,26 @@ export async function vnpayReturn(req, res, next) {
       if (result.status !== 200) {
         return res.status(result.status).send(resultPage({ ok: false, title: 'Không ghi nhận được', lines: [result.message] }));
       }
+      if (result.reconciled && !result.already) {
+        return res.status(200).send(resultPage({
+          ok: true, title: 'Tiền đã được hoàn lại',
+          lines: [
+            `Lịch hẹn #${bookingId} đã kết thúc trước khi tiền về.`,
+            `Đã tự động hoàn đủ: ${Number(result.refunded ?? 0).toLocaleString('vi-VN')} đ.`,
+          ],
+        }));
+      }
       return res.status(200).send(resultPage({
         ok: true, title: 'Đặt cọc thành công',
-        lines: [
-          `Lịch hẹn #${bookingId} ${result.confirmed ? 'đã được xác nhận' : 'đang chờ phân công nhân viên'}.`,
-          `Đã cọc: ${paid.toLocaleString('vi-VN')} đ.`,
-        ],
+        lines: result.staffUnavailable
+          ? [
+            `Đã nhận cọc: ${paid.toLocaleString('vi-VN')} đ.`,
+            `Nhân viên bận đột xuất nên lịch #${bookingId} giữ nguyên chờ bạn chọn: đổi nhân viên, dời lịch hoặc hủy hoàn đủ trong ứng dụng.`,
+          ]
+          : [
+            `Lịch hẹn #${bookingId} ${result.confirmed ? 'đã được xác nhận' : 'đang chờ phân công nhân viên'}.`,
+            `Đã cọc: ${paid.toLocaleString('vi-VN')} đ.`,
+          ],
       }));
     } catch (error) {
       return next(error);
@@ -376,12 +538,26 @@ export async function mockConfirm(req, res, next) {
     if (!due) return res.status(404).send('Không tìm thấy lịch hẹn.');
     const result = await confirmDepositPayment({ bookingId, amount: depositAmount(due.total) });
     if (result.status !== 200) return res.status(result.status).send(result.message);
+    if (result.reconciled && !result.already) {
+      return res.send(resultPage({
+        ok: true, title: 'Tiền đã được hoàn lại',
+        lines: [
+          `Lịch hẹn #${bookingId} đã kết thúc trước khi tiền về.`,
+          `Đã tự động hoàn đủ: ${Number(result.refunded ?? 0).toLocaleString('vi-VN')} đ.`,
+        ],
+      }));
+    }
     return res.send(resultPage({
       ok: true, title: 'Đặt cọc thành công',
-      lines: [
-        `Lịch hẹn #${bookingId} ${result.confirmed ? 'đã được xác nhận' : 'đang chờ phân công nhân viên'}.`,
-        `Đã cọc: ${depositAmount(due.total).toLocaleString('vi-VN')} đ.`,
-      ],
+      lines: result.staffUnavailable
+        ? [
+          `Đã nhận cọc: ${depositAmount(due.total).toLocaleString('vi-VN')} đ.`,
+          `Nhân viên bận đột xuất nên lịch #${bookingId} giữ nguyên chờ bạn chọn: đổi nhân viên, dời lịch hoặc hủy hoàn đủ trong ứng dụng.`,
+        ]
+        : [
+          `Lịch hẹn #${bookingId} ${result.confirmed ? 'đã được xác nhận' : 'đang chờ phân công nhân viên'}.`,
+          `Đã cọc: ${depositAmount(due.total).toLocaleString('vi-VN')} đ.`,
+        ],
     }));
   } catch (error) {
     next(error);

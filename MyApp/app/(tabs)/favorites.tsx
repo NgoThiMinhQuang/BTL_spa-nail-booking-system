@@ -2,7 +2,7 @@ import { useFavorites, FavoriteItem } from '@/contexts/FavoritesContext';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, Image } from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = { background: '#FFF9FA', surface: '#FFF', pink: '#D56B81', pinkSoft: '#FBE8ED', green: '#397B76', text: '#30282B', muted: '#897D80', line: '#F0E5E8' };

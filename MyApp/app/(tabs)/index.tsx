@@ -37,8 +37,22 @@ export default function HomeScreen() {
     }
   };
 
+  /* Tải lần đầu khi mở màn hình: bọc async + cờ active để không setState
+     sau unmount (màn hình chính hay bị vuốt qua nhanh khi mở app). */
   useEffect(() => {
-    loadHome();
+    let active = true;
+    (async () => {
+      try {
+        setError('');
+        const data = await fetchHomeData();
+        if (active) setHome(data);
+      } catch {
+        if (active) setError('Không thể tải dữ liệu từ máy chủ.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
   }, []);
 
   if (loading && !home) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" color="#397B76" /><Text style={styles.loadingText}>Đang tải dữ liệu NailHouse...</Text></SafeAreaView>;
