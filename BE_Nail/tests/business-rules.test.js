@@ -3260,3 +3260,154 @@ describe('Mail cho khach dat lich', () => {
     }
   });
 });
+
+/* Khach tu doi nhan vien khi lich bi bien dong (nghi dot xuat...). */
+describe('Khach tu doi nhan vien', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const owner = { customerId: 9001, name: 'Khach Test' };
+  const req = (params = {}, body = {}, user = owner) => ({
+    params, body, user, protocol: 'http', get: () => 'localhost:3000',
+  });
+  const day = () => new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+
+  async function makeStaffPair(connection, dayText, a, b) {
+    for (const n of [a, b]) {
+      await connection.query(
+        `INSERT INTO users (user_id, full_name, phone, email, password, role, status)
+         VALUES (?,?,?,?,'$2b$10$testseed','STAFF','ACTIVE')`,
+        [9700 + n, `NV Doi ${n}`, `093970${String(n).padStart(4, '0')}`, `nvdoi${n}@test.local`]);
+      await connection.query(
+        'INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (?,?,?,?)',
+        [9700 + n, 9700 + n, 'Test', 1]);
+      await connection.query(
+        'INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (?, 1)', [9700 + n]);
+      await connection.query(
+        `INSERT INTO staff_schedule (staff_id, work_date, start_time, end_time, status)
+         VALUES (?,?, '09:00:00', '18:00:00', 'AVAILABLE')`, [9700 + n, dayText]);
+    }
+  }
+
+  test('xem nguoi trong va chot doi sang nguoi khac', async () => {
+    const { getStaffOptions, changeBookingStaff } =
+      await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const dayText = day();
+    let bookingId = null;
+    try {
+      await makeStaffPair(connection, dayText, 11, 12);
+      const [bk] = await connection.query(
+        `INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration,
+           buffer_time, start_time, end_time, status, source)
+         VALUES (9001, 9711, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')`,
+        [`${dayText} 10:00:00`, `${dayText} 11:15:00`]);
+      bookingId = bk.insertId;
+
+      const options = mockRes();
+      await getStaffOptions(req({ id: String(bookingId) }), options, strictNext);
+      assert.equal(options.statusCode, 200);
+      assert.ok(options.body.data.available.some((s) => s.id === '9712'), 'phai co nguoi thay the');
+      assert.ok(!options.body.data.available.some((s) => s.id === '9711'), 'khong de xuat lai nguoi cu');
+
+      const changed = mockRes();
+      await changeBookingStaff(
+        req({ id: String(bookingId) }, { staffId: 9712 }), changed, strictNext);
+      assert.equal(changed.statusCode, 200);
+      assert.equal(changed.body.data.staffId, '9712');
+      const [[row]] = await connection.query(
+        'SELECT staff_id AS staffId FROM booking WHERE booking_id = ?', [bookingId]);
+      assert.equal(Number(row.staffId), 9712);
+
+      const same = mockRes();
+      await changeBookingStaff(
+        req({ id: String(bookingId) }, { staffId: 9712 }), same, strictNext);
+      assert.equal(same.statusCode, 400);
+    } finally {
+      if (bookingId) {
+        await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id IN (9711, 9712)');
+      await connection.query('DELETE FROM staff_service WHERE staff_id IN (9711, 9712)');
+      await connection.query('DELETE FROM staff WHERE staff_id IN (9711, 9712)');
+      await connection.query('DELETE FROM users WHERE user_id IN (9711, 9712)');
+      await connection.end();
+    }
+  });
+
+  test('chan doi khi khong phai chu, lich dang lam, nguoi moi ban', async () => {
+    const { changeBookingStaff, getBookingDetail } =
+      await import('../src/controllers/booking.controller.js');
+    const connection = await connect();
+    const dayText = day();
+    let bookingId = null;
+    let leaveId = null;
+    try {
+      await makeStaffPair(connection, dayText, 13, 14);
+      const [bk] = await connection.query(
+        `INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration,
+           buffer_time, start_time, end_time, status, source)
+         VALUES (9001, 9713, 1, 200000, 60, 15, ?, ?, 'PENDING', 'MOBILE')`,
+        [`${dayText} 10:00:00`, `${dayText} 11:15:00`]);
+      bookingId = bk.insertId;
+
+      const foreign = mockRes();
+      await changeBookingStaff(
+        req({ id: String(bookingId) }, { staffId: 9714 }, { customerId: 1, name: 'La' }),
+        foreign, strictNext);
+      assert.equal(foreign.statusCode, 404);
+
+      await connection.query('UPDATE booking SET status = ? WHERE booking_id = ?', ['PROCESSING', bookingId]);
+      const busy = mockRes();
+      await changeBookingStaff(
+        req({ id: String(bookingId) }, { staffId: 9714 }), busy, strictNext);
+      assert.equal(busy.statusCode, 409);
+      await connection.query('UPDATE booking SET status = ? WHERE booking_id = ?', ['PENDING', bookingId]);
+
+      /* Nguoi khong co ca ngay do thi bao ban. */
+      await connection.query(
+        `INSERT INTO users (user_id, full_name, phone, email, password, role, status)
+         VALUES (9715, 'NV Khong Ca', '0939700015', 'nvdoi15@test.local', '$2b$10$testseed', 'STAFF', 'ACTIVE')`);
+      await connection.query(
+        "INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (9715, 9715, 'Test', 1)");
+      await connection.query('INSERT IGNORE INTO staff_service (staff_id, service_id) VALUES (9715, 1)');
+      const blocked = mockRes();
+      await changeBookingStaff(
+        req({ id: String(bookingId) }, { staffId: 9715 }), blocked, strictNext);
+      assert.equal(blocked.statusCode, 409);
+
+      /* Nguoi cu nghi dot xuat trung gio thi chi tiet bao bien dong. */
+      const [lv] = await connection.query(
+        `INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason,
+           leave_type, status, reviewed_at, review_note)
+         VALUES (9713, ?, ?, 'Om', 'EMERGENCY', 'APPROVED', NOW(), 'auto')`,
+        [`${dayText} 09:00:00`, `${dayText} 18:00:00`]);
+      leaveId = lv.insertId;
+      const detail = mockRes();
+      await getBookingDetail(req({ id: String(bookingId) }), detail, strictNext);
+      assert.equal(detail.statusCode, 200);
+      assert.equal(detail.body.data.disruption?.type, 'STAFF_EMERGENCY_LEAVE');
+    } finally {
+      if (leaveId) {
+        await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id = ?", [leaveId]);
+        await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id = ?', [leaveId]);
+      }
+      if (bookingId) {
+        await connection.query('DELETE FROM booking_event WHERE booking_id = ?', [bookingId]);
+        await connection.query('DELETE FROM booking WHERE booking_id = ?', [bookingId]);
+      }
+      await connection.query('DELETE FROM staff_schedule WHERE staff_id IN (9713, 9714)');
+      await connection.query('DELETE FROM staff_service WHERE staff_id IN (9713, 9714, 9715)');
+      await connection.query('DELETE FROM staff WHERE staff_id IN (9713, 9714, 9715)');
+      await connection.query('DELETE FROM users WHERE user_id IN (9713, 9714, 9715)');
+      await connection.end();
+    }
+  });
+});

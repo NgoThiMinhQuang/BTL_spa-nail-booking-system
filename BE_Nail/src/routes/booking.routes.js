@@ -3,12 +3,14 @@ import {
   addCustomerImage,
   addCustomerImageUpload,
   cancelBooking,
+  changeBookingStaff,
   createBooking,
   createReview,
   getAvailableSlots,
   getBookingDetail,
   getBookingReceipt,
   getBookings,
+  getStaffOptions,
   rescheduleBooking,
   updateBookingStatus,
 } from '../controllers/booking.controller.js';
@@ -47,6 +49,11 @@ router.patch('/:id/cancel', authenticate, requireCustomer, cancelBooking);
 /* Khách tự đổi ngày/giờ lịch PENDING/CONFIRMED của mình: giữ nguyên nhân
    viên và tiền cọc, kiểm tra lại khả dụng như lúc đặt lịch. */
 router.patch('/:id/reschedule', authenticate, requireCustomer, rescheduleBooking);
+
+/* Khách tự đổi nhân viên khi lịch bị biến động (nghỉ đột xuất...):
+   xem người còn trống + chốt người mới, giữ nguyên giờ và tiền cọc. */
+router.get('/:id/staff-options', authenticate, requireCustomer, getStaffOptions);
+router.patch('/:id/staff', authenticate, requireCustomer, changeBookingStaff);
 
 /* Xin URL thanh toán đặt cọc 30% cho lịch PENDING của chính mình. */
 router.post('/:id/deposit-intent', authenticate, requireCustomer, createDepositIntent);

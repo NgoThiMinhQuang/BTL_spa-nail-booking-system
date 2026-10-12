@@ -2,13 +2,15 @@ import { Stack } from "expo-router";
 
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import { useEffect } from "react";
-import { setupPushNotifications } from "@/lib/push";
+import { setupPushNotifications, setupNotificationTapRouting } from "@/lib/push";
 
 export default function RootLayout() {
   /* Đăng ký push một lần khi mở app (có token đăng nhập mới đăng ký
      được; lần mở sau khi login xong sẽ đăng ký — xem thêm profile). */
   useEffect(() => {
     setupPushNotifications();
+    const unsubscribe = setupNotificationTapRouting();
+    return unsubscribe;
   }, []);
 
   return (

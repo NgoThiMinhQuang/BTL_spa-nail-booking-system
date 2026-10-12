@@ -1,5 +1,5 @@
-import { cancelBooking, fetchAvailability, fetchBookingDetail, fetchReceipt, reportPaymentIssue, rescheduleBooking, submitReview } from '@/features/booking/booking.service';
-import type { BookingDetail } from '@/features/booking/booking.types';
+import { cancelBooking, changeBookingStaff, fetchAvailability, fetchBookingDetail, fetchReceipt, fetchStaffOptions, reportPaymentIssue, rescheduleBooking, submitReview } from '@/features/booking/booking.service';
+import type { BookingDetail, StaffOption } from '@/features/booking/booking.types';
 import { ApiError } from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -49,6 +49,10 @@ export default function BookingDetailScreen() {
   const [newTime, setNewTime] = useState('');
   const [slots, setSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [showStaff, setShowStaff] = useState(false);
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [pickedStaff, setPickedStaff] = useState('');
   const [receipt, setReceipt] = useState<{
     receiptNo: string | null; total: number; collected: number;
     refunded: number; remaining: number;
@@ -146,6 +150,43 @@ export default function BookingDetailScreen() {
     }
   }
 
+  async function openStaffSheet() {
+    if (!booking) return;
+    setMessage('');
+    setPickedStaff('');
+    setShowStaff(true);
+    setStaffLoading(true);
+    try {
+      const options = await fetchStaffOptions(booking.id);
+      setStaffOptions(options.available);
+    } catch {
+      setStaffOptions([]);
+      setMessage('Không tải được danh sách nhân viên còn trống.');
+    } finally {
+      setStaffLoading(false);
+    }
+  }
+
+  async function submitStaffChange() {
+    if (!booking) return;
+    if (!pickedStaff) {
+      setMessage('Hãy chọn một nhân viên để thay.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const result = await changeBookingStaff(booking.id, pickedStaff);
+      setShowStaff(false);
+      await load();
+      setMessage(`Đã đổi sang ${result.staffName}. Giờ hẹn và tiền cọc giữ nguyên.`);
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : 'Không đổi được nhân viên. Hãy thử lại.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitIssue() {
     if (!booking || !issue.trim()) {
       setMessage('Hãy mô tả sai lệch bạn gặp.');
@@ -233,6 +274,70 @@ export default function BookingDetailScreen() {
             <Text style={styles.price}>{(booking.total ?? 0).toLocaleString('vi-VN')}đ</Text>
           </View>
         </View>
+
+        {booking.disruption?.type === 'STAFF_EMERGENCY_LEAVE' && cancellable && (
+          <View style={styles.warnCard}>
+            <View style={styles.warnHead}>
+              <Ionicons name="warning-outline" size={22} color="#B0586D" />
+              <Text style={styles.warnTitle}>Nhân viên bận đột xuất</Text>
+            </View>
+            <Text style={styles.warnText}>
+              {booking.disruption.staffName ?? 'Nhân viên'} không thể phục vụ lịch này.
+              Bạn chọn hủy lịch hoặc đổi sang nhân viên khác — giờ hẹn và tiền cọc giữ nguyên.
+            </Text>
+            <View style={styles.rescheduleActions}>
+              <Pressable disabled={busy} onPress={askCancel}
+                style={[styles.button, styles.redButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
+                <Text style={styles.buttonText}>Hủy lịch</Text>
+              </Pressable>
+              <Pressable disabled={busy} onPress={openStaffSheet}
+                style={[styles.button, styles.pinkButton, styles.rescheduleActionsButton, busy && styles.disabledButton]}>
+                <Text style={styles.buttonText}>Đổi nhân viên</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {showStaff && booking && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Chọn nhân viên thay</Text>
+            <Text style={styles.hint}>Giữ nguyên giờ hẹn. Người bận hoặc không làm được dịch vụ này không hiện ở đây.</Text>
+            {staffLoading ? (
+              <Text style={styles.hint}>Đang tìm người còn trống…</Text>
+            ) : staffOptions.length === 0 ? (
+              <Text style={styles.hint}>Hiện không còn ai trống đúng giờ này. Bạn có thể đổi ngày / giờ hoặc hủy lịch.</Text>
+            ) : (
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {staffOptions.map((person) => (
+                  <Pressable key={person.id} onPress={() => setPickedStaff(person.id)}
+                    style={[styles.staffRow, pickedStaff === person.id && styles.staffRowSelected]}>
+                    <View style={styles.staffAvatar}>
+                      <Text style={styles.staffInitial}>{person.name.trim().charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.staffName}>{person.name}</Text>
+                      <Text style={styles.staffSub}>
+                        {person.specialty ?? 'Chuyên viên'}
+                        {person.rating != null ? ` · ${person.rating.toFixed(1)}★ (${person.reviewCount})` : ''}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={pickedStaff === person.id ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24} color={pickedStaff === person.id ? '#D56B81' : '#C9B8BE'} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
+            <View style={styles.rescheduleActions}>
+              <Pressable disabled={busy} onPress={() => setShowStaff(false)} style={[styles.button, styles.greenButton, styles.rescheduleActionsButton]}>
+                <Text style={styles.buttonText}>Để sau</Text>
+              </Pressable>
+              <Pressable disabled={busy || !pickedStaff} onPress={submitStaffChange} style={[styles.button, styles.pinkButton, styles.rescheduleActionsButton, (busy || !pickedStaff) && styles.disabledButton]}>
+                <Text style={styles.buttonText}>Xác nhận đổi</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Thời gian & nhân viên</Text>
@@ -485,4 +590,14 @@ const styles = StyleSheet.create({
   slotTextSelected: { color: '#FFF' },
   rescheduleActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   rescheduleActionsButton: { flex: 1 },
+  warnCard: { padding: 15, borderRadius: 18, backgroundColor: '#FDF0F3', borderWidth: 1, borderColor: '#F2C9D3', gap: 8 },
+  warnHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  warnTitle: { color: '#9A3A52', fontSize: 15, fontWeight: '800' },
+  warnText: { color: '#6E4A55', fontSize: 13.5, lineHeight: 20 },
+  staffRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: '#EFE5EB', backgroundColor: '#FFF' },
+  staffRowSelected: { borderColor: '#D56B81', backgroundColor: '#FDF0F3' },
+  staffAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F7DFE5', alignItems: 'center', justifyContent: 'center' },
+  staffInitial: { color: '#9A5065', fontSize: 17, fontWeight: '800' },
+  staffName: { color: '#30292B', fontSize: 14, fontWeight: '700' },
+  staffSub: { color: '#8A7C80', fontSize: 12.5, marginTop: 2 },
 });

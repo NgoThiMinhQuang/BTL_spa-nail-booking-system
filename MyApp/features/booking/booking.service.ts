@@ -1,6 +1,6 @@
 import { api, uploadFiles } from '@/services/api';
 import type { ApiResponse } from '@/types';
-import type { Availability, Booking, BookingDetail, BookingDraft, PaymentStatus } from './booking.types';
+import type { Availability, Booking, BookingDetail, BookingDraft, PaymentStatus, StaffOption } from './booking.types';
 
 type AvailabilityResponse = ApiResponse<string[]> & { meta: { duration: number; bufferTime: number } };
 
@@ -142,6 +142,34 @@ export async function rescheduleBooking(
   const response = await api<ApiResponse<{ id: string; startsAt: string; endsAt: string }>>(
     `/api/bookings/${id}/reschedule`,
     { method: 'PATCH', body: JSON.stringify(draft) },
+  );
+  return response.data;
+}
+
+export type StaffOptions = {
+  currentStaffId: string | null;
+  available: StaffOption[];
+  blocked: (StaffOption & { reason: string })[];
+};
+
+/** Người còn trống đúng khung giờ của lịch — loại sẵn người hiện tại. */
+export async function fetchStaffOptions(id: string): Promise<StaffOptions> {
+  const response = await api<ApiResponse<StaffOptions>>(
+    `/api/bookings/${encodeURIComponent(id)}/staff-options`,
+  );
+  return response.data;
+}
+
+/**
+ * Khách chốt đổi sang nhân viên khác (giữ nguyên giờ và tiền cọc).
+ * Backend kiểm tra lại người mới có làm được dịch vụ và rảnh giờ đó không.
+ */
+export async function changeBookingStaff(
+  id: string, staffId: string,
+): Promise<{ id: string; staffId: string; staffName: string }> {
+  const response = await api<ApiResponse<{ id: string; staffId: string; staffName: string }>>(
+    `/api/bookings/${encodeURIComponent(id)}/staff`,
+    { method: 'PATCH', body: JSON.stringify({ staffId }) },
   );
   return response.data;
 }

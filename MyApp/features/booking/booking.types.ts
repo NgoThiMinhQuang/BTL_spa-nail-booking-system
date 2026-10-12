@@ -62,6 +62,22 @@ export type BookingDetail = Booking & {
   addons: BookingAddon[];
   images: BookingImage[];
   review: BookingReview | null;
+  /** Nhân viên báo nghỉ đột xuất trùng giờ: khách chọn hủy hoặc đổi người. */
+  disruption?: {
+    type: 'STAFF_EMERGENCY_LEAVE';
+    staffName: string | null;
+    leaveEnd: string;
+  } | null;
+};
+
+/** Nhân viên còn trống đúng khung giờ của lịch — khách tự chọn người thay. */
+export type StaffOption = {
+  id: string;
+  name: string;
+  specialty: string | null;
+  rating: number | null;
+  reviewCount: number;
+  avatarUrl: string | null;
 };
 
 /* KHÔNG còn customerId trong BookingDraft.

@@ -23,7 +23,7 @@ import {
 } from '../lib/booking-service.js';
 import { freeSlotsForAnyStaff, freeSlotsForStaff } from '../lib/staff-availability.js';
 import {
-  checkStaffAvailable, lockStaffBookings,
+  checkStaffAvailable, listAvailableStaff, lockStaffBookings,
 } from '../lib/staff-availability.js';
 import { settleCancelPayment } from '../lib/payment-transactions.js';
 import { cleanEmail, resolveCustomerEmail, sendBookingConfirmation } from '../lib/customer-mail.js';
@@ -537,6 +537,131 @@ export async function rescheduleBooking(req, res, next) {
 }
 
 /* ================================================================
+   Khách tự đổi nhân viên khi lịch bị biến động
+   ---------------------------------------------------------------
+   Khi nhân viên báo nghỉ đột xuất, khách mở app thấy banner và được
+   chọn: hủy lịch (đường cancel có sẵn) hoặc đổi sang người khác ngay
+   tại khung giờ cũ. Tiền cọc/thanh toán giữ nguyên theo lịch.
+
+   Chỉ PENDING/CONFIRMED được đổi; CONFIRMED còn dưới 2 giờ thì liên hệ
+   cửa hàng (cùng luật với tự đổi giờ). Người mới phải làm được dịch vụ
+   và rảnh đúng khung giờ — chạy lại đúng bộ luật khả dụng rồi mới lưu.
+   ================================================================ */
+export async function getStaffOptions(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn không hợp lệ.' });
+    }
+
+    const [[booking]] = await pool.query(
+      `SELECT b.booking_id, b.customer_id AS customerId, b.status,
+              b.staff_id AS staffId, b.service_id AS serviceId,
+              b.start_time AS startsAt, b.end_time AS endsAt
+         FROM booking b WHERE b.booking_id = ? LIMIT 1`, [id]);
+    if (!booking || booking.customerId !== req.user.customerId) {
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      return res.status(409).json({
+        message: `Lịch đang ở trạng thái "${booking.status}" nên không đổi nhân viên được.`,
+      });
+    }
+
+    const { available, blocked } = await listAvailableStaff({
+      bookingId: id,
+      serviceId: booking.serviceId,
+      startsAt: booking.startsAt,
+      endsAt: booking.endsAt,
+    });
+    /* Bỏ người hiện tại khỏi danh sách — đổi là đổi sang người khác. */
+    const withoutCurrent = (list) => list
+      .filter((item) => item.id !== String(booking.staffId))
+      .map((item) => ({ ...item, avatarUrl: imageUrl(req, item.avatarUrl) }));
+    res.json({
+      data: {
+        currentStaffId: booking.staffId == null ? null : String(booking.staffId),
+        available: withoutCurrent(available),
+        blocked: withoutCurrent(blocked),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function changeBookingStaff(req, res, next) {
+  const connection = await pool.getConnection();
+  try {
+    const id = Number(req.params.id);
+    const staffId = Number(req.body?.staffId);
+    if (!Number.isInteger(id) || !Number.isInteger(staffId)) {
+      return res.status(400).json({ message: 'Mã lịch hẹn hoặc nhân viên không hợp lệ.' });
+    }
+
+    await connection.beginTransaction();
+    const [[booking]] = await connection.query(
+      `SELECT b.booking_id, b.customer_id AS customerId, b.status,
+              b.staff_id AS staffId, b.service_id AS serviceId,
+              b.start_time AS startsAt, b.end_time AS endsAt
+         FROM booking b WHERE b.booking_id = ? LIMIT 1 FOR UPDATE`, [id],
+    );
+    if (!booking || booking.customerId !== req.user.customerId) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn.' });
+    }
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Lịch đang ở trạng thái "${booking.status}" nên không đổi nhân viên được.`,
+      });
+    }
+    if (booking.status === 'CONFIRMED' && !isCancelWindowOpen(booking.startsAt)) {
+      await connection.rollback();
+      return res.status(409).json({
+        message: `Lịch đã xác nhận chỉ còn dưới ${CANCEL_WINDOW_HOURS} giờ `
+          + 'nên không tự đổi được. Vui lòng liên hệ cửa hàng.',
+      });
+    }
+    if (staffId === booking.staffId) {
+      await connection.rollback();
+      return res.status(400).json({ message: 'Đây đang là nhân viên của lịch này.' });
+    }
+
+    /* Khoá rồi kiểm tra lại trong giao dịch để hai khách không cùng
+       chen một người vào một khung giờ. */
+    await lockStaffBookings({ connection, staffId, startsAt: booking.startsAt, endsAt: booking.endsAt });
+    const check = await checkStaffAvailable({
+      bookingId: id, staffId, serviceId: booking.serviceId,
+      startsAt: booking.startsAt, endsAt: booking.endsAt,
+      runner: connection, forUpdate: true,
+    });
+    if (!check.ok) {
+      await connection.rollback();
+      return res.status(409).json({ message: `Không đổi được: ${check.reason}`, reason: check.reason });
+    }
+
+    await connection.query('UPDATE booking SET staff_id = ? WHERE booking_id = ?', [staffId, id]);
+    await logEvent({
+      bookingId: id,
+      type: 'STAFF_CHANGED',
+      detail: `Khách tự đổi nhân viên sang ${check.staffName}.`,
+      actorRole: 'CUSTOMER',
+      actorName: req.user.name,
+      connection,
+    });
+
+    await connection.commit();
+    res.json({ data: { id: String(id), staffId: String(staffId), staffName: check.staffName } });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+}
+
+/* ================================================================
    Ảnh mẫu khách gửi kèm lịch hẹn
    ---------------------------------------------------------------
    Mobile gọi POST /api/bookings/:id/images ngay sau khi đặt lịch.
@@ -804,6 +929,27 @@ export async function getBookingDetail(req, res, next) {
       (sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
     const total = Number(row.price) + addonTotal;
 
+    /* Nhân viên báo nghỉ đột xuất giữa chừng: lịch PENDING/CONFIRMED của
+       họ cần khách chọn hướng xử lý (hủy hoặc đổi người) ngay trên app,
+       thay vì chờ Admin gọi từng người. */
+    let disruption = null;
+    if (['PENDING', 'CONFIRMED'].includes(row.status) && row.staffId) {
+      const [[leave]] = await pool.query(
+        `SELECT lr.end_datetime AS leaveEnd
+           FROM staff_leave_request lr
+          WHERE lr.staff_id = ? AND lr.leave_type = 'EMERGENCY' AND lr.status = 'APPROVED'
+            AND lr.start_datetime < ? AND lr.end_datetime > ?
+            AND lr.end_datetime > NOW() LIMIT 1`,
+        [row.staffId, row.endsAt, row.startsAt]);
+      if (leave) {
+        disruption = {
+          type: 'STAFF_EMERGENCY_LEAVE',
+          staffName: row.staffName,
+          leaveEnd: leave.leaveEnd,
+        };
+      }
+    }
+
     res.json({
       data: {
         ...row,
@@ -831,6 +977,7 @@ export async function getBookingDetail(req, res, next) {
         review: review
           ? { ...review, id: String(review.id), rating: Number(review.rating) }
           : null,
+        disruption,
       },
     });
   } catch (error) {

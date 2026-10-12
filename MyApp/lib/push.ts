@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { registerDevice } from '@/features/notifications/notification.service';
 import { getToken } from '@/services/api';
@@ -54,4 +55,28 @@ export async function setupPushNotifications(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/* Bấm vào thông báo (kể cả khi app đang tắt) thì mở đúng màn hình:
+   tin gắn lịch hẹn thì vào chi tiết lịch đó để hủy/đổi nhân viên ngay.
+   Backend luôn gửi kèm data { refType, refId } trong mỗi tin đẩy. */
+function routeFromResponse(response: Notifications.NotificationResponse | null) {
+  if (!response) return;
+  const data = (response.notification.request.content.data ?? {}) as {
+    refType?: string; refId?: string | number;
+  };
+  if (data.refType === 'booking' && data.refId) {
+    router.push({ pathname: '/booking/[id]', params: { id: String(data.refId) } });
+  }
+}
+
+/**
+ * Đăng ký điều hướng khi bấm thông báo — gọi một lần ở layout gốc.
+ * Trả hàm hủy đăng ký để layout dọn khi unmount.
+ */
+export function setupNotificationTapRouting(): () => void {
+  /* App bị tắt hẳn rồi bấm tin để mở: tin đó nằm ở response cuối. */
+  Notifications.getLastNotificationResponseAsync().then(routeFromResponse).catch(() => null);
+  const subscription = Notifications.addNotificationResponseReceivedListener(routeFromResponse);
+  return () => subscription.remove();
 }

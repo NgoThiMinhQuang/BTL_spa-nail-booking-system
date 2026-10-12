@@ -189,8 +189,8 @@ export async function createLeaveRequest(req, res, next) {
           const when = fmtSlot(booking.startsAt);
           const title = 'Lịch hẹn của bạn bị ảnh hưởng';
           const body = `Lịch ${booking.serviceName} lúc ${when} của bạn bị ảnh hưởng `
-            + 'do nhân viên bận đột xuất. Cửa hàng đang sắp xếp phương án phục vụ mới '
-            + 'và sẽ báo lại ngay — bạn không cần làm gì lúc này.';
+            + 'do nhân viên bận đột xuất. Mở ứng dụng NailHouse để chọn: '
+            + 'hủy lịch hoặc đổi sang nhân viên khác — cửa hàng cũng đang sắp xếp hỗ trợ.';
           if (booking.userId) {
             await createNotification(pool, {
               userId: booking.userId, title, body,
