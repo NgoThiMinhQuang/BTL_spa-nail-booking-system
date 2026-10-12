@@ -1,6 +1,9 @@
-/* ===== Trang thông tin cá nhân =====
-   Bố cục: thẻ tiêu đề gộp luôn đánh giá → số liệu → hai khối nội dung chính
-   → cột phải dánh. Mọi con số lấy từ dữ liệu đang tải, không đặt số bịa. */
+/* ===== Trang hồ sơ cá nhân của nhân viên =====
+   Chuẩn một trang profile nhân sự: đầu trang định danh (ảnh bìa, avatar,
+   tên, chuyên môn, mã NV, nút gọi/email, điểm đánh giá) → dải số liệu
+   công việc → khối Thông tin chung → chuyên môn, lịch hẹn, đánh giá,
+   lương → cột phải là thẻ Hôm nay và ca cả tuần. Mọi con số lấy từ dữ
+   liệu đang tải, không đặt số bịa. */
 
 import { useEffect, useState } from 'react';
 import { Avatar } from '../components/Avatar';
@@ -17,13 +20,6 @@ const PREVIEW = 5;
    cột phải không lệch với lưới tuần. */
 const DAY = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
-const STAT_CARDS: { label: string; symbol: IconName; tone: string; note: string }[] = [
-  { label: 'Lượt đặt', symbol: 'schedule', tone: 'rose', note: 'khách đã ghé' },
-  { label: 'Khách hàng', symbol: 'customers', tone: 'lavender', note: 'người đã quen' },
-  { label: 'Dịch vụ', symbol: 'services', tone: 'sage', note: 'đang phục vụ' },
-  { label: 'Kinh nghiệm', symbol: 'done', tone: 'gold', note: 'năm tại NailHouse' },
-];
-
 /** '2026-09-30' -> 'Thứ 4' + '30/09'.
     Ngày cắt từ chuỗi rồi đảo lại, đồng bộ với mọi bảng khác trong app —
     `toLocaleDateString` ra "30-09" (dấu gạch ngang) lệch với chuẩn "30/09".
@@ -34,6 +30,21 @@ function shiftDay(date: string, today: string): { day: string; date: string } {
     day: DAY[new Date(`${date}T12:00:00`).getDay()],
     date: date.split('-').reverse().join('/').slice(0, 5),
   };
+}
+
+/** Một dòng trong khối Thông tin chung: biểu tượng, nhãn, giá trị. */
+function AboutRow({ icon, label, children }: {
+  icon: IconName; label: string; children: React.ReactNode;
+}) {
+  return (
+    <li>
+      <span className="pro-about-icon"><Icon name={icon} /></span>
+      <span className="pro-about-copy">
+        <small>{label}</small>
+        <strong>{children}</strong>
+      </span>
+    </li>
+  );
 }
 
 export function ProfilePage() {
@@ -62,41 +73,77 @@ export function ProfilePage() {
   const isToday = date === today;
   /* API chỉ trả 7 ngày tới nên đây là số ca thật trong khung đó. */
   const openShifts = shifts.filter((s) => s.status === 'AVAILABLE');
+  /* Hiện cả ngày nghỉ (OFF), chỉ bỏ ca đã hủy — đúng chuẩn lịch tuần của
+     một hồ sơ nhân sự, quản lý nhìn là biết tuần này làm những hôm nào. */
+  const weekShifts = shifts.filter((s) => s.status !== 'CANCELLED');
   const activeServices = services.filter((s) => s.status === 'ACTIVE').length;
+
+  /* Ca hôm nay và lịch tiếp theo cho thẻ Hôm nay ở cột phải. */
+  const todayShift = shifts.find((s) => s.date === today && s.status !== 'CANCELLED');
+  const todayShiftText = !todayShift || todayShift.status === 'OFF'
+    ? 'Nghỉ'
+    : `${todayShift.start} – ${todayShift.end}`;
+  const now = new Date();
+  const nowHM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const nextBooking = isToday
+    ? [...bookings].sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+      .find((b) => b.startsAt.slice(11, 16) >= nowHM
+        && ['PENDING', 'CONFIRMED', 'PROCESSING'].includes(b.status))
+    : undefined;
+
+  const STAT_CARDS: { label: string; symbol: IconName; tone: string; value: string; note: string }[] = [
+    { label: 'Lượt phục vụ', symbol: 'schedule', tone: 'rose', value: values[0], note: 'lượt khách đã đón' },
+    { label: 'Khách hàng', symbol: 'customers', tone: 'lavender', value: values[1], note: 'khách đã quen' },
+    {
+      label: 'Điểm đánh giá', symbol: 'star', tone: 'gold',
+      value: rating > 0 ? rating.toFixed(1) : '—',
+      note: reviews ? `${fmtNum(reviews)} lượt đánh giá` : 'chưa có đánh giá',
+    },
+    { label: 'Kinh nghiệm', symbol: 'done', tone: 'sage', value: values[3], note: 'năm tại NailHouse' },
+  ];
 
   return (
     <div className="pro-layout">
       <div className="pro-main">
-        {/* ---- Tiêu đề: ảnh bìa, thông tin và đánh giá ---- */}
+        {/* ---- Đầu trang định danh: ảnh bìa, avatar, tên, chuyên môn,
+            nút liên hệ và điểm đánh giá ---- */}
         <section className="panel pro-hero">
           <div className="pro-hero-cover" aria-hidden="true">
             <span><Icon name="flower" /></span>
+            <em className="pro-hero-code">MÃ #{fmtNum(profile.id)}</em>
           </div>
           <div className="pro-hero-body">
             <Avatar name={profile.name} url={profile.avatar} large />
             <div className="pro-hero-copy">
-              <p className="eyebrow">CHUYÊN VIÊN NAILHOUSE · MÃ #{fmtNum(profile.id)}</p>
+              <p className="eyebrow">CHUYÊN VIÊN NAILHOUSE</p>
               <h2>{profile.name}</h2>
               <p className="pro-hero-scope">{profile.specialty || 'Chuyên viên chăm sóc sắc đẹp'}</p>
               <div className="pro-hero-links">
-                {profile.phone && (
-                  <a className="pro-chip" href={`tel:${profile.phone}`}>
-                    <Icon name="phone" />{profile.phone}
-                  </a>
-                )}
-                {profile.email && (
-                  <a className="pro-chip" href={`mailto:${profile.email}`}>
-                    <Icon name="email" />{profile.email}
-                  </a>
-                )}
                 <span className="pro-chip is-plain">
                   <Icon name="services" />{activeServices}/{services.length} dịch vụ đang mở
                 </span>
+                <span className="pro-chip is-plain">
+                  <Icon name="done" />{fmtNum(profile.experienceYears)} năm kinh nghiệm
+                </span>
               </div>
+              {(profile.phone || profile.email) && (
+                <div className="pro-hero-actions">
+                  {profile.phone && (
+                    <a className="button" href={`tel:${profile.phone}`}>
+                      <Icon name="phone" /> Gọi điện
+                    </a>
+                  )}
+                  {profile.email && (
+                    <a className="button secondary" href={`mailto:${profile.email}`}>
+                      <Icon name="email" /> Gửi email
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Đánh giá đặt bên phải thay cho khối riêng, tiết kiệm một hàng.
-                Chưa có review thì nói rõ, không hiện điểm của cửa hàng. */}
+            {/* Điểm từ review thật của khách. Chưa có review thì nói rõ,
+                không hiện điểm của cửa hàng để khỏi gây hiểu nhầm. */}
             <div className={`pro-hero-rate${rating > 0 ? '' : ' is-empty'}`}>
               {rating > 0 ? (
                 <>
@@ -127,13 +174,14 @@ export function ProfilePage() {
           </div>
         </section>
 
+        {/* ---- Dải số liệu công việc ---- */}
         <div className="pro-stats">
-          {STAT_CARDS.map((card, index) => (
+          {STAT_CARDS.map((card) => (
             <div key={card.label} className={`pro-stat pro-stat-${card.tone}`}>
               <span className="pro-stat-icon"><Icon name={card.symbol} /></span>
               <span className="pro-stat-copy">
                 <span className="pro-stat-label">{card.label}</span>
-                <strong>{values[index]}</strong>
+                <strong>{card.value}</strong>
                 <small>{card.note}</small>
               </span>
             </div>
@@ -141,6 +189,35 @@ export function ProfilePage() {
         </div>
 
         <div className="pro-panels">
+          {/* ---- Thông tin chung: khối không thể thiếu của một hồ sơ
+              nhân sự — ai nhìn vào cũng biết liên hệ và năng lực ---- */}
+          <section className="panel pro-panel pro-panel-wide">
+            <div className="pro-panel-head">
+              <h3>Thông tin chung</h3>
+              <span className="pro-panel-note">Hồ sơ do quản lý cập nhật</span>
+            </div>
+            <ul className="pro-about-list">
+              <AboutRow icon="tag" label="Mã nhân viên">#{fmtNum(profile.id)}</AboutRow>
+              <AboutRow icon="sparkles" label="Chuyên môn">
+                {profile.specialty || 'Chuyên viên chăm sóc sắc đẹp'}
+              </AboutRow>
+              <AboutRow icon="phone" label="Số điện thoại">
+                {profile.phone
+                  ? <a className="pro-about-link" href={`tel:${profile.phone}`}>{profile.phone}</a>
+                  : <span className="pro-muted">Chưa cập nhật</span>}
+              </AboutRow>
+              <AboutRow icon="email" label="Email">
+                {profile.email
+                  ? <a className="pro-about-link" href={`mailto:${profile.email}`}>{profile.email}</a>
+                  : <span className="pro-muted">Chưa cập nhật</span>}
+              </AboutRow>
+              <AboutRow icon="services" label="Dịch vụ đang mở">
+                {activeServices}/{services.length} dịch vụ
+              </AboutRow>
+              <AboutRow icon="clock" label="Ca hôm nay">{todayShiftText}</AboutRow>
+            </ul>
+          </section>
+
           {/* ---- Dịch vụ chuyên môn ---- */}
           <section className="panel pro-panel">
             <div className="pro-panel-head">
@@ -215,13 +292,20 @@ export function ProfilePage() {
             )}
           </section>
 
-          {/* ---- Đánh giá gần đây: điểm số không nói được khách khen
-              hay chê điều gì, nên hiện cả lời nhận xét. ---- */}
+          {/* ---- Đánh giá: điểm tổng hợp trước, lời nhận xét sau — điểm
+              số không nói được khách khen hay chê điều gì ---- */}
           <section className="panel pro-panel">
             <div className="pro-panel-head">
               <h3>Đánh giá gần đây</h3>
               <span className="pro-panel-note">{fmtNum(recentReviews.length)} lượt mới nhất</span>
             </div>
+            {rating > 0 && (
+              <div className="pro-review-sum">
+                <strong>{rating.toFixed(1)}</strong>
+                <span className="pro-rate-stars"><Stars rating={rating} /></span>
+                <small>{fmtNum(reviews)} lượt từ {fmtNum(rated.length)} khách hàng</small>
+              </div>
+            )}
             {recentReviews.length ? (
               <ul className="pro-review-list">
                 {recentReviews.slice(0, PREVIEW).map((review) => (
@@ -248,23 +332,58 @@ export function ProfilePage() {
       </div>
 
       <aside className="pro-aside">
-        {/* ---- Ca làm việc: lịch 7 ngày dạng dải, không lặp ảnh đại diện ---- */}
+        {/* ---- Hôm nay: ca, số lịch và lịch tiếp theo trong một cái nhìn ---- */}
+        {isToday && (
+          <section className="panel pro-today">
+            <div className="pro-panel-head">
+              <h3>Hôm nay</h3>
+              <span className="pro-panel-note">{today.split('-').reverse().join('/')}</span>
+            </div>
+            <ul className="pro-today-list">
+              <li>
+                <span className="pro-today-icon"><Icon name="clock" /></span>
+                <span><small>Ca làm việc</small><strong>{todayShiftText}</strong></span>
+              </li>
+              <li>
+                <span className="pro-today-icon"><Icon name="schedule" /></span>
+                <span><small>Lịch hẹn</small><strong>{fmtNum(bookings.length)} lịch</strong></span>
+              </li>
+              <li>
+                <span className="pro-today-icon"><Icon name="play" /></span>
+                <span>
+                  <small>Lịch tiếp theo</small>
+                  <strong>
+                    {nextBooking
+                      ? `${nextBooking.startsAt.slice(11, 16)} · ${nextBooking.customerName}`
+                      : 'Không còn lịch chờ'}
+                  </strong>
+                </span>
+              </li>
+            </ul>
+            <button type="button" className="button secondary pro-today-go" onClick={() => goView('schedule')}>
+              Mở lịch làm việc →
+            </button>
+          </section>
+        )}
+
+        {/* ---- Ca làm việc cả tuần, kể cả ngày nghỉ ---- */}
         <section className="panel pro-shift">
           <div className="pro-panel-head">
             <h3>Ca làm việc</h3>
             <span className="pro-panel-note">{fmtNum(openShifts.length)} ca trong 7 ngày</span>
           </div>
-          {openShifts.length ? (
+          {weekShifts.length ? (
             <ul className="pro-shift-list">
-              {openShifts.map((s) => {
+              {weekShifts.map((s) => {
                 const { day, date: dayNum } = shiftDay(s.date, today);
+                const off = s.status === 'OFF';
                 return (
-                  <li key={`${s.date}-${s.start}`} className={s.date === today ? 'is-today' : ''}>
+                  <li key={`${s.date}-${s.start}`} className={`${s.date === today ? 'is-today' : ''}${off ? ' is-off' : ''}`}>
                     <span className="pro-shift-day">
                       <strong>{day}</strong>
                       {dayNum && <small>{dayNum}</small>}
                     </span>
-                    <span className="pro-shift-time">{s.start} – {s.end}</span>
+                    <span className="pro-shift-time">{off ? 'Nghỉ' : `${s.start} – ${s.end}`}</span>
                   </li>
                 );
               })}

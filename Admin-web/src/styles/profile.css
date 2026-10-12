@@ -10,13 +10,18 @@
 
 /* ---- Thẻ tiêu đề: ảnh bìa + thông tin + đánh giá ---- */
 .pro-hero{overflow:hidden}
-.pro-hero-cover{position:relative;height:84px;background:linear-gradient(120deg,#FFF0F3 0%,#FBE4EC 45%,#F6D8E4 100%)}
+.pro-hero-cover{position:relative;height:108px;background:linear-gradient(120deg,#FFF0F3 0%,#FBE4EC 45%,#F6D8E4 100%)}
 .pro-hero-cover:before{content:'';position:absolute;inset:0;
-  background:url('/uploads/nails/nail-collection-v2.png') right 30%/auto 150px no-repeat;opacity:.14}
-.pro-hero-cover>span{position:absolute;left:18px;bottom:-6px;color:#E7B9C6;opacity:.9}
-.pro-hero-cover svg{width:34px;height:34px}
+  background:url('/uploads/nails/nail-collection-v2.png') right 30%/auto 190px no-repeat;opacity:.14}
+.pro-hero-cover>span{position:absolute;left:20px;bottom:-6px;color:#E7B9C6;opacity:.9}
+.pro-hero-cover svg{width:38px;height:38px}
+/* Mã nhân viên ghim góc phải ảnh bìa */
+.pro-hero-code{position:absolute;right:14px;top:12px;font-style:normal;font-size:10.5px;font-weight:700;
+  letter-spacing:1px;color:#fff;background:#B93E62;border-radius:8px;padding:4px 10px;
+  font-variant-numeric:tabular-nums}
 .pro-hero-body{display:flex;align-items:flex-end;gap:14px;padding:0 18px 16px}
-.pro-hero-body>.avatar{width:76px;height:76px;flex:0 0 76px;margin-top:-30px;border-width:3px;background:#F5E1E8;color:#AD677D}
+.pro-hero-body>.avatar{width:88px;height:88px;flex:0 0 88px;margin-top:-36px;border:4px solid #fff;
+  background:#F5E1E8;color:#AD677D;box-shadow:0 8px 20px -8px rgba(185,62,98,.4)}
 .pro-hero-copy{min-width:0;flex:1;padding-top:10px}
 .pro-hero-copy .eyebrow{font-size:9px;letter-spacing:1.4px;color:#8A7B80;margin:0 0 3px}
 .pro-hero-copy h2{font-size:22px;font-weight:700;line-height:1.25;color:var(--nh-ink);letter-spacing:-.4px}
@@ -28,6 +33,11 @@
 a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-primary-dark)}
 .pro-chip.is-plain{background:#F6FBF9;border-color:#DDECE7;color:var(--nh-sage)}
 .pro-chip.is-plain svg{color:var(--nh-sage)}
+/* Nút gọi/muối dưới hàng chip: hành động chính của đầu trang */
+.pro-hero-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pro-hero-actions .button{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;
+  font-size:12px;border-radius:9px}
+.pro-hero-actions .button svg{width:14px;height:14px}
 
 /* Ô đánh giá đặt bên phải thẻ tiêu đề */
 .pro-hero-rate{flex:0 0 auto;min-width:140px;padding:11px 14px;border-radius:12px;
@@ -63,8 +73,9 @@ a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-
 .pro-stat-gold .pro-stat-icon{background:var(--nh-gold-soft);color:var(--nh-gold)}
 .pro-stat-gold strong{color:var(--nh-gold)}
 
-/* ---- Cặp thẻ cạnh nhau ---- */
+/* ---- Cặp thẻ cạnh nhau (khối Thông tin chung tràn cả hai cột) ---- */
 .pro-panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.pro-panel-wide{grid-column:1/-1}
 .pro-panel{padding:14px 16px 12px}
 .pro-panel-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .pro-panel-head h3{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--nh-ink)}
@@ -129,6 +140,43 @@ a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-
 .pro-shift-list li.is-today{background:#FFF6F8;border-radius:8px}
 .pro-shift-list li.is-today .pro-shift-day strong{color:var(--nh-primary-dark)}
 .pro-shift-list li.is-today .pro-shift-time{color:var(--nh-primary-dark)}
+/* Ngày nghỉ: chữ mờ để mắt quét nhanh ra ngày đi làm */
+.pro-shift-list li.is-off{opacity:.6}
+.pro-shift-list li.is-off .pro-shift-time{color:#B6A8AE}
+
+/* ---- Khối Thông tin chung: lưới 2 cột biểu tượng + nhãn + giá trị ---- */
+.pro-about-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 22px}
+.pro-about-list li{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid #F4EAEE}
+.pro-about-list li:nth-child(-n+2){border-top:0}
+.pro-about-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;
+  background:#FCF3F6;color:var(--nh-primary-dark)}
+.pro-about-icon svg{width:15px;height:15px}
+.pro-about-copy{min-width:0;display:grid;gap:1px}
+.pro-about-copy small{font-size:10.5px;letter-spacing:.4px;color:#9A8B93;text-transform:uppercase}
+.pro-about-copy strong{font-size:12.5px;font-weight:600;color:var(--nh-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-about-link{color:var(--nh-primary-dark)}
+.pro-about-link:hover{text-decoration:underline}
+
+/* ---- Tổng điểm trong thẻ Đánh giá gần đây ---- */
+.pro-review-sum{display:flex;align-items:center;gap:9px;padding:10px 13px;margin-bottom:10px;
+  border-radius:11px;background:var(--nh-blush)}
+.pro-review-sum strong{font-size:22px;font-weight:600;color:var(--nh-primary-dark);
+  font-variant-numeric:tabular-nums}
+.pro-review-sum small{margin-left:auto;font-size:11px;color:#9A6B7C;white-space:nowrap}
+
+/* ---- Thẻ Hôm nay ở cột phải ---- */
+.pro-today{padding:14px 16px 12px}
+.pro-today-list{list-style:none;margin:0 0 10px;padding:0}
+.pro-today-list li{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid #F4EAEE}
+.pro-today-list li:first-child{border-top:0;padding-top:4px}
+.pro-today-icon{display:grid;place-items:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;
+  background:var(--nh-blush);color:var(--nh-primary-dark)}
+.pro-today-icon svg{width:15px;height:15px}
+.pro-today-list small{display:block;font-size:10.5px;letter-spacing:.4px;color:#9A8B93;text-transform:uppercase}
+.pro-today-list strong{display:block;font-size:12.5px;font-weight:600;color:var(--nh-ink);margin-top:1px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pro-today-go{width:100%;justify-content:center}
 
 /* ---- Thu hẹp ---- */
 @media(max-width:1200px){
@@ -149,6 +197,9 @@ a.pro-chip:hover{background:var(--nh-blush);border-color:#F1C9D4;color:var(--nh-
 }
 @media(max-width:600px){
   .pro-panels,.pro-aside{grid-template-columns:1fr}
+  .pro-about-list{grid-template-columns:1fr}
+  .pro-about-list li:nth-child(-n+2){border-top:1px solid #F4EAEE}
+  .pro-about-list li:first-child{border-top:0}
   .pro-hero-body{align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px}
   .pro-hero-body>.avatar{margin-top:-28px}
   .pro-hero-copy{padding-top:0;flex:1 1 200px}
