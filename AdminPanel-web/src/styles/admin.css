@@ -205,8 +205,30 @@ button.adm-chart-col:hover .adm-chart-stack{filter:brightness(.96)}
 /* ---- Hàng thẻ nhỏ (chuyên môn) ---- */
 .adm-cell-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
 
-/* ---- Thẻ yêu cầu đổi ca: một yêu cầu một thẻ, ghi chú ngay trên thẻ ---- */
+/* ---- Thanh tab trong panel: 3 chế độ xem lịch làm việc ---- */
+.adm-tabs{display:flex;gap:4px;padding:4px;background:#F6F4F7;border-radius:12px;margin:0 16px 14px}
+.adm-tabs button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:10px 8px;border-radius:9px;font-size:12.5px;font-weight:500;color:var(--nh-muted)}
+.adm-tabs button svg{width:15px;height:15px}
+.adm-tabs button:hover{color:var(--nh-ink)}
+.adm-tabs button.is-on{background:#fff;color:var(--nh-primary-dark);font-weight:700;
+  box-shadow:0 1px 4px rgba(45,36,48,.12)}
+.adm-tab-count{font-style:normal;font-size:11px;font-weight:700;min-width:22px;text-align:center;
+  padding:2px 7px;border-radius:12px;background:#ECE8EE;color:var(--nh-muted);font-variant-numeric:tabular-nums}
+.is-on .adm-tab-count{background:var(--nh-blush);color:var(--nh-primary-dark)}
+.adm-tab-count.is-alert{background:var(--nh-primary);color:#fff}
+/* ---- Thanh công cụ trong tab danh sách ca ---- */
+.adm-tab-bar{display:flex;align-items:center;gap:12px;margin:0 16px 6px}
+.adm-tab-bar>p{flex:1;margin:0;font-size:12px;color:var(--nh-muted)}
+.adm-tab-bar .button{flex:0 0 auto}
+@media(max-width:620px){
+  .adm-tabs{flex-wrap:wrap}
+  .adm-tabs button{flex:1 1 40%}
+  .adm-tab-bar{flex-wrap:wrap}
+  .adm-tab-bar .button{width:100%;justify-content:center}
+}
 .adm-req-list{list-style:none;margin:0;padding:4px 16px 16px;display:grid;gap:10px}
+/* ---- Thẻ yêu cầu đổi ca: một yêu cầu một thẻ, ghi chú ngay trên thẻ ---- */
 .adm-req-card{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;
   border:1px solid var(--nh-line);border-radius:13px;background:#fff}
 .adm-req-copy{flex:1;min-width:0;display:grid;gap:6px}

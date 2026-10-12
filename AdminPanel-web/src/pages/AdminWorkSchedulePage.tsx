@@ -220,7 +220,11 @@ export function AdminWorkSchedulePage() {
     .filter((item) => item.status === 'PENDING')
     .sort((a, b) => a.workDate.localeCompare(b.workDate));
 
-  /* Modal xếp/sửa ca + gom ca theo ngày cho danh sách cuối trang. */
+  /* Một panel duy nhất với 3 tab — mỗi lúc chỉ nhìn một khối thay vì
+     cuộn qua 3 mảng xếp chồng. */
+  const [tab, setTab] = useState<'grid' | 'shifts' | 'requests'>('grid');
+
+  /* Modal xếp/sửa ca + gom ca theo ngày cho tab danh sách. */
   const [shiftModal, setShiftModal] = useState<{ shift: ShiftItem | null } | null>(null);
   const [listError, setListError] = useState('');
 
@@ -252,29 +256,6 @@ export function AdminWorkSchedulePage() {
 
   return (
     <>
-      <Panel>
-        <SectionHeading
-          icon={<Icon name="schedule" />}
-          title="Yêu cầu đổi ca chờ duyệt"
-          subtitle={pendingRequests.length > 0
-            ? `${pendingRequests.length} yêu cầu của nhân viên`
-            : 'Không có yêu cầu mới'}
-        />
-
-        {pendingRequests.length === 0 ? (
-          <EmptyState
-            title="Không có yêu cầu đổi ca"
-            detail="Nhân viên xin thêm, đổi hoặc bớt ca sẽ hiện ở đây để duyệt."
-          />
-        ) : (
-          <ul className="adm-req-list">
-            {pendingRequests.map((item) => (
-              <ScheduleRequestCard key={item.id} item={item} onDone={reload} />
-            ))}
-          </ul>
-        )}
-      </Panel>
-
       <div className="adm-tiles adm-tiles-4">
         <StatTile tone="rose" icon="calendar" label="Ca trong tuần" value={totalShifts} note="tổng số ca đã xếp" />
         <StatTile tone="sage" icon="schedule" label="Lịch hẹn trong ca" value={totalBookings} note="chờ xác nhận và đã nhận" />
@@ -286,7 +267,7 @@ export function AdminWorkSchedulePage() {
       <Panel>
         <SectionHeading
           icon={<Icon name="clock" />}
-          title="Lịch làm việc trong tuần"
+          title="Lịch làm việc"
           subtitle={`${fmtDayShort(week[0])} – ${fmtDayShort(week[6])}`}
         >
           <div className="mode-tabs">
@@ -297,151 +278,186 @@ export function AdminWorkSchedulePage() {
           </div>
         </SectionHeading>
 
-        {shifts.length === 0 ? (
-          <EmptyState
-            title="Chưa có ca làm việc trong tuần này"
-            detail="Xem tuần khác bằng hai nút mũi tên ở trên."
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="adm-week">
-              <thead>
-                <tr>
-                  <th>Nhân viên</th>
-                  {week.map((day) => (
-                    <th key={day} className={day === today() ? 'is-today' : undefined}>
-                      {weekdayShort(day)}<small>{fmtDayShort(day)}</small>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((person, index) => (
-                  <tr key={person.id}>
-                    <th scope="row">
-                      <span className="adm-stt" style={{ display: 'block' }}>{index + 1}</span>
-                      <span className="adm-cell-name">
-                        <Avatar name={person.name} url={person.avatarUrl} size={32} />
-                        <span style={{ minWidth: 0 }}>
-                          <strong>{person.name}</strong>
-                          <small>{person.specialty ?? '—'}</small>
-                        </span>
-                      </span>
-                    </th>
-                    {week.map((day) => {
-                      const dayShifts = byStaffDay.get(`${person.id}|${day}`) ?? [];
-                      if (dayShifts.length === 0) {
-                        return <td key={day}><div className="adm-cell is-off">Nghỉ</div></td>;
-                      }
-                      /* Gộp các ca trong ngày thành một khối cho gọn. */
-                      const start = Math.min(...dayShifts.map((s) => timeToMinutes(s.startTime)));
-                      const end = Math.max(...dayShifts.map((s) => timeToMinutes(s.endTime)));
-                      const booked = dayShifts.reduce((sum, s) => sum + s.bookingCount, 0);
-                      const off = dayShifts.every((s) => s.status === 'OFF');
-
-                      return (
-                        <td key={day}>
-                          <div className={`adm-cell ${off ? 'is-off' : 'is-shift'}`}>
-                            {off ? 'Nghỉ' : (
-                              <>
-                                <strong>{`${dayShifts[0].startTime.slice(0, 5)} – ${dayShifts[0].endTime.slice(0, 5)}`}</strong>
-                                <small>
-                                  {dayShifts.length > 1 ? `${dayShifts.length} ca · ` : ''}
-                                  {Math.round((end - start) / 60 * 10) / 10}h · {booked} lịch
-                                </small>
-                                {(() => {
-                                  const att = attByStaffDay.get(`${person.id}|${day}`);
-                                  if (!att) return null;
-                                  if (att.onLeave) return <small>🏖️ Đang nghỉ duyệt</small>;
-                                  if (!att.checkInAt) return <small>⚠️ Chưa chấm công</small>;
-                                  return (
-                                    <small>
-                                      ✓ {String(att.checkInAt).slice(11, 16)}
-                                      {att.checkOutAt ? ` → ${String(att.checkOutAt).slice(11, 16)}` : ' → chưa về'}
-                                      {att.status === 'LATE' ? ` · muộn ${att.lateMinutes}p` : ''}
-                                    </small>
-                                  );
-                                })()}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
-
-      <Panel>
-        <SectionHeading
-          icon={<Icon name="plus" />}
-          title={`Ca trong tuần ${fmtDayShort(week[0])} – ${fmtDayShort(week[6])}`}
-          subtitle={`${totalShifts} ca trong bảng phân ca, mỗi ca kèm số lịch hẹn của khách`}
-        >
-          <button className="button" onClick={() => setShiftModal({ shift: null })}>
-            ＋ Xếp ca
+        <div className="adm-tabs" role="tablist" aria-label="Chế độ xem lịch làm việc">
+          <button role="tab" aria-selected={tab === 'grid'}
+            className={tab === 'grid' ? 'is-on' : ''} onClick={() => setTab('grid')}>
+            <Icon name="calendar" /> Ma trận tuần
           </button>
-        </SectionHeading>
-        {listError && <p className="adm-error" style={{ padding: '0 16px' }}>{listError}</p>}
+          <button role="tab" aria-selected={tab === 'shifts'}
+            className={tab === 'shifts' ? 'is-on' : ''} onClick={() => setTab('shifts')}>
+            <Icon name="clock" /> Danh sách ca
+            <em className="adm-tab-count">{totalShifts}</em>
+          </button>
+          <button role="tab" aria-selected={tab === 'requests'}
+            className={tab === 'requests' ? 'is-on' : ''} onClick={() => setTab('requests')}>
+            <Icon name="schedule" /> Yêu cầu đổi ca
+            {pendingRequests.length > 0
+              ? <em className="adm-tab-count is-alert">{pendingRequests.length}</em>
+              : <em className="adm-tab-count">0</em>}
+          </button>
+        </div>
 
-        {shifts.length === 0 ? (
-          <EmptyState
-            title="Tuần này chưa có ca nào"
-            detail="Bấm Xếp ca để tạo ca đầu tiên cho nhân viên."
-          />
-        ) : (
-          <div style={{ padding: '4px 16px 16px' }}>
-            {[...shiftsByDate.entries()].map(([date, list]) => (
-              <section key={date} className="adm-day-group">
-                <h4>
-                  {weekdayShort(date)} · {fmtDayShort(date)}
-                  {date === today() && <span className="badge pending"><i />Hôm nay</span>}
-                  <em>{list.length} ca</em>
-                </h4>
-                <ul>
-                  {list.map((shift) => {
-                    const hours = Math.round(
-                      (timeToMinutes(shift.endTime) - timeToMinutes(shift.startTime)) / 60 * 10) / 10;
-                    return (
-                      <li key={shift.id} className="adm-shift-row">
-                        <Avatar name={shift.staffName}
-                          url={staffById.get(shift.staffId)?.avatarUrl ?? shift.avatarUrl} size={32} />
-                        <span className="adm-shift-who">
-                          <strong>{shift.staffName}</strong>
-                          <small>{staffById.get(shift.staffId)?.specialty ?? '—'}</small>
+        {tab === 'grid' && (
+          shifts.length === 0 ? (
+            <EmptyState
+              title="Chưa có ca làm việc trong tuần này"
+              detail="Xem tuần khác bằng hai nút mũi tên ở trên."
+            />
+          ) : (
+            <div className="table-scroll">
+              <table className="adm-week">
+                <thead>
+                  <tr>
+                    <th>Nhân viên</th>
+                    {week.map((day) => (
+                      <th key={day} className={day === today() ? 'is-today' : undefined}>
+                        {weekdayShort(day)}<small>{fmtDayShort(day)}</small>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map((person, index) => (
+                    <tr key={person.id}>
+                      <th scope="row">
+                        <span className="adm-stt" style={{ display: 'block' }}>{index + 1}</span>
+                        <span className="adm-cell-name">
+                          <Avatar name={person.name} url={person.avatarUrl} size={32} />
+                          <span style={{ minWidth: 0 }}>
+                            <strong>{person.name}</strong>
+                            <small>{person.specialty ?? '—'}</small>
+                          </span>
                         </span>
-                        <span className="adm-shift-when">
-                          <strong>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</strong>
-                          <small>{hours}h</small>
-                        </span>
-                        {shift.status === 'OFF'
-                          ? <span className="badge cancelled"><i />Nghỉ</span>
-                          : shift.bookingCount > 0
-                            ? <span className="badge pending"><i />{shift.bookingCount} lịch</span>
-                            : <span className="adm-none">Chưa có lịch</span>}
-                        <span className="adm-shift-actions">
-                          <button className="adm-icon-btn" title="Sửa giờ ca"
-                            aria-label={`Sửa giờ ca của ${shift.staffName}`}
-                            onClick={() => setShiftModal({ shift })}>
-                            <Icon name="edit" />
-                          </button>
-                          <button className="adm-icon-btn" title="Xoá ca"
-                            aria-label={`Xoá ca của ${shift.staffName}`}
-                            onClick={() => removeShift(shift)}>
-                            <Icon name="trash" />
-                          </button>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
+                      </th>
+                      {week.map((day) => {
+                        const dayShifts = byStaffDay.get(`${person.id}|${day}`) ?? [];
+                        if (dayShifts.length === 0) {
+                          return <td key={day}><div className="adm-cell is-off">Nghỉ</div></td>;
+                        }
+                        /* Gộp các ca trong ngày thành một khối cho gọn. */
+                        const start = Math.min(...dayShifts.map((s) => timeToMinutes(s.startTime)));
+                        const end = Math.max(...dayShifts.map((s) => timeToMinutes(s.endTime)));
+                        const booked = dayShifts.reduce((sum, s) => sum + s.bookingCount, 0);
+                        const off = dayShifts.every((s) => s.status === 'OFF');
+
+                        return (
+                          <td key={day}>
+                            <div className={`adm-cell ${off ? 'is-off' : 'is-shift'}`}>
+                              {off ? 'Nghỉ' : (
+                                <>
+                                  <strong>{`${dayShifts[0].startTime.slice(0, 5)} – ${dayShifts[0].endTime.slice(0, 5)}`}</strong>
+                                  <small>
+                                    {dayShifts.length > 1 ? `${dayShifts.length} ca · ` : ''}
+                                    {Math.round((end - start) / 60 * 10) / 10}h · {booked} lịch
+                                  </small>
+                                  {(() => {
+                                    const att = attByStaffDay.get(`${person.id}|${day}`);
+                                    if (!att) return null;
+                                    if (att.onLeave) return <small>🏖️ Đang nghỉ duyệt</small>;
+                                    if (!att.checkInAt) return <small>⚠️ Chưa chấm công</small>;
+                                    return (
+                                      <small>
+                                        ✓ {String(att.checkInAt).slice(11, 16)}
+                                        {att.checkOutAt ? ` → ${String(att.checkOutAt).slice(11, 16)}` : ' → chưa về'}
+                                        {att.status === 'LATE' ? ` · muộn ${att.lateMinutes}p` : ''}
+                                      </small>
+                                    );
+                                  })()}
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+
+        {tab === 'shifts' && (
+          <>
+            <div className="adm-tab-bar">
+              <p>{totalShifts} ca trong bảng phân ca — mỗi ca kèm số lịch hẹn của khách,
+                bấm biểu tượng để sửa giờ hoặc xoá.</p>
+              <button className="button" onClick={() => setShiftModal({ shift: null })}>
+                ＋ Xếp ca
+              </button>
+            </div>
+            {listError && <p className="adm-error" style={{ padding: '0 16px' }}>{listError}</p>}
+            {shifts.length === 0 ? (
+              <EmptyState
+                title="Tuần này chưa có ca nào"
+                detail="Bấm Xếp ca để tạo ca đầu tiên cho nhân viên."
+              />
+            ) : (
+              <div style={{ padding: '4px 16px 16px' }}>
+                {[...shiftsByDate.entries()].map(([date, list]) => (
+                  <section key={date} className="adm-day-group">
+                    <h4>
+                      {weekdayShort(date)} · {fmtDayShort(date)}
+                      {date === today() && <span className="badge pending"><i />Hôm nay</span>}
+                      <em>{list.length} ca</em>
+                    </h4>
+                    <ul>
+                      {list.map((shift) => {
+                        const hours = Math.round(
+                          (timeToMinutes(shift.endTime) - timeToMinutes(shift.startTime)) / 60 * 10) / 10;
+                        return (
+                          <li key={shift.id} className="adm-shift-row">
+                            <Avatar name={shift.staffName}
+                              url={staffById.get(shift.staffId)?.avatarUrl ?? shift.avatarUrl} size={32} />
+                            <span className="adm-shift-who">
+                              <strong>{shift.staffName}</strong>
+                              <small>{staffById.get(shift.staffId)?.specialty ?? '—'}</small>
+                            </span>
+                            <span className="adm-shift-when">
+                              <strong>{shift.startTime.slice(0, 5)} – {shift.endTime.slice(0, 5)}</strong>
+                              <small>{hours}h</small>
+                            </span>
+                            {shift.status === 'OFF'
+                              ? <span className="badge cancelled"><i />Nghỉ</span>
+                              : shift.bookingCount > 0
+                                ? <span className="badge pending"><i />{shift.bookingCount} lịch</span>
+                                : <span className="adm-none">Chưa có lịch</span>}
+                            <span className="adm-shift-actions">
+                              <button className="adm-icon-btn" title="Sửa giờ ca"
+                                aria-label={`Sửa giờ ca của ${shift.staffName}`}
+                                onClick={() => setShiftModal({ shift })}>
+                                <Icon name="edit" />
+                              </button>
+                              <button className="adm-icon-btn" title="Xoá ca"
+                                aria-label={`Xoá ca của ${shift.staffName}`}
+                                onClick={() => removeShift(shift)}>
+                                <Icon name="trash" />
+                              </button>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'requests' && (
+          pendingRequests.length === 0 ? (
+            <EmptyState
+              title="Không có yêu cầu đổi ca"
+              detail="Nhân viên xin thêm, đổi hoặc bớt ca sẽ hiện ở đây để duyệt."
+            />
+          ) : (
+            <ul className="adm-req-list">
+              {pendingRequests.map((item) => (
+                <ScheduleRequestCard key={item.id} item={item} onDone={reload} />
+              ))}
+            </ul>
+          )
         )}
       </Panel>
 
