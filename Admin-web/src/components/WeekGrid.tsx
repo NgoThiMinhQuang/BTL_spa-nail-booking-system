@@ -157,13 +157,13 @@ export function WeekGrid({
                   return (
                     <button
                       key={b.id}
-                      className={`wk-block ${b.status.toLowerCase()}${size}${String(b.id) === String(selected) ? ' is-selected' : ''}`}
+                      className={`wk-block ${b.status.toLowerCase()}${size}${b.disrupted ? ' is-disrupted' : ''}${String(b.id) === String(selected) ? ' is-selected' : ''}`}
                       style={{ top: y(s), height: h, left: `calc(${lane * w}% + 3px)`, width: `calc(${w}% - 6px)` }}
                       onClick={() => onOpen(String(b.id))}
-                      title={`${b.startsAt.slice(11)} – ${b.endsAt.slice(11)} · ${b.customerName} · ${b.serviceName}`}
+                      title={`${b.startsAt.slice(11)} – ${b.endsAt.slice(11)} · ${b.customerName} · ${b.serviceName}${b.disrupted ? ' · CẦN XỬ LÝ (nghỉ đột xuất)' : ''}`}
                     >
-                      <strong>{b.customerName}</strong>
-                      <em>{b.startsAt.slice(11)}</em>
+                      <strong>{b.customerName}{b.disrupted ? ' ⚠' : ''}</strong>
+                      <em>{b.disrupted ? 'Cần xử lý' : b.startsAt.slice(11)}</em>
                     </button>
                   );
                 })}
@@ -178,6 +178,7 @@ export function WeekGrid({
         {(['CONFIRMED', 'PROCESSING', 'COMPLETED', 'PENDING', 'CANCELLED'] as const).map((s) => (
           <span key={s} className={`wk-dot ${s.toLowerCase()}`}><Icon name="schedule" />{STATUS_LABELS[s]}</span>
         ))}
+        <span className="wk-dot disrupted"><Icon name="schedule" />Cần xử lý (nghỉ đột xuất)</span>
       </div>
     </div>
   );

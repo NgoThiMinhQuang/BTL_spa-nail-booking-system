@@ -130,9 +130,9 @@ export function DayTimeline({
           return (
             <button
               key={b.id}
-              className={`tl-block ${b.status.toLowerCase()}${size}${String(b.id) === String(selected) ? ' is-selected' : ''}`}
+              className={`tl-block ${b.status.toLowerCase()}${size}${b.disrupted ? ' is-disrupted' : ''}${String(b.id) === String(selected) ? ' is-selected' : ''}`}
               style={{ top, height: h, left: `calc(${lane * w}% + 4px)`, width: `calc(${w}% - 8px)` }}
-              title={`${b.startsAt.slice(11)} – ${b.endsAt.slice(11)} · ${b.customerName} · ${b.serviceName}`}
+              title={`${b.startsAt.slice(11)} – ${b.endsAt.slice(11)} · ${b.customerName} · ${b.serviceName}${b.disrupted ? ' · CẦN XỬ LÝ (nghỉ đột xuất)' : ''}`}
               onClick={() => onOpen(String(b.id))}
             >
               <strong className="tl-name">{b.customerName}</strong>
@@ -140,7 +140,7 @@ export function DayTimeline({
               <span className="tl-foot">
                 <Icon name="clock" />
                 <span className="tl-time">{b.startsAt.slice(11)} – {b.endsAt.slice(11)}</span>
-                <em className="tl-badge">{STATUS_LABELS[b.status]}</em>
+                <em className="tl-badge">{b.disrupted ? 'Cần xử lý' : STATUS_LABELS[b.status]}</em>
               </span>
             </button>
           );

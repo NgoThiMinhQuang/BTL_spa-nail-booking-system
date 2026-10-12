@@ -94,6 +94,7 @@
 .wk-dot.completed svg{background:#E6F4E3;color:#3F7A38}
 .wk-dot.pending svg{background:#F3EDFB;color:#5F4483}
 .wk-dot.cancelled svg{background:#F4F1F3;color:#7A6A72}
+.wk-dot.disrupted svg{background:#FBE3EA;color:#B4232F}
 
 /* ---- Lịch trong ngày (chế độ Ngày): cùng ngôn ngữ thị giác ---- */
 .tl{display:grid;grid-template-columns:56px minmax(0,1fr);padding:10px 14px 12px 0}
@@ -143,6 +144,10 @@
 .tl-block.pending{background:#F3EDFB;border-color:#E2D7F2;color:#5F4483}
 .tl-block.cancelled,.tl-block.no_show{background:#F4F1F3;border-color:#E6DEE2;color:#7A6A72}
 .tl-block.cancelled .tl-name,.tl-block.no_show .tl-name{text-decoration:line-through}
+/* Lịch chờ xử lý do nghỉ đột xuất: viền đứt đỏ + nhãn đỏ, trạng thái giữ nguyên */
+.tl-block.is-disrupted{outline:2px dashed #C43D5E;outline-offset:2px}
+.tl-block.is-disrupted .tl-badge{background:#C43D5E;color:#fff;font-weight:700}
+.wk-block.is-disrupted{outline:2px dashed #C43D5E;outline-offset:1px}
 
 /* ---- Thu hẹp: lưới tuần cuộn ngang, giờ bỏ dấu phút ---- */
 @media(max-width:700px){

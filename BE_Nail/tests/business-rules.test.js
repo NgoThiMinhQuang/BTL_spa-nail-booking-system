@@ -3677,3 +3677,64 @@ describe('Mien tru su co nghi dot xuat', () => {
     }
   });
 });
+
+/* Dashboard nhan vien danh dau lich cho xu ly do nghi dot xuat. */
+describe('Co bien dong tren lich nhan vien', () => {
+  before(async () => {
+    await ensureReady();
+    dbConfig._setPoolForTests(testPool);
+  });
+
+  after(async () => {
+    dbConfig._setPoolForTests(realPool);
+  });
+
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const fmtDay = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  const hm = (d) => pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  const dt = (d) => fmtDay(d) + ' ' + hm(d) + ':00';
+
+  test('lich trung don nghi dot xuat thi disrupted=true', async () => {
+    const { staffDashboard } = await import('../src/controllers/staff-dashboard.controller.js');
+    const connection = await connect();
+    const track = { staffIds: [9784], bookingIds: [], leaveIds: [] };
+    try {
+      await connection.query(
+        "INSERT INTO users (user_id, full_name, phone, email, password, role, status) VALUES (9784, 'NV Co Bien', '0939780004', 'nvcd4@test.local', '$2b$10$testseed', 'STAFF', 'ACTIVE')");
+      await connection.query(
+        "INSERT INTO staff (staff_id, user_id, specialty, experience_year) VALUES (9784, 9784, 'Test', 1)");
+      const s = new Date(Date.now() + 60 * 60000);
+      const e = new Date(s.getTime() + 75 * 60000);
+      const [b] = await connection.query(
+        "INSERT INTO booking (customer_id, staff_id, service_id, service_price, service_duration, buffer_time, start_time, end_time, status, source) VALUES (9001, 9784, 1, 200000, 60, 15, ?, ?, 'CONFIRMED', 'MOBILE')",
+        [dt(s), dt(e)]);
+      track.bookingIds.push(b.insertId);
+      const [lv] = await connection.query(
+        "INSERT INTO staff_leave_request (staff_id, start_datetime, end_datetime, reason, leave_type, reason_category, status, reviewed_at, review_note) VALUES (9784, ?, ?, 'Test', 'EMERGENCY', 'HEALTH', 'APPROVED', NOW(), 'auto')",
+        [dt(new Date(s.getTime() - 3600000)), dt(new Date(e.getTime() + 3600000))]);
+      track.leaveIds.push(lv.insertId);
+
+      const res = mockRes();
+      await staffDashboard(
+        { query: { date: fmtDay(s) }, user: { staffId: 9784 }, protocol: 'http', get: () => 'localhost:3000' },
+        res, strictNext);
+      assert.equal(res.statusCode, 200);
+      const found = res.body.data.bookings.find((x) => String(x.id) === String(b.insertId));
+      assert.ok(found, 'phai thay lich trong dashboard');
+      assert.equal(found.disrupted, true);
+      assert.equal(found.status, 'CONFIRMED');
+    } finally {
+      if (track.bookingIds.length) {
+        await connection.query('DELETE FROM booking_event WHERE booking_id IN (?)', [track.bookingIds]);
+        await connection.query('DELETE FROM booking WHERE booking_id IN (?)', [track.bookingIds]);
+      }
+      if (track.leaveIds.length) {
+        await connection.query("DELETE FROM notification WHERE ref_type = 'leave_request' AND ref_id IN (?)", [track.leaveIds]);
+        await connection.query('DELETE FROM staff_leave_request WHERE leave_request_id IN (?)', [track.leaveIds]);
+      }
+      await connection.query('DELETE FROM staff WHERE staff_id IN (?)', [track.staffIds]);
+      await connection.query('DELETE FROM users WHERE user_id IN (?)', [track.staffIds]);
+      await connection.end();
+    }
+  });
+});

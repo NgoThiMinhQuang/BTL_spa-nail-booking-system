@@ -192,6 +192,12 @@ export function BookingPage() {
               <div><dt>Trạng thái</dt><dd><Badge status={b.status} /></dd></div>
               <div><dt>Thời gian đặt</dt><dd>{b.createdAt}</dd></div>
             </dl>
+            {b.disrupted && (
+              <p className="disrupted-note">
+                Lịch này đang chờ xử lý do bạn báo nghỉ đột xuất — quản trị viên
+                đang bàn giao cho khách. Không phục vụ lịch này.
+              </p>
+            )}
           </section>
 
           <section className="booking-card booking-status">

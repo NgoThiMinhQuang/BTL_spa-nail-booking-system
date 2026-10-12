@@ -50,6 +50,9 @@ export interface Booking {
   total?: number;
   paymentStatus?: string | null;
   paidAmount?: number | null;
+  /** Lịch chờ xử lý do chính nhân viên này báo nghỉ đột xuất: giữ nguyên
+      trạng thái đặt lịch, giao diện chỉ gắn dấu hiệu để khỏi phục vụ nhầm. */
+  disrupted?: boolean | null;
 }
 
 export interface CustomerSummary {

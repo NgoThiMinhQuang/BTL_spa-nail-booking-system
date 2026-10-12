@@ -53,7 +53,15 @@ export async function staffDashboard(req, res, next) {
           s.image AS serviceImage, s.description AS serviceDescription,
           pay.payment_status AS paymentStatus, pay.amount AS paidAmount,
           (SELECT COALESCE(SUM(ba.price * ba.quantity), 0) FROM booking_addon ba
-            WHERE ba.booking_id = b.booking_id) AS addonTotal
+            WHERE ba.booking_id = b.booking_id) AS addonTotal,
+          /* Lịch chờ xử lý do chính nhân viên này báo nghỉ đột xuất: giữ
+             nguyên trạng thái đặt lịch, chỉ gắn cờ để giao diện đánh dấu. */
+          EXISTS(SELECT 1 FROM staff_leave_request lr
+            WHERE lr.staff_id = b.staff_id
+              AND lr.leave_type = 'EMERGENCY' AND lr.status = 'APPROVED'
+              AND lr.start_datetime < b.end_time AND lr.end_datetime > b.start_time
+              AND lr.end_datetime > NOW()
+              AND b.status IN ('PENDING','CONFIRMED','PROCESSING')) AS disrupted
          FROM booking b
          LEFT JOIN customer c ON c.customer_id = b.customer_id
          LEFT JOIN users u ON u.user_id = c.user_id
@@ -117,7 +125,7 @@ export async function staffDashboard(req, res, next) {
         `SELECT leave_request_id AS id,
           DATE_FORMAT(start_datetime,'%d/%m/%Y %H:%i') AS fromAt,
           DATE_FORMAT(end_datetime,'%d/%m/%Y %H:%i') AS toAt,
-          reason, status
+          reason, status, leave_type AS leaveType, reason_category AS reasonCategory
          FROM staff_leave_request
         WHERE staff_id = ? AND status IN ('APPROVED','PENDING')
           AND DATE(end_datetime) >= ? AND DATE(start_datetime) <= DATE_ADD(?, INTERVAL 30 DAY)
@@ -186,13 +194,13 @@ export async function staffDashboard(req, res, next) {
         bookings: bookings.map((item) => ({
           ...item,
           id: String(item.id),
-          customerId: item.customerId == null ? null : String(item.customerId),
-          price: Number(item.price),
+          customerId: item.customerId == null ? null : String(item.customerId),          price: Number(item.price),
           duration: Number(item.duration),
           bufferTime: Number(item.bufferTime ?? 0),
           addonTotal: Number(item.addonTotal ?? 0),
           total: Number(item.price) + Number(item.addonTotal ?? 0),
           paidAmount: item.paidAmount == null ? null : Number(item.paidAmount),
+          disrupted: Boolean(Number(item.disrupted ?? 0)),
           images: images
             .filter((image) => Number(image.bookingId) === Number(item.id))
             .map((image) => String(image.url)),

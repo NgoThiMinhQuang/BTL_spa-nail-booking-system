@@ -55,7 +55,7 @@ export function BookingTable({
               return (
                 <tr
                   key={b.id}
-                  className={isSelected ? 'is-selected' : ''}
+                  className={`${isSelected ? 'is-selected' : ''}${b.disrupted ? ' is-disrupted' : ''}`}
                   data-status={detailed ? b.status.toLowerCase() : undefined}
                 >
                   <td className="col-stt">{index + 1}</td>
@@ -74,7 +74,10 @@ export function BookingTable({
                   </td>
                   <td className="schedule-service">{b.serviceName}</td>
                   <td><span className="duration">◷ {b.duration} phút</span></td>
-                  <td><Badge status={b.status} /></td>
+                  <td>
+                    <Badge status={b.status} />
+                    {b.disrupted && <small className="disrupted-flag">Cần xử lý (nghỉ đột xuất)</small>}
+                  </td>
                   <td>
                     <button
                       type="button"
